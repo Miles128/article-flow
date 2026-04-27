@@ -94,24 +94,31 @@ npm run preview
 ## 项目结构
 
 ```
-src/
-├── lib/
-│   ├── aiTaste.ts           # AI 味检测逻辑
-│   ├── workflow.ts          # 工作流定义
-│   ├── store.ts             # 状态管理
-│   └── server/
-│       └── db/
-│           ├── index.ts     # 数据库连接
-│           └── schema.ts    # 数据模型
-└── routes/
-    ├── +page.svelte         # 项目列表页
-    ├── +layout.svelte
-    ├── api/
-    │   └── projects/        # 项目 API
-    └── projects/
-        └── [id]/
-            ├── +page.svelte # 项目编辑页
-            └── +page.server.ts
+Article-Flow/
+├── frontend/                     # SvelteKit 前端应用
+│   ├── src/
+│   │   ├── lib/
+│   │   │   ├── aiTaste.ts       # AI 味检测逻辑
+│   │   │   ├── workflow.ts      # 工作流定义
+│   │   │   ├── store.ts         # 状态管理
+│   │   │   └── server/
+│   │   │       └── db/
+│   │   │           ├── index.ts # 数据库连接
+│   │   │           └── schema.ts # 数据模型
+│   │   └── routes/
+│   │       ├── +page.svelte     # 项目列表页
+│   │       ├── +layout.svelte
+│   │       ├── api/
+│   │       │   └── projects/    # 项目 API
+│   │       └── projects/
+│   │           └── [id]/
+│   │               ├── +page.svelte # 项目编辑页
+│   │               └── +page.server.ts
+│   ├── README.md
+│   └── package.json
+├── doc/                          # 文档
+│   └── workflow-visualization-scheme.md
+└── README.md
 ```
 
 ## API
@@ -137,10 +144,15 @@ src/
 ### 本地打包
 
 ```bash
+cd frontend
 npm run build
 ```
 
 构建产物在 `build/` 目录。
+
+## 已知问题
+
+- Svelte 5 runes 模式：使用 `$props()` 而非 `export let`
 
 ## 许可证
 

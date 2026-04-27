@@ -8,7 +8,7 @@
 	import { Tipex } from '@friendofsvelte/tipex';
 	import '@friendofsvelte/tipex/styles/index.css';
 
-	export let data: PageLoad;
+	let { data } = $props<{ data: PageLoad }>();
 
 	let project: Project | null = $state(null);
 	let currentStep: WorkflowStep = $state(0);
@@ -36,7 +36,7 @@
 		const res = await fetch(`/api/projects/${project.id}/contents?step=${currentStep}`);
 		if (res.ok) {
 			const data = await res.json();
-			if (data) {
+			if (data && data.content !== undefined && data.content !== null) {
 				content = data.content;
 			}
 		}
@@ -216,13 +216,13 @@
 						<div>
 							<div class="flex justify-between text-xs text-gray-500 mb-1">
 								<span>字数</span>
-								<span>{content.length} / {project.targetWordCount}</span>
+								<span>{(content || '').length} / {project.targetWordCount}</span>
 							</div>
 							<div class="w-full bg-gray-200 rounded-full h-2">
 								<div
 									class="bg-blue-600 h-2 rounded-full transition-all"
-									style="width: {Math.min(100, Math.round((content.length / project.targetWordCount) * 100))}%"
-								/>
+									style="width: {Math.min(100, Math.round(((content?.length ?? 0) / project.targetWordCount) * 100))}%"
+								></div>
 							</div>
 						</div>
 
@@ -262,7 +262,7 @@
 									bind:value={content}
 									placeholder="在这里输入内容..."
 									class="w-full min-h-[400px] p-4 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
-								/>
+								></textarea>
 							</div>
 						{:else if currentStep >= 5 && currentStep <= 8}
 							<div class="h-full flex flex-col">
@@ -307,7 +307,7 @@
 													bind:value={content}
 													placeholder="在这里输入 Markdown 内容..."
 													class="w-full h-full p-6 resize-none outline-none font-mono text-sm"
-												/>
+												></textarea>
 											</div>
 											<div class="flex-1 overflow-y-auto p-6">
 												<div class="prose prose-slate max-w-none">
@@ -385,16 +385,10 @@
 
 			<div class="p-6 space-y-6">
 				<div class="text-center">
-					<div
-						class="text-4xl font-bold mb-2"
-						class={getAITasteColor(aiAnalysis.score)}
-					>
+					<div class="text-4xl font-bold mb-2 {getAITasteColor(aiAnalysis.score)}">
 						{aiAnalysis.score}%
 					</div>
-					<div
-						class="inline-block px-3 py-1 rounded-full text-sm"
-						class={getAITasteBgColor(aiAnalysis.score)}
-					>
+					<div class="inline-block px-3 py-1 rounded-full text-sm {getAITasteBgColor(aiAnalysis.score)}">
 						{aiAnalysis.score < 30
 							? 'AI味低，很好！'
 							: aiAnalysis.score < 50
