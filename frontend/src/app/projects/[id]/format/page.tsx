@@ -42,7 +42,7 @@ const defaultStyles: StyleConfig = {
   h2BgColor: '#f0f9ff',
   h2BgShape: 'rounded',
   bodyFont: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  bodyColor: '#374151',
+  bodyColor: '#111827',
   boldColor: '#111827',
   quoteColor: '#6b7280',
   quoteBgColor: '#f9fafb',
@@ -52,10 +52,12 @@ const defaultStyles: StyleConfig = {
 const colorPresets = [
   '#0ea5e9', '#10b981', '#f59e0b', '#ef4444',
   '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
+  '#3b82f6', '#14b8a6', '#f97316', '#f43f5e',
+  '#6366f1', '#a855f7', '#0891b2', '#65a30d',
+  '#1d4ed8', '#059669', '#d97706', '#dc2626',
+  '#4f46e5', '#9333ea', '#0e7490', '#4d7c0f',
   '#111827', '#1f2937', '#374151', '#4b5563',
-  '#6b7280', '#9ca3af', '#0369a1', '#065f46',
-  '#92400e', '#991b1b', '#5b21b6', '#9d174d',
-  '#f0f9ff', '#f0fdf4', '#fffbeb', '#fef2f2',
+  '#facc15', '#fef08a', '#e5e7eb', '#f3f4f6',
 ];
 
 const fontOptions = [
@@ -769,7 +771,7 @@ export default function FormatPage() {
 
       {activeColorPicker && (
         <div 
-          className="fixed inset-0 z-30" 
+          className="fixed inset-0 z-20" 
           onClick={() => setActiveColorPicker(null)}
         />
       )}
