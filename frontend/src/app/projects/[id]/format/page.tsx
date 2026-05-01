@@ -243,9 +243,10 @@ export default function FormatPage() {
 
     function flushList() {
       if (listType && listContent.length > 0) {
-        result.push(`<${listType} style="font-size: 15px; color: ${styles.bodyColor}; line-height: 2; margin: 16px 0; padding-left: 2em; list-style-type: ${listType === 'ul' ? 'disc' : 'decimal'};">`);
+        const listTag = listType === 'ul' ? 'ul' : 'ol';
+        result.push(`<${listTag} style="font-size: 15px; color: ${styles.bodyColor}; line-height: 200%; margin-top: 16px; margin-bottom: 16px; padding-left: 24px; list-style-type: ${listType === 'ul' ? 'disc' : 'decimal'};">`);
         result.push(...listContent);
-        result.push(`</${listType}>`);
+        result.push(`</${listTag}>`);
         listContent = [];
         listType = null;
         inList = false;
@@ -254,11 +255,9 @@ export default function FormatPage() {
 
     function flushTable() {
       if (tableContent.length > 0) {
-        result.push(`<div style="overflow-x: auto; margin: 16px 0;">`);
-        result.push(`<table style="width: 100%; border-collapse: collapse; font-size: 14px; border: 1px solid #e5e7eb;">`);
+        result.push(`<table style="width: 100%; border-collapse: collapse; font-size: 14px; border: 1px solid #e5e7eb; margin-top: 16px; margin-bottom: 16px;">`);
         result.push(...tableContent);
         result.push('</table>');
-        result.push('</div>');
         tableContent = [];
         inTable = false;
       }
@@ -277,7 +276,7 @@ export default function FormatPage() {
       
       processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" style="color: ${styles.themeColor}; text-decoration: underline;">$1</a>`);
       
-      processed = processed.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, `<img src="$2" alt="$1" style="max-width: 100%; height: auto; border-radius: 8px; margin: 16px 0;" />`);
+      processed = processed.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, `<img src="$2" alt="$1" style="max-width: 100%; height: auto; border-radius: 8px; margin-top: 16px; margin-bottom: 16px;" />`);
       
       return processed;
     }
@@ -296,7 +295,7 @@ export default function FormatPage() {
       if (line.startsWith('```')) {
         if (inCodeBlock) {
           const codeHtml = codeContent.join('\n');
-          result.push(`<pre style="background-color: #1f2937; color: #e5e7eb; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 16px 0; font-size: 13px; line-height: 1.6; font-family: Consolas, Monaco, monospace;"><code>${codeHtml}</code></pre>`);
+          result.push(`<pre style="background-color: #1f2937; color: #e5e7eb; padding: 16px; border-radius: 8px; overflow-x: auto; margin-top: 16px; margin-bottom: 16px; font-size: 13px; line-height: 160%; font-family: Consolas, Monaco, monospace;"><code>${codeHtml}</code></pre>`);
           codeContent = [];
           inCodeBlock = false;
         } else {
@@ -356,25 +355,32 @@ export default function FormatPage() {
 
       if (line.startsWith('## ')) {
         const hasBg = styles.h2BgShape !== 'none';
-        const h2Styles: string[] = [
-          `font-size: 17px;`,
-          `font-weight: 700;`,
-          `color: ${styles.h2Color};`,
-          `margin-top: 28px;`,
-          `margin-bottom: 16px;`,
-          `display: flex;`,
-          `align-items: center;`,
-          `gap: 10px;`
-        ];
+        const titleText = processInlineStyles(line.slice(3).trim());
         
         if (hasBg) {
-          h2Styles.push(`padding: 8px 14px;`);
-          h2Styles.push(`background-color: ${styles.h2BgColor};`);
-          h2Styles.push(`border-radius: ${getBgShapeRadius(styles.h2BgShape)};`);
+          const h2BgStyles = [
+            `font-size: 17px;`,
+            `font-weight: 700;`,
+            `color: ${styles.h2Color};`,
+            `margin-top: 28px;`,
+            `margin-bottom: 16px;`,
+            `padding: 8px 14px;`,
+            `background-color: ${styles.h2BgColor};`,
+            `border-radius: ${getBgShapeRadius(styles.h2BgShape)};`
+          ];
+          result.push(`<h2 style="${h2BgStyles.join(' ')}">${titleText}</h2>`);
+        } else {
+          const h2Styles = [
+            `font-size: 17px;`,
+            `font-weight: 700;`,
+            `color: ${styles.h2Color};`,
+            `margin-top: 28px;`,
+            `margin-bottom: 16px;`,
+            `line-height: 150%;`
+          ];
+          const leftBar = `<span style="display: inline-block; width: 4px; height: 18px; background-color: ${styles.themeColor}; border-radius: 2px; margin-right: 10px; vertical-align: middle;"></span>`;
+          result.push(`<h2 style="${h2Styles.join(' ')}">${leftBar}${titleText}</h2>`);
         }
-        
-        const leftBar = hasBg ? '' : `<span style="width: 4px; height: 18px; background-color: ${styles.themeColor}; border-radius: 2px;"></span>`;
-        result.push(`<h2 style="${h2Styles.join(' ')}">${leftBar}${processInlineStyles(line.slice(3).trim())}</h2>`);
         continue;
       }
 
@@ -384,32 +390,41 @@ export default function FormatPage() {
       }
 
       if (line.startsWith('> ')) {
-        const quoteText = line.slice(2).trim();
+        const quoteText = processInlineStyles(line.slice(2).trim());
         const hasBg = styles.quoteBgShape !== 'none';
-        const quoteStyles: string[] = [
-          `font-size: 14px;`,
-          `color: ${styles.quoteColor};`,
-          `line-height: 1.8;`,
-          `margin: 16px 0;`,
-          `font-style: italic;`
-        ];
         
         if (hasBg) {
-          quoteStyles.push(`padding: 14px 16px;`);
-          quoteStyles.push(`background-color: ${styles.quoteBgColor};`);
-          quoteStyles.push(`border-radius: ${getBgShapeRadius(styles.quoteBgShape)};`);
+          const quoteBgStyles = [
+            `font-size: 14px;`,
+            `color: ${styles.quoteColor};`,
+            `line-height: 180%;`,
+            `margin-top: 16px;`,
+            `margin-bottom: 16px;`,
+            `font-style: italic;`,
+            `padding: 14px 16px;`,
+            `background-color: ${styles.quoteBgColor};`,
+            `border-radius: ${getBgShapeRadius(styles.quoteBgShape)};`
+          ];
+          result.push(`<blockquote style="${quoteBgStyles.join(' ')}">${quoteText}</blockquote>`);
         } else {
-          quoteStyles.push(`padding: 8px 14px;`);
-          quoteStyles.push(`background-color: #fafafa;`);
-          quoteStyles.push(`border-left: 3px solid ${styles.themeColor};`);
+          const quoteStyles = [
+            `font-size: 14px;`,
+            `color: ${styles.quoteColor};`,
+            `line-height: 180%;`,
+            `margin-top: 16px;`,
+            `margin-bottom: 16px;`,
+            `font-style: italic;`,
+            `padding: 8px 14px;`,
+            `background-color: #fafafa;`,
+            `border-left: 3px solid ${styles.themeColor};`
+          ];
+          result.push(`<blockquote style="${quoteStyles.join(' ')}">${quoteText}</blockquote>`);
         }
-        
-        result.push(`<blockquote style="${quoteStyles.join(' ')}">${processInlineStyles(quoteText)}</blockquote>`);
         continue;
       }
 
       if (line.startsWith('---') || line.startsWith('***')) {
-        result.push(`<hr style="border: none; border-top: 1px dashed #e5e7eb; margin: 24px 0;" />`);
+        result.push(`<hr style="border: none; border-top: 1px dashed #e5e7eb; margin-top: 24px; margin-bottom: 24px;" />`);
         continue;
       }
 
@@ -417,7 +432,7 @@ export default function FormatPage() {
         continue;
       }
 
-      result.push(`<p style="font-size: 15px; color: ${styles.bodyColor}; line-height: 2; margin-bottom: 16px; text-indent: 2em;">${processInlineStyles(line.trim())}</p>`);
+      result.push(`<p style="font-size: 15px; color: ${styles.bodyColor}; line-height: 200%; margin-bottom: 16px;">${processInlineStyles(line.trim())}</p>`);
     }
 
     flushList();
@@ -431,7 +446,38 @@ export default function FormatPage() {
     
     try {
       const html = convertMarkdownToWechatHtml(displayContent);
-      await navigator.clipboard.writeText(html);
+      
+      if (navigator.clipboard && window.ClipboardItem) {
+        const blob = new Blob([html], { type: 'text/html' });
+        const item = new ClipboardItem({
+          'text/html': blob,
+          'text/plain': new Blob([html], { type: 'text/plain' })
+        });
+        await navigator.clipboard.write([item]);
+      } else {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        tempDiv.style.position = 'fixed';
+        tempDiv.style.left = '-9999px';
+        tempDiv.style.top = '-9999px';
+        document.body.appendChild(tempDiv);
+        
+        const range = document.createRange();
+        range.selectNodeContents(tempDiv);
+        const selection = window.getSelection();
+        if (selection) {
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        
+        document.execCommand('copy');
+        
+        if (selection) {
+          selection.removeAllRanges();
+        }
+        document.body.removeChild(tempDiv);
+      }
+      
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (error) {
