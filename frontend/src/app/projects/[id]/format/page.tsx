@@ -18,7 +18,8 @@ import {
   X,
   Square,
   Circle,
-  Minus
+  Minus,
+  Check
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -114,6 +115,7 @@ export default function FormatPage() {
   const [convertedContent, setConvertedContent] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [showStyleToolbar, setShowStyleToolbar] = useState(false);
+  const [showPresetMenu, setShowPresetMenu] = useState(false);
   const [styles, setStyles] = useState<StyleConfig>(defaultStyles);
   const [isConverting, setIsConverting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -145,6 +147,10 @@ export default function FormatPage() {
   }
 
   const displayContent = convertedContent || content || '';
+
+  const currentPreset = presetThemes.find(p => 
+    JSON.stringify(p.styles) === JSON.stringify(styles)
+  );
 
   function handleExportCSS() {
     const cssContent = `/* 微信公众号样式配置 */
@@ -202,15 +208,6 @@ export default function FormatPage() {
     };
     reader.readAsText(file);
     e.target.value = '';
-  }
-
-  function getBgShapeStyle(shape: string) {
-    switch (shape) {
-      case 'square': return 'rounded-none';
-      case 'rounded': return 'rounded-lg';
-      case 'pill': return 'rounded-full';
-      default: return '';
-    }
   }
 
   function getBgShapeRadius(shape: string) {
@@ -278,6 +275,47 @@ export default function FormatPage() {
 
             <div className="w-px h-6 bg-gray-200 mx-1" />
 
+            <div className="relative">
+              <button
+                onClick={() => setShowPresetMenu(!showPresetMenu)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <Palette size={16} />
+                预设样式
+                <ChevronDown size={14} className={clsx('transition-transform', showPresetMenu && 'rotate-180')} />
+              </button>
+
+              {showPresetMenu && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-20" 
+                    onClick={() => setShowPresetMenu(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 min-w-40 py-1">
+                    {presetThemes.map((preset, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setStyles(preset.styles);
+                          setShowPresetMenu(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition-colors"
+                      >
+                        <div 
+                          className="w-5 h-5 rounded-full border border-gray-200"
+                          style={{ backgroundColor: preset.styles.themeColor }}
+                        />
+                        <span className="text-sm text-gray-700">{preset.name}</span>
+                        {currentPreset?.name === preset.name && (
+                          <Check size={14} className="ml-auto text-primary-500" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
             <button
               onClick={() => setShowStyleToolbar(!showStyleToolbar)}
               className={clsx(
@@ -297,28 +335,6 @@ export default function FormatPage() {
         {showStyleToolbar && (
           <div className="bg-white border-b border-gray-200 px-4 py-3">
             <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-16">预设主题</span>
-                <div className="flex gap-1.5">
-                  {presetThemes.map((preset, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setStyles(preset.styles)}
-                      title={preset.name}
-                      className={clsx(
-                        'w-7 h-7 rounded-full border-2 transition-all hover:scale-110',
-                        JSON.stringify(styles) === JSON.stringify(preset.styles) 
-                          ? 'border-primary-500 ring-2 ring-primary-200' 
-                          : 'border-gray-200'
-                      )}
-                      style={{ backgroundColor: preset.styles.themeColor }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="w-px h-8 bg-gray-200" />
-
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 w-16">主题色</span>
                 <div className="relative">
@@ -613,25 +629,6 @@ export default function FormatPage() {
 
       <main className="flex-1 flex">
         <div className="w-3/5 border-r border-gray-200 flex flex-col">
-          <div className="px-4 py-2 bg-white border-b border-gray-200 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FileText size={14} className="text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Markdown</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {convertedContent && (
-                <span className="text-xs text-green-600">已规范化</span>
-              )}
-              <button
-                onClick={normalizeContent}
-                disabled={isConverting || !content.trim()}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
-              >
-                {isConverting ? <Loader2 className="animate-spin" size={12} /> : null}
-                规范化
-              </button>
-            </div>
-          </div>
           <div className="flex-1 overflow-hidden">
             <textarea
               value={content}
@@ -643,10 +640,6 @@ export default function FormatPage() {
         </div>
 
         <div className="w-2/5 flex flex-col bg-gray-100">
-          <div className="px-4 py-2 bg-white border-b border-gray-200 flex items-center gap-2">
-            <Palette size={14} className="text-gray-500" />
-            <span className="text-sm font-medium text-gray-700">预览</span>
-          </div>
           <div className="flex-1 overflow-auto p-6 flex justify-center items-start">
             <div 
               className="bg-white shadow-lg"
