@@ -23,7 +23,7 @@ const stepIcons: Record<string, React.ElementType> = {
   ListOrdered,
   PenTool,
   CheckSquare,
-  Format,
+  Type,
 };
 
 export default function ProjectPage() {
