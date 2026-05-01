@@ -1,159 +1,383 @@
 # Article Flow
 
-基于 SvelteKit 构建的文章写作工作流应用，提供 12 步标准化写作流程，支持 AI 味检测、多种工作区类型、断点保存等功能。
+面向内容创作者的网页版自媒体文章全流程工作流管理平台。采用 **Next.js 前端 + Python Flask + LangChain 后端** 架构，核心集成功能完善的所见即所得 Markdown 编辑器，支持实时预览、格式工具栏、快捷键操作、版本历史和多格式导出。
 
-## 功能特性
+## 核心特性
 
-### 12 步工作流
+### 7 步工作流
 
-| 步骤 | 名称   | 说明                 | 断点     |
-| -- | ---- | ------------------ | ------ |
-| 0  | 创建项目 | 选择工作区类型，设置项目基本信息   | <br /> |
-| 1  | 需求规格 | 定义文章目标受众、核心观点、字数要求 | <br /> |
-| 2  | 信息调研 | 收集相关资料、案例、数据支撑     | <br /> |
-| 3  | 确定选题 | 选择最终文章标题和结构大纲      | ✅      |
-| 4  | 素材搜索 | 查找案例、数据、引用材料       | <br /> |
-| 5  | 撰写初稿 | 完成文章主体内容撰写         | ✅      |
-| 6  | 内容审校 | 检查事实准确性、逻辑合理性      | <br /> |
-| 7  | 风格审校 | 统一文风、调整语气、去 AI 味   | <br /> |
-| 8  | 细节审校 | 校对错别字、标点、格式        | <br /> |
-| 9  | 配图建议 | 选择或生成文章配图          | <br /> |
-| 10 | 最终检查 | 整体审阅、确认发布准备        | <br /> |
-| 11 | 发布准备 | 导出文章、准备发布          | <br /> |
+灵活进入任意步骤，无需固定顺序，创作者可随时从任一环节开始或跳转。
 
-### 工作区类型
+| 步骤 | 名称   | 核心功能                                      |
+| -- | ---- | ----------------------------------------- |
+| 1  | 热搜选题 | 多平台热搜聚合（微博/知乎/B站/头条）、热点趋势分析、智能选题挖掘        |
+| 2  | 确定选题 | 多维度 AI 评估、选题卡片管理、状态追踪（待评估/已选定/已否决）        |
+| 3  | 搜集资料 | 多源内容采集（网页/文件/图片/OCR）、AI 智能摘要生成、关键词提取、引用管理 |
+| 4  | 列出大纲 | AI 智能生成、树形编辑、拖拽排序、模板库支持                   |
+| 5  | 写出草稿 | 大模型辅助写作（续写/润色/风格调整/扩写/精简）、AI 味检测、自动保存     |
+| 6  | 修改审核 | 评论批注、AI 合规检查、逻辑一致性分析、自定义审核流程              |
+| 7  | 格式处理 | Markdown 规范化、多平台格式适配（公众号/知乎/小红书等）、一键导出    |
 
-| 类型   | 说明        | 特点             |
-| ---- | --------- | -------------- |
-| 公众号  | 适合微信公众号文章 | 段落≤150 字，对话式风格 |
-| 视频脚本 | 适合视频旁白和字幕 | 高度口语化，段落≤80 字  |
-| 通用写作 | 标准文章格式    | 段落≤300 字，正式风格  |
+### Markdown 编辑器
 
-### AI 味检测
+- **多视图模式**：编辑模式、预览模式、双栏分屏模式
+- **格式工具栏**：粗体、斜体、删除线、标题、列表、引用、代码、链接、图片
+- **快捷键支持**：常用 Markdown 快捷键
+- **实时渲染**：实时预览 Markdown 渲染效果
+- **代码高亮**：支持多种编程语言语法高亮
 
-自动检测文章的 AI 痕迹，从三个维度分析：
+### AI 写作辅助
 
-- **连接词比率**：检测"然而、但是、当然"等过渡词的过度使用
-- **套话占比**：检测"总而言之、综上所述、值得一提的是"等套话
-- **句长标准差**：检测句式是否过于统一，缺乏节奏感
+基于 LangChain，支持多种大模型：
 
-目标：AI 味 < 30%
+| 功能         | 说明                           |
+| ---------- | ---------------------------- |
+| **AI 续写**  | 在当前位置继续写作，保持风格一致             |
+| **智能润色**   | 优化表达，提升文章质量                  |
+| **风格转换**   | 正式/随意/对话式/学术/诗意/幽默           |
+| **内容扩写**   | 增加细节、例子和解释                   |
+| **内容精简**   | 压缩到约 50% 长度，保留核心信息           |
+| **AI 味检测** | 从连接词比率、套话占比、句式多样性、情感自然度多维度分析 |
 
-### 编辑器
+### 多平台格式适配
 
-- **所见即所得模式**：基于 Tipex (TipTap) 的富文本编辑
-- **Markdown 双栏模式**：左侧编辑源码，右侧实时预览
-- **自动保存**：输入停止 2 秒后自动保存
+一键转换到主流自媒体平台格式：
+
+| 平台        | 格式特点                         |
+| --------- | ---------------------------- |
+| **微信公众号** | 段落≤150 字，对话式风格，适当使用 emoji    |
+| **知乎**    | 结构清晰，使用 Markdown 标题层级，引用使用 > |
+| **小红书**   | 段落极短，添加话题标签 #，使用表情符号分隔       |
+| **B站专栏**  | 年轻风格，图文并茂                    |
+| **简书**    | 标准 Markdown，简洁清新             |
+| **今日头条**  | 信息密度高，标题重要                   |
+
+### 多模型支持
+
+通过 LangChain 支持多种大模型供应商：
+
+- **OpenAI**：GPT-4o、GPT-4 Turbo、GPT-3.5 Turbo
+- **Anthropic**：Claude 3 Opus、Claude 3 Sonnet、Claude 3 Haiku
+- **智谱 AI**：GLM-4、GLM-3 Turbo
+
+可灵活切换不同模型，或同时配置多个模型。
 
 ## 技术栈
 
-| 层级  | 技术                   | 版本     |
-| --- | -------------------- | ------ |
-| 框架  | SvelteKit            | 2.x    |
-| 语言  | TypeScript           | 6.x    |
-| 样式  | Tailwind CSS         | 4.x    |
-| 编辑器 | Tipex (TipTap)       | 0.1.x  |
-| 数据库 | SQLite + Drizzle ORM | 0.45.x |
-| 图标  | Lucide Svelte        | 1.x    |
+### 前端
+
+| 技术             | 版本   | 用途                          |
+| -------------- | ---- | --------------------------- |
+| Next.js        | 14.x | React 全栈框架，App Router       |
+| React          | 18.x | UI 框架                       |
+| TypeScript     | 5.x  | 类型安全                        |
+| Tailwind CSS   | 4.x  | 原子化 CSS                     |
+| Zustand        | 4.x  | 轻量级状态管理                     |
+| React Markdown | 9.x  | Markdown 渲染                 |
+| Remark GFM     | 4.x  | GitHub Flavored Markdown 支持 |
+| Lucide React   | 1.x  | 图标库                         |
+| Axios          | 1.x  | HTTP 客户端                    |
+
+### 后端
+
+| 技术              | 版本    | 用途            |
+| --------------- | ----- | ------------- |
+| Flask           | 3.x   | Python Web 框架 |
+| LangChain       | 0.1.x | 大模型应用框架       |
+| PyMongo         | 4.x   | MongoDB 驱动    |
+| Beautiful Soup  | 4.x   | 网页解析          |
+| Requests        | 2.x   | HTTP 请求       |
+| Python Markdown | 3.x   | Markdown 处理   |
+
+### 数据库
+
+- **MongoDB**：文档型数据库，存储项目、选题、资料、评论等
 
 ## 快速开始
 
 ### 环境要求
 
-- Node.js >= 18.x
-- npm >= 9.x
+- **Node.js** >= 18.x
+- **Python** >= 3.10
+- **MongoDB** >= 5.0（本地或 Docker）
 
-### 安装
+### 1. 克隆项目
+
+```bash
+git clone https://github.com/Miles128/article-flow.git
+cd article-flow
+```
+
+### 2. 后端配置
+
+```bash
+cd backend
+
+# 创建虚拟环境
+python -m venv venv
+
+# 激活虚拟环境
+# macOS/Linux:
+source venv/bin/activate
+# Windows:
+# venv\Scripts\activate
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 配置环境变量
+cp .env.example .env
+# 编辑 .env，填入 API Keys 和 MongoDB 配置
+```
+
+后端 `.env` 配置示例：
+
+```env
+SECRET_KEY=your-secret-key-here
+
+# MongoDB
+MONGODB_URI=mongodb://localhost:27017/
+MONGODB_DB=article_flow
+
+# 大模型 API（至少配置一个）
+OPENAI_API_KEY=sk-xxx
+ANTHROPIC_API_KEY=sk-xxx
+ZHIPU_API_KEY=your-zhipu-key
+
+# 默认模型配置
+DEFAULT_MODEL_PROVIDER=openai
+DEFAULT_MODEL_NAME=gpt-4-turbo-preview
+
+# CORS
+CORS_ORIGINS=http://localhost:3000
+```
+
+### 3. 前端配置
+
+```bash
+cd ../frontend
+
+# 安装依赖
+npm install
+
+# 配置环境变量
+cp .env.example .env.local
+```
+
+前端 `.env.local` 配置：
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:5001/api
+```
+
+### 4. 启动服务
+
+**启动后端：**
+
+```bash
+cd backend
+source venv/bin/activate  # 如已激活可跳过
+python run.py
+```
+
+后端地址：**<http://localhost:5001>**
+
+**启动前端（新终端）：**
 
 ```bash
 cd frontend
-npm install
-```
-
-### 数据库初始化
-
-```bash
-npm run db:push
-```
-
-### 开发
-
-```bash
 npm run dev
 ```
 
-访问 <http://localhost:5173>
+前端地址：**<http://localhost:3000>**
 
-### 构建
+### 5. 访问应用
 
-```bash
-npm run build
-npm run preview
-```
+打开浏览器访问 **<http://localhost:3000>**
 
 ## 项目结构
 
 ```
-Article-Flow/
-├── frontend/                     # SvelteKit 前端应用
+article-flow/
+├── backend/                          # Flask 后端
+│   ├── app/
+│   │   ├── routes/                   # API 路由
+│   │   │   ├── ai.py                # AI 配置和测试
+│   │   │   ├── format.py            # 格式转换和导出
+│   │   │   ├── hotnews.py           # 热搜数据聚合
+│   │   │   ├── outline.py           # 大纲管理
+│   │   │   ├── projects.py          # 项目 CRUD
+│   │   │   ├── research.py          # 资料搜集
+│   │   │   ├── review.py            # 审核评论
+│   │   │   ├── topics.py            # 选题管理
+│   │   │   └── writing.py           # AI 写作辅助
+│   │   ├── services/
+│   │   │   ├── llm_service.py       # LangChain 多模型服务
+│   │   │   └── hotnews_service.py   # 热搜聚合服务
+│   │   ├── models/__init__.py       # MongoDB 数据模型
+│   │   ├── config.py                 # 配置管理
+│   │   └── __init__.py              # Flask 应用初始化
+│   ├── requirements.txt              # Python 依赖
+│   ├── run.py                        # 启动入口
+│   └── .env.example                  # 环境变量示例
+│
+├── frontend/                         # Next.js 14 前端
 │   ├── src/
+│   │   ├── app/
+│   │   │   ├── page.tsx              # 首页（项目列表）
+│   │   │   ├── layout.tsx            # 根布局
+│   │   │   └── projects/
+│   │   │       └── [id]/
+│   │   │           ├── page.tsx      # 项目详情页
+│   │   │           ├── layout.tsx    # 项目布局
+│   │   │           ├── hotnews/      # 热搜选题页
+│   │   │           ├── topics/       # 确定选题页
+│   │   │           ├── research/     # 搜集资料页
+│   │   │           ├── outline/      # 列出大纲页
+│   │   │           ├── writing/      # 写出草稿页
+│   │   │           ├── review/       # 修改审核页
+│   │   │           └── format/       # 格式处理页
+│   │   ├── components/
+│   │   │   ├── layout/Sidebar.tsx    # 侧边栏导航
+│   │   │   └── ui/MarkdownEditor.tsx # Markdown 编辑器
 │   │   ├── lib/
-│   │   │   ├── aiTaste.ts       # AI 味检测逻辑
-│   │   │   ├── workflow.ts      # 工作流定义
-│   │   │   ├── store.ts         # 状态管理
-│   │   │   └── server/
-│   │   │       └── db/
-│   │   │           ├── index.ts # 数据库连接
-│   │   │           └── schema.ts # 数据模型
-│   │   └── routes/
-│   │       ├── +page.svelte     # 项目列表页
-│   │       ├── +layout.svelte
-│   │       ├── api/
-│   │       │   └── projects/    # 项目 API
-│   │       └── projects/
-│   │           └── [id]/
-│   │               ├── +page.svelte # 项目编辑页
-│   │               └── +page.server.ts
-│   ├── README.md
-│   └── package.json
-├── doc/                          # 文档
-│   └── workflow-visualization-scheme.md
+│   │   │   ├── api/client.ts         # API 客户端
+│   │   │   └── store/appStore.ts     # Zustand 状态管理
+│   │   ├── styles/globals.css        # 全局样式
+│   │   └── types/index.ts             # TypeScript 类型定义
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── next.config.js
+│   ├── tailwind.config.js
+│   └── .env.example
+│
 └── README.md
 ```
 
-## API
+## API 概览
 
-| 方法     | 路径                           | 说明     |
-| ------ | ---------------------------- | ------ |
-| GET    | `/api/projects`              | 获取项目列表 |
-| POST   | `/api/projects`              | 创建新项目  |
-| GET    | `/api/projects/:id`          | 获取项目详情 |
-| PATCH  | `/api/projects/:id`          | 更新项目   |
-| DELETE | `/api/projects/:id`          | 删除项目   |
-| GET    | `/api/projects/:id/contents` | 获取项目内容 |
-| POST   | `/api/projects/:id/contents` | 保存项目内容 |
+### 项目管理
+
+| 方法     | 路径                  | 说明     |
+| ------ | ------------------- | ------ |
+| GET    | `/api/projects`     | 获取项目列表 |
+| POST   | `/api/projects`     | 创建新项目  |
+| GET    | `/api/projects/:id` | 获取项目详情 |
+| PATCH  | `/api/projects/:id` | 更新项目   |
+| DELETE | `/api/projects/:id` | 删除项目   |
+
+### 写作辅助
+
+| 方法   | 路径                           | 说明     |
+| ---- | ---------------------------- | ------ |
+| POST | `/api/writing/continue`      | AI 续写  |
+| POST | `/api/writing/polish`        | AI 润色  |
+| POST | `/api/writing/rewrite`       | 风格转换   |
+| POST | `/api/writing/expand`        | 内容扩写   |
+| POST | `/api/writing/shorten`       | 内容精简   |
+| POST | `/api/writing/ai-taste`      | AI 味检测 |
+| POST | `/api/writing/grammar-check` | 语法检查   |
+
+### 格式处理
+
+| 方法   | 路径                      | 说明           |
+| ---- | ----------------------- | ------------ |
+| GET  | `/api/format/platforms` | 获取支持的平台列表    |
+| POST | `/api/format/convert`   | 转换为指定平台格式    |
+| POST | `/api/format/normalize` | 规范化 Markdown |
+| POST | `/api/format/export`    | 导出为指定格式      |
+
+### 热搜数据
+
+| 方法   | 路径                         | 说明        |
+| ---- | -------------------------- | --------- |
+| GET  | `/api/hotnews`             | 获取多平台热搜聚合 |
+| GET  | `/api/hotnews/weibo`       | 获取微博热搜    |
+| GET  | `/api/hotnews/zhihu`       | 获取知乎热榜    |
+| GET  | `/api/hotnews/bilibili`    | 获取 B站热门   |
+| POST | `/api/hotnews/trend`       | 分析关键词趋势   |
+| POST | `/api/hotnews/mine-topics` | 智能选题挖掘    |
+
+## 工作区类型
+
+| 类型       | 说明      | 特点             |
+| -------- | ------- | -------------- |
+| **公众号**  | 微信公众号文章 | 段落≤150 字，对话式风格 |
+| **视频脚本** | 视频旁白和字幕 | 高度口语化，段落≤80 字  |
+| **通用写作** | 标准文章格式  | 段落≤300 字，正式风格  |
+
+## 审核流程
+
+内置三种审核流程：
+
+| 流程       | 说明         | 步骤                              |
+| -------- | ---------- | ------------------------------- |
+| **快速审核** | 仅检查拼写和基本格式 | 拼写检查、格式检查                       |
+| **标准审核** | 完整的内容和格式审核 | 拼写检查、语法检查、逻辑检查、格式检查             |
+| **严格审核** | 全方面深度审核    | 拼写检查、语法检查、逻辑检查、合规检查、AI 味检测、格式检查 |
 
 ## 部署
 
-### Vercel
+### Docker 部署（推荐）
 
-1. 将项目推送到 GitHub
-2. 在 Vercel 导入仓库
-3. 点击 Deploy
+```yaml
+version: '3.8'
+services:
+  mongodb:
+    image: mongo:6
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
 
-### 本地打包
+  backend:
+    build: ./backend
+    ports:
+      - "5001:5001"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - mongodb
 
-```bash
-cd frontend
-npm run build
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5001/api
+
+volumes:
+  mongo_data:
 ```
 
-构建产物在 `build/` 目录。
+### Vercel 部署前端
 
-## 已知问题
+1. 将代码推送到 GitHub
+2. 在 Vercel 导入仓库
+3. 配置环境变量 `NEXT_PUBLIC_API_URL`
+4. 点击 Deploy
 
-- Svelte 5 runes 模式：使用 `$props()` 而非 `export let`
+## 开发说明
+
+### 添加新的大模型支持
+
+在 `backend/app/services/llm_service.py` 中扩展 `LLMService._get_llm()` 方法：
+
+```python
+elif self.provider == 'new-provider':
+    # 添加新供应商的 LLM 初始化代码
+    pass
+```
+
+### 添加新的平台格式
+
+在 `backend/app/routes/format.py` 中扩展 `platform_rules` 字典和前端平台列表。
 
 ## 许可证
 
-MIT
+MIT License
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request！
