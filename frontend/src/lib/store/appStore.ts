@@ -101,7 +101,7 @@ export const workflowSteps: WorkflowStep[] = [
     id: 7,
     name: '格式处理',
     description: 'Markdown 规范化、多平台格式适配、一键转换',
-    icon: 'Format',
+    icon: 'Type',
     path: '/projects/[id]/format',
     canSave: true,
     isBreakpoint: false,

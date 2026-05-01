@@ -9,7 +9,7 @@ import {
   ListOrdered, 
   PenTool, 
   CheckSquare, 
-  Format,
+  Type,
   Home,
   Menu,
   X
@@ -24,7 +24,7 @@ const stepIcons: Record<string, React.ElementType> = {
   ListOrdered,
   PenTool,
   CheckSquare,
-  Format,
+  Type,
 };
 
 export function Sidebar() {
