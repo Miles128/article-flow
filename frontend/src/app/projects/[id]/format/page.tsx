@@ -50,9 +50,12 @@ const defaultStyles: StyleConfig = {
 };
 
 const colorPresets = [
-  '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', 
+  '#0ea5e9', '#10b981', '#f59e0b', '#ef4444',
   '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
-  '#1f2937', '#4b5563', '#9ca3af', '#e5e7eb'
+  '#111827', '#1f2937', '#374151', '#4b5563',
+  '#6b7280', '#9ca3af', '#0369a1', '#065f46',
+  '#92400e', '#991b1b', '#5b21b6', '#9d174d',
+  '#f0f9ff', '#f0fdf4', '#fffbeb', '#fef2f2',
 ];
 
 const fontOptions = [
@@ -344,8 +347,8 @@ export default function FormatPage() {
                     style={{ backgroundColor: styles.themeColor }}
                   />
                   {activeColorPicker === 'theme' && (
-                    <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-2 shadow-lg z-40">
-                      <div className="grid grid-cols-6 gap-1">
+                    <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-40 min-w-64">
+                      <div className="grid grid-cols-8 gap-1.5">
                         {colorPresets.map((color, idx) => (
                           <button
                             key={idx}
@@ -354,25 +357,31 @@ export default function FormatPage() {
                               setActiveColorPicker(null);
                             }}
                             className={clsx(
-                              'w-6 h-6 rounded',
+                              'w-6 h-6 rounded transition-transform hover:scale-110',
                               styles.themeColor === color && 'ring-2 ring-primary-500 ring-offset-1'
                             )}
                             style={{ backgroundColor: color }}
                           />
                         ))}
                       </div>
-                      <div className="mt-2 flex items-center gap-2">
+                      <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
                         <input
                           type="color"
                           value={styles.themeColor}
                           onChange={(e) => setStyles({ ...styles, themeColor: e.target.value })}
-                          className="w-8 h-8 cursor-pointer rounded border-0"
+                          className="w-7 h-7 cursor-pointer rounded border-0"
                         />
                         <input
                           type="text"
                           value={styles.themeColor}
-                          onChange={(e) => setStyles({ ...styles, themeColor: e.target.value })}
-                          className="w-20 px-2 py-1 text-xs border border-gray-300 rounded font-mono"
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
+                              setStyles({ ...styles, themeColor: val });
+                            }
+                          }}
+                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
+                          placeholder="#000000"
                         />
                       </div>
                     </div>
@@ -393,8 +402,8 @@ export default function FormatPage() {
                       style={{ backgroundColor: styles.h2Color }}
                     />
                     {activeColorPicker === 'h2Color' && (
-                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-2 shadow-lg z-40">
-                        <div className="grid grid-cols-6 gap-1">
+                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-40 min-w-64">
+                        <div className="grid grid-cols-8 gap-1.5">
                           {colorPresets.map((color, idx) => (
                             <button
                               key={idx}
@@ -402,10 +411,33 @@ export default function FormatPage() {
                                 setStyles({ ...styles, h2Color: color });
                                 setActiveColorPicker(null);
                               }}
-                              className="w-5 h-5 rounded"
+                              className={clsx(
+                                'w-6 h-6 rounded transition-transform hover:scale-110',
+                                styles.h2Color === color && 'ring-2 ring-primary-500 ring-offset-1'
+                              )}
                               style={{ backgroundColor: color }}
                             />
                           ))}
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={styles.h2Color}
+                            onChange={(e) => setStyles({ ...styles, h2Color: e.target.value })}
+                            className="w-7 h-7 cursor-pointer rounded border-0"
+                          />
+                          <input
+                            type="text"
+                            value={styles.h2Color}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
+                                setStyles({ ...styles, h2Color: val });
+                              }
+                            }}
+                            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
+                            placeholder="#000000"
+                          />
                         </div>
                       </div>
                     )}
@@ -418,8 +450,8 @@ export default function FormatPage() {
                       style={{ backgroundColor: styles.h2BgColor }}
                     />
                     {activeColorPicker === 'h2Bg' && (
-                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-2 shadow-lg z-40">
-                        <div className="grid grid-cols-6 gap-1">
+                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-40 min-w-64">
+                        <div className="grid grid-cols-8 gap-1.5">
                           {colorPresets.map((color, idx) => (
                             <button
                               key={idx}
@@ -427,10 +459,33 @@ export default function FormatPage() {
                                 setStyles({ ...styles, h2BgColor: color });
                                 setActiveColorPicker(null);
                               }}
-                              className="w-5 h-5 rounded"
+                              className={clsx(
+                                'w-6 h-6 rounded transition-transform hover:scale-110',
+                                styles.h2BgColor === color && 'ring-2 ring-primary-500 ring-offset-1'
+                              )}
                               style={{ backgroundColor: color }}
                             />
                           ))}
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={styles.h2BgColor}
+                            onChange={(e) => setStyles({ ...styles, h2BgColor: e.target.value })}
+                            className="w-7 h-7 cursor-pointer rounded border-0"
+                          />
+                          <input
+                            type="text"
+                            value={styles.h2BgColor}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
+                                setStyles({ ...styles, h2BgColor: val });
+                              }
+                            }}
+                            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
+                            placeholder="#000000"
+                          />
                         </div>
                       </div>
                     )}
@@ -484,8 +539,8 @@ export default function FormatPage() {
                     style={{ backgroundColor: styles.bodyColor }}
                   />
                   {activeColorPicker === 'bodyColor' && (
-                    <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-2 shadow-lg z-40">
-                      <div className="grid grid-cols-6 gap-1">
+                    <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-40 min-w-64">
+                      <div className="grid grid-cols-8 gap-1.5">
                         {colorPresets.map((color, idx) => (
                           <button
                             key={idx}
@@ -493,10 +548,33 @@ export default function FormatPage() {
                               setStyles({ ...styles, bodyColor: color });
                               setActiveColorPicker(null);
                             }}
-                            className="w-5 h-5 rounded"
+                            className={clsx(
+                              'w-6 h-6 rounded transition-transform hover:scale-110',
+                              styles.bodyColor === color && 'ring-2 ring-primary-500 ring-offset-1'
+                            )}
                             style={{ backgroundColor: color }}
                           />
                         ))}
+                      </div>
+                      <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={styles.bodyColor}
+                          onChange={(e) => setStyles({ ...styles, bodyColor: e.target.value })}
+                          className="w-7 h-7 cursor-pointer rounded border-0"
+                        />
+                        <input
+                          type="text"
+                          value={styles.bodyColor}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
+                              setStyles({ ...styles, bodyColor: val });
+                            }
+                          }}
+                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
+                          placeholder="#000000"
+                        />
                       </div>
                     </div>
                   )}
@@ -512,8 +590,8 @@ export default function FormatPage() {
                     style={{ backgroundColor: styles.boldColor }}
                   />
                   {activeColorPicker === 'boldColor' && (
-                    <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-2 shadow-lg z-40">
-                      <div className="grid grid-cols-6 gap-1">
+                    <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-40 min-w-64">
+                      <div className="grid grid-cols-8 gap-1.5">
                         {colorPresets.map((color, idx) => (
                           <button
                             key={idx}
@@ -521,10 +599,33 @@ export default function FormatPage() {
                               setStyles({ ...styles, boldColor: color });
                               setActiveColorPicker(null);
                             }}
-                            className="w-5 h-5 rounded"
+                            className={clsx(
+                              'w-6 h-6 rounded transition-transform hover:scale-110',
+                              styles.boldColor === color && 'ring-2 ring-primary-500 ring-offset-1'
+                            )}
                             style={{ backgroundColor: color }}
                           />
                         ))}
+                      </div>
+                      <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={styles.boldColor}
+                          onChange={(e) => setStyles({ ...styles, boldColor: e.target.value })}
+                          className="w-7 h-7 cursor-pointer rounded border-0"
+                        />
+                        <input
+                          type="text"
+                          value={styles.boldColor}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
+                              setStyles({ ...styles, boldColor: val });
+                            }
+                          }}
+                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
+                          placeholder="#000000"
+                        />
                       </div>
                     </div>
                   )}
@@ -544,8 +645,8 @@ export default function FormatPage() {
                       style={{ backgroundColor: styles.quoteColor }}
                     />
                     {activeColorPicker === 'quoteColor' && (
-                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-2 shadow-lg z-40">
-                        <div className="grid grid-cols-6 gap-1">
+                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-40 min-w-64">
+                        <div className="grid grid-cols-8 gap-1.5">
                           {colorPresets.map((color, idx) => (
                             <button
                               key={idx}
@@ -553,10 +654,33 @@ export default function FormatPage() {
                                 setStyles({ ...styles, quoteColor: color });
                                 setActiveColorPicker(null);
                               }}
-                              className="w-5 h-5 rounded"
+                              className={clsx(
+                                'w-6 h-6 rounded transition-transform hover:scale-110',
+                                styles.quoteColor === color && 'ring-2 ring-primary-500 ring-offset-1'
+                              )}
                               style={{ backgroundColor: color }}
                             />
                           ))}
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={styles.quoteColor}
+                            onChange={(e) => setStyles({ ...styles, quoteColor: e.target.value })}
+                            className="w-7 h-7 cursor-pointer rounded border-0"
+                          />
+                          <input
+                            type="text"
+                            value={styles.quoteColor}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
+                                setStyles({ ...styles, quoteColor: val });
+                              }
+                            }}
+                            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
+                            placeholder="#000000"
+                          />
                         </div>
                       </div>
                     )}
@@ -569,8 +693,8 @@ export default function FormatPage() {
                       style={{ backgroundColor: styles.quoteBgColor }}
                     />
                     {activeColorPicker === 'quoteBg' && (
-                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-2 shadow-lg z-40">
-                        <div className="grid grid-cols-6 gap-1">
+                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-40 min-w-64">
+                        <div className="grid grid-cols-8 gap-1.5">
                           {colorPresets.map((color, idx) => (
                             <button
                               key={idx}
@@ -578,10 +702,33 @@ export default function FormatPage() {
                                 setStyles({ ...styles, quoteBgColor: color });
                                 setActiveColorPicker(null);
                               }}
-                              className="w-5 h-5 rounded"
+                              className={clsx(
+                                'w-6 h-6 rounded transition-transform hover:scale-110',
+                                styles.quoteBgColor === color && 'ring-2 ring-primary-500 ring-offset-1'
+                              )}
                               style={{ backgroundColor: color }}
                             />
                           ))}
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={styles.quoteBgColor}
+                            onChange={(e) => setStyles({ ...styles, quoteBgColor: e.target.value })}
+                            className="w-7 h-7 cursor-pointer rounded border-0"
+                          />
+                          <input
+                            type="text"
+                            value={styles.quoteBgColor}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
+                                setStyles({ ...styles, quoteBgColor: val });
+                              }
+                            }}
+                            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
+                            placeholder="#000000"
+                          />
                         </div>
                       </div>
                     )}
