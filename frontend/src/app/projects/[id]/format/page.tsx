@@ -19,7 +19,9 @@ import {
   Square,
   Circle,
   Minus,
-  Check
+  Check,
+  Copy,
+  ClipboardCheck
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -123,6 +125,7 @@ export default function FormatPage() {
   const [showPresetMenu, setShowPresetMenu] = useState(false);
   const [styles, setStyles] = useState<StyleConfig>(defaultStyles);
   const [isConverting, setIsConverting] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeColorPicker, setActiveColorPicker] = useState<string | null>(null);
@@ -224,6 +227,218 @@ export default function FormatPage() {
     }
   }
 
+  function convertMarkdownToWechatHtml(markdown: string): string {
+    if (!markdown.trim()) return '';
+
+    const lines = markdown.split('\n');
+    const result: string[] = [];
+    let inCodeBlock = false;
+    let codeLang = '';
+    let codeContent: string[] = [];
+    let inList = false;
+    let listType: 'ul' | 'ol' | null = null;
+    let listContent: string[] = [];
+    let inTable = false;
+    let tableContent: string[] = [];
+
+    function flushList() {
+      if (listType && listContent.length > 0) {
+        result.push(`<${listType} style="font-size: 15px; color: ${styles.bodyColor}; line-height: 2; margin: 16px 0; padding-left: 2em; list-style-type: ${listType === 'ul' ? 'disc' : 'decimal'};">`);
+        result.push(...listContent);
+        result.push(`</${listType}>`);
+        listContent = [];
+        listType = null;
+        inList = false;
+      }
+    }
+
+    function flushTable() {
+      if (tableContent.length > 0) {
+        result.push(`<div style="overflow-x: auto; margin: 16px 0;">`);
+        result.push(`<table style="width: 100%; border-collapse: collapse; font-size: 14px; border: 1px solid #e5e7eb;">`);
+        result.push(...tableContent);
+        result.push('</table>');
+        result.push('</div>');
+        tableContent = [];
+        inTable = false;
+      }
+    }
+
+    function processInlineStyles(text: string): string {
+      let processed = text;
+      
+      processed = processed.replace(/\*\*\*(.+?)\*\*\*/g, `<strong style="font-weight: 700; color: ${styles.boldColor};"><em style="font-style: italic;">$1</em></strong>`);
+      
+      processed = processed.replace(/\*\*(.+?)\*\*/g, `<strong style="font-weight: 700; color: ${styles.boldColor};">$1</strong>`);
+      
+      processed = processed.replace(/(?<!\*)\*(.+?)\*(?!\*)/g, `<em style="font-style: italic;">$1</em>`);
+      
+      processed = processed.replace(/`([^`]+)`/g, `<code style="background-color: #f3f4f6; color: #ef4444; padding: 2px 6px; border-radius: 4px; font-family: Consolas, Monaco, monospace; font-size: 13px;">$1</code>`);
+      
+      processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" style="color: ${styles.themeColor}; text-decoration: underline;">$1</a>`);
+      
+      processed = processed.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, `<img src="$2" alt="$1" style="max-width: 100%; height: auto; border-radius: 8px; margin: 16px 0;" />`);
+      
+      return processed;
+    }
+
+    function processTableRow(row: string, isHeader: boolean = false): string {
+      const cells = row.split('|').filter(c => c.trim() !== '');
+      const cellTag = isHeader ? 'th' : 'td';
+      const cellStyles = isHeader 
+        ? `border: 1px solid #e5e7eb; padding: 10px 12px; text-align: left; font-weight: 600; color: ${styles.h2Color}; background-color: ${styles.h2BgColor};`
+        : `border: 1px solid #e5e7eb; padding: 10px 12px; color: ${styles.bodyColor};`;
+      
+      return `<tr>${cells.map(cell => `<${cellTag} style="${cellStyles}">${processInlineStyles(cell.trim())}</${cellTag}>`).join('')}</tr>`;
+    }
+
+    for (const line of lines) {
+      if (line.startsWith('```')) {
+        if (inCodeBlock) {
+          const codeHtml = codeContent.join('\n');
+          result.push(`<pre style="background-color: #1f2937; color: #e5e7eb; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 16px 0; font-size: 13px; line-height: 1.6; font-family: Consolas, Monaco, monospace;"><code>${codeHtml}</code></pre>`);
+          codeContent = [];
+          inCodeBlock = false;
+        } else {
+          inCodeBlock = true;
+          codeLang = line.slice(3).trim();
+        }
+        continue;
+      }
+
+      if (inCodeBlock) {
+        codeContent.push(line.replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+        continue;
+      }
+
+      if (line.startsWith('|') && line.endsWith('|')) {
+        if (!inTable) {
+          inTable = true;
+          tableContent.push(processTableRow(line, true));
+          continue;
+        }
+        
+        if (line.includes('---')) {
+          continue;
+        }
+        
+        tableContent.push(processTableRow(line, false));
+        continue;
+      } else if (inTable) {
+        flushTable();
+      }
+
+      if (line.startsWith('- ') || line.startsWith('* ') || line.startsWith('+ ')) {
+        flushList();
+        inList = true;
+        listType = 'ul';
+        listContent.push(`<li style="margin-bottom: 8px;">${processInlineStyles(line.slice(2).trim())}</li>`);
+        continue;
+      }
+
+      if (/^\d+\.\s/.test(line)) {
+        flushList();
+        inList = true;
+        listType = 'ol';
+        const content = line.replace(/^\d+\.\s/, '');
+        listContent.push(`<li style="margin-bottom: 8px;">${processInlineStyles(content.trim())}</li>`);
+        continue;
+      }
+
+      if (inList) {
+        flushList();
+      }
+
+      if (line.startsWith('# ')) {
+        result.push(`<h1 style="font-size: 20px; font-weight: 700; color: ${styles.boldColor}; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid ${styles.themeColor};">${processInlineStyles(line.slice(2).trim())}</h1>`);
+        continue;
+      }
+
+      if (line.startsWith('## ')) {
+        const hasBg = styles.h2BgShape !== 'none';
+        const h2Styles: string[] = [
+          `font-size: 17px;`,
+          `font-weight: 700;`,
+          `color: ${styles.h2Color};`,
+          `margin-top: 28px;`,
+          `margin-bottom: 16px;`,
+          `display: flex;`,
+          `align-items: center;`,
+          `gap: 10px;`
+        ];
+        
+        if (hasBg) {
+          h2Styles.push(`padding: 8px 14px;`);
+          h2Styles.push(`background-color: ${styles.h2BgColor};`);
+          h2Styles.push(`border-radius: ${getBgShapeRadius(styles.h2BgShape)};`);
+        }
+        
+        const leftBar = hasBg ? '' : `<span style="width: 4px; height: 18px; background-color: ${styles.themeColor}; border-radius: 2px;"></span>`;
+        result.push(`<h2 style="${h2Styles.join(' ')}">${leftBar}${processInlineStyles(line.slice(3).trim())}</h2>`);
+        continue;
+      }
+
+      if (line.startsWith('### ')) {
+        result.push(`<h3 style="font-size: 16px; font-weight: 600; color: ${styles.h2Color}; margin-top: 20px; margin-bottom: 12px;">${processInlineStyles(line.slice(4).trim())}</h3>`);
+        continue;
+      }
+
+      if (line.startsWith('> ')) {
+        const quoteText = line.slice(2).trim();
+        const hasBg = styles.quoteBgShape !== 'none';
+        const quoteStyles: string[] = [
+          `font-size: 14px;`,
+          `color: ${styles.quoteColor};`,
+          `line-height: 1.8;`,
+          `margin: 16px 0;`,
+          `font-style: italic;`
+        ];
+        
+        if (hasBg) {
+          quoteStyles.push(`padding: 14px 16px;`);
+          quoteStyles.push(`background-color: ${styles.quoteBgColor};`);
+          quoteStyles.push(`border-radius: ${getBgShapeRadius(styles.quoteBgShape)};`);
+        } else {
+          quoteStyles.push(`padding: 8px 14px;`);
+          quoteStyles.push(`background-color: #fafafa;`);
+          quoteStyles.push(`border-left: 3px solid ${styles.themeColor};`);
+        }
+        
+        result.push(`<blockquote style="${quoteStyles.join(' ')}">${processInlineStyles(quoteText)}</blockquote>`);
+        continue;
+      }
+
+      if (line.startsWith('---') || line.startsWith('***')) {
+        result.push(`<hr style="border: none; border-top: 1px dashed #e5e7eb; margin: 24px 0;" />`);
+        continue;
+      }
+
+      if (line.trim() === '') {
+        continue;
+      }
+
+      result.push(`<p style="font-size: 15px; color: ${styles.bodyColor}; line-height: 2; margin-bottom: 16px; text-indent: 2em;">${processInlineStyles(line.trim())}</p>`);
+    }
+
+    flushList();
+    flushTable();
+
+    return `<div style="font-family: ${styles.bodyFont}; padding: 24px 20px;">${result.join('\n')}</div>`;
+  }
+
+  async function handleCopyHtml() {
+    if (!displayContent) return;
+    
+    try {
+      const html = convertMarkdownToWechatHtml(displayContent);
+      await navigator.clipboard.writeText(html);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  }
+
   async function normalizeContent() {
     if (!content.trim()) return;
     setIsConverting(true);
@@ -276,6 +491,23 @@ export default function FormatPage() {
             >
               <Download size={16} />
               导出样式
+            </button>
+
+            <div className="w-px h-6 bg-gray-200 mx-1" />
+
+            <button
+              onClick={handleCopyHtml}
+              disabled={!displayContent}
+              className={clsx(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors',
+                copySuccess
+                  ? 'bg-green-50 text-green-600'
+                  : 'text-gray-600 hover:bg-gray-100',
+                !displayContent && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              {copySuccess ? <ClipboardCheck size={16} /> : <Copy size={16} />}
+              {copySuccess ? '已复制' : '复制 HTML'}
             </button>
 
             <div className="w-px h-6 bg-gray-200 mx-1" />
