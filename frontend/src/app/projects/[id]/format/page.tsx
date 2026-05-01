@@ -16,11 +16,9 @@ import {
   Upload,
   Settings,
   X,
-  Hexagon,
-  RoundedSquare,
   Square,
   Circle,
-  Triangle
+  Minus
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -66,9 +64,9 @@ const fontOptions = [
 ];
 
 const bgShapeOptions = [
-  { label: '无', value: 'none', icon: Square },
+  { label: '无', value: 'none', icon: Minus },
   { label: '直角', value: 'square', icon: Square },
-  { label: '圆角', value: 'rounded', icon: RoundedSquare },
+  { label: '圆角', value: 'rounded', icon: Circle },
   { label: '胶囊', value: 'pill', icon: Circle },
 ];
 
