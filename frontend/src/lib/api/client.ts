@@ -2,6 +2,7 @@ import axios from 'axios';
 import type { Project, ProjectContent, Topic, ResearchMaterial, Outline, HotNewsResult, Comment, VersionHistory, Platform, ModelInfo, AuditFlow } from '@/types';
 
 function snakeToCamel(str: string): string {
+  if (str.startsWith('_')) return str;
   return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 }
 
