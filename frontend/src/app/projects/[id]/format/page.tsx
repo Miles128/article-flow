@@ -340,6 +340,7 @@ export default function FormatPage() {
   const [isConverting, setIsConverting] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [saveStatus, setSaveStatus] = useState('');
+  const [projectTitle, setProjectTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeColorPicker, setActiveColorPicker] = useState<string | null>(null);
@@ -353,6 +354,13 @@ export default function FormatPage() {
     if (!params.id) return;
     
     setIsLoading(true);
+    try {
+      const projectRes = await projectsApi.getById(params.id as string);
+      if (projectRes.data?.title) {
+        setProjectTitle(projectRes.data.title);
+      }
+    } catch {}
+
     try {
       const response = await projectsApi.getContents(params.id as string, 5);
       if (response.data.length > 0) {
@@ -439,18 +447,21 @@ ${bodyHtml}
     
     try {
       let content: string;
-      let suggestedName: string;
       let mimeType: string;
+      
+      const h1Match = displayContent.match(/^#\s+(.+)$/m);
+      const baseName = projectTitle || (h1Match ? h1Match[1].trim() : 'article');
+      const safeName = baseName.replace(/[\\/:*?"<>|]/g, '');
       
       if (format === 'md') {
         content = displayContent;
-        suggestedName = 'article.md';
         mimeType = 'text/markdown';
       } else {
         content = generateFullHtml();
-        suggestedName = 'article.html';
         mimeType = 'text/html';
       }
+      
+      const suggestedName = `${safeName}.${format}`;
       
       try {
         const handle = await (window as any).showSaveFilePicker({
