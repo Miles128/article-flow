@@ -1,5 +1,13 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Project, WorkflowStep, EditorMode } from '@/types';
+
+interface LLMConfig {
+  apiKey: string;
+  baseUrl: string;
+  modelName: string;
+  temperature: number;
+}
 
 interface AppState {
   currentProject: Project | null;
@@ -8,39 +16,59 @@ interface AppState {
   isSaving: boolean;
   lastSavedAt: Date | null;
   sidebarOpen: boolean;
+  llmConfig: LLMConfig;
   
   setCurrentProject: (project: Project | null) => void;
   setCurrentStep: (step: number) => void;
   setEditorMode: (mode: EditorMode['mode']) => void;
   setIsSaving: (saving: boolean) => void;
   toggleSidebar: () => void;
+  setLlmConfig: (config: Partial<LLMConfig>) => void;
   reset: () => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
-  currentProject: null,
-  currentStep: 1,
-  editorMode: 'split',
-  isSaving: false,
-  lastSavedAt: null,
-  sidebarOpen: true,
-  
-  setCurrentProject: (project) => set({ currentProject: project }),
-  setCurrentStep: (step) => set({ currentStep: step }),
-  setEditorMode: (mode) => set({ editorMode: mode }),
-  setIsSaving: (saving) => set({ 
-    isSaving: saving, 
-    lastSavedAt: saving ? undefined : new Date() 
-  }),
-  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-  reset: () => set({
-    currentProject: null,
-    currentStep: 1,
-    editorMode: 'split',
-    isSaving: false,
-    lastSavedAt: null,
-  }),
-}));
+export const useAppStore = create<AppState>()(
+  persist(
+    (set) => ({
+      currentProject: null,
+      currentStep: 1,
+      editorMode: 'split',
+      isSaving: false,
+      lastSavedAt: null,
+      sidebarOpen: true,
+      llmConfig: {
+        apiKey: '',
+        baseUrl: 'https://api.openai.com/v1',
+        modelName: 'gpt-3.5-turbo',
+        temperature: 0.7,
+      },
+      
+      setCurrentProject: (project) => set({ currentProject: project }),
+      setCurrentStep: (step) => set({ currentStep: step }),
+      setEditorMode: (mode) => set({ editorMode: mode }),
+      setIsSaving: (saving) => set({ 
+        isSaving: saving, 
+        lastSavedAt: saving ? undefined : new Date() 
+      }),
+      toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+      setLlmConfig: (config) => set((state) => ({
+        llmConfig: { ...state.llmConfig, ...config }
+      })),
+      reset: () => set({
+        currentProject: null,
+        currentStep: 1,
+        editorMode: 'split',
+        isSaving: false,
+        lastSavedAt: null,
+      }),
+    }),
+    {
+      name: 'article-flow-storage',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({ llmConfig: state.llmConfig }),
+    }
+  )
+);
 
 export const workflowSteps: WorkflowStep[] = [
   {

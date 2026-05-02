@@ -3,10 +3,11 @@
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, MoreVertical, Calendar, FileText, TrendingUp, Target, PenTool, Loader2, Trash2, X } from 'lucide-react';
+import { Plus, MoreVertical, Calendar, FileText, TrendingUp, Target, PenTool, Loader2, Trash2, X, Settings } from 'lucide-react';
 import { projectsApi } from '@/lib/api/client';
 import type { Project } from '@/types';
 import { clsx } from 'clsx';
+import { LLMSettingsModal } from '@/components/modal/LLMSettingsModal';
 
 const workspaceConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   wechat: { label: '公众号', icon: FileText, color: 'bg-green-100 text-green-700' },
@@ -26,6 +27,7 @@ export default function HomePage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -97,6 +99,10 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <LLMSettingsModal 
+        isOpen={showSettings} 
+        onClose={() => setShowSettings(false)} 
+      />
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
@@ -104,13 +110,21 @@ export default function HomePage() {
               <h1 className="text-2xl font-bold text-gray-900">项目列表</h1>
               <p className="text-sm text-gray-500 mt-1">管理您的文章写作项目</p>
             </div>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-            >
-              <Plus size={18} />
-              新建项目
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowSettings(true)}
+                className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <Settings size={18} />
+              </button>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+              >
+                <Plus size={18} />
+                新建项目
+              </button>
+            </div>
           </div>
         </div>
       </header>

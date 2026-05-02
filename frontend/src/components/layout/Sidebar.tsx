@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -12,10 +13,12 @@ import {
   Type,
   Home,
   Menu,
-  X
+  X,
+  Settings
 } from 'lucide-react';
 import { useAppStore, workflowSteps, getStepPath } from '@/lib/store';
 import { clsx } from 'clsx';
+import { LLMSettingsModal } from '@/components/modal/LLMSettingsModal';
 
 const stepIcons: Record<string, React.ElementType> = {
   TrendingUp,
@@ -30,6 +33,7 @@ const stepIcons: Record<string, React.ElementType> = {
 export function Sidebar() {
   const pathname = usePathname();
   const { currentProject, currentStep, sidebarOpen, toggleSidebar } = useAppStore();
+  const [showSettings, setShowSettings] = useState(false);
   
   const getIcon = (iconName: string) => {
     const Icon = stepIcons[iconName] || Home;
@@ -38,6 +42,10 @@ export function Sidebar() {
   
   return (
     <>
+      <LLMSettingsModal 
+        isOpen={showSettings} 
+        onClose={() => setShowSettings(false)} 
+      />
       <button
         onClick={toggleSidebar}
         className="fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-lg md:hidden"
@@ -118,21 +126,34 @@ export function Sidebar() {
           )}
         </nav>
         
-        {currentProject && (
-          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white">
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-500 mb-1">当前项目</p>
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {currentProject.title}
-              </p>
-              <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
-                <span className="capitalize">{currentProject.workspace}</span>
-                <span>•</span>
-                <span>{currentProject.wordCount} / {currentProject.targetWordCount} 字</span>
+        <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200 bg-white">
+          <button
+            onClick={() => {
+              setShowSettings(true);
+              toggleSidebar();
+            }}
+            className="w-full px-4 py-3 flex items-center gap-3 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <Settings size={16} />
+            <span>LLM 设置</span>
+          </button>
+          
+          {currentProject && (
+            <div className="p-4 pt-0 border-t border-gray-100">
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-500 mb-1">当前项目</p>
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {currentProject.title}
+                </p>
+                <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                  <span className="capitalize">{currentProject.workspace}</span>
+                  <span>•</span>
+                  <span>{currentProject.wordCount} / {currentProject.targetWordCount} 字</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </aside>
       
       {sidebarOpen && (
