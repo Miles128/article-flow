@@ -33,6 +33,7 @@ interface StyleConfig {
   h2BgColor: string;
   h2BgShape: 'none' | 'square' | 'rounded' | 'pill';
   bodyFont: string;
+  bodyFontSize: number;
   bodyColor: string;
   boldColor: string;
   quoteColor: string;
@@ -46,6 +47,7 @@ const defaultStyles: StyleConfig = {
   h2BgColor: '#f0f9ff',
   h2BgShape: 'rounded',
   bodyFont: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  bodyFontSize: 15,
   bodyColor: '#111827',
   boldColor: '#111827',
   quoteColor: '#6b7280',
@@ -333,6 +335,7 @@ export default function FormatPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showStyleToolbar, setShowStyleToolbar] = useState(false);
   const [showPresetMenu, setShowPresetMenu] = useState(false);
+  const [showSaveMenu, setShowSaveMenu] = useState(false);
   const [styles, setStyles] = useState<StyleConfig>(defaultStyles);
   const [isConverting, setIsConverting] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
@@ -379,6 +382,7 @@ export default function FormatPage() {
   --h2-bg-color: ${styles.h2BgColor};
   --h2-bg-shape: ${styles.h2BgShape};
   --body-font: ${styles.bodyFont};
+  --body-font-size: ${styles.bodyFontSize}pt;
   --body-color: ${styles.bodyColor};
   --bold-color: ${styles.boldColor};
   --quote-color: ${styles.quoteColor};
@@ -397,36 +401,84 @@ export default function FormatPage() {
     URL.revokeObjectURL(url);
   }
 
-  async function handleSaveToLocal() {
+  function generateFullHtml(): string {
+    if (!displayContent) return '';
+    const bodyHtml = convertMarkdownToWechatHtml(displayContent);
+    
+    return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文章</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: ${styles.bodyFont}; 
+      background-color: #fafafa;
+      padding: 20px;
+    }
+    .article-container {
+      max-width: 480px;
+      margin: 0 auto;
+      background: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="article-container">
+${bodyHtml}
+  </div>
+</body>
+</html>`;
+  }
+
+  async function handleSaveAs(format: 'md' | 'html') {
     if (!displayContent) return;
     setSaveStatus('saving');
+    
     try {
-      const handle = await (window as any).showDirectoryPicker();
+      let content: string;
+      let suggestedName: string;
+      let mimeType: string;
       
-      const mdFile = await handle.getFileHandle('article.md', { create: true });
-      const writable = await mdFile.createWritable();
-      await writable.write(displayContent);
-      await writable.close();
+      if (format === 'md') {
+        content = displayContent;
+        suggestedName = 'article.md';
+        mimeType = 'text/markdown';
+      } else {
+        content = generateFullHtml();
+        suggestedName = 'article.html';
+        mimeType = 'text/html';
+      }
       
-      const cssContent = `/* 微信公众号样式配置 */
-:root {
-  --theme-color: ${styles.themeColor};
-  --h2-color: ${styles.h2Color};
-  --h2-bg-color: ${styles.h2BgColor};
-  --h2-bg-shape: ${styles.h2BgShape};
-  --body-font: ${styles.bodyFont};
-  --body-color: ${styles.bodyColor};
-  --bold-color: ${styles.boldColor};
-  --quote-color: ${styles.quoteColor};
-  --quote-bg-color: ${styles.quoteBgColor};
-  --quote-bg-shape: ${styles.quoteBgShape};
-}
-`;
-      const cssFile = await handle.getFileHandle('style.css', { create: true });
-      const cssWritable = await cssFile.createWritable();
-      await cssWritable.write(cssContent);
-      await cssWritable.close();
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName,
+          types: [{
+            description: format === 'md' ? 'Markdown 文件' : 'HTML 文件',
+            accept: {
+              [mimeType]: [format === 'md' ? '.md' : '.html']
+            }
+          }]
+        });
+        
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+      } catch {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = suggestedName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
       
+      setShowSaveMenu(false);
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus(''), 2000);
     } catch (err: any) {
@@ -443,48 +495,22 @@ export default function FormatPage() {
   async function handleLoadFromLocal() {
     setSaveStatus('loading');
     try {
-      const handle = await (window as any).showDirectoryPicker();
+      const [fileHandle] = await (window as any).showOpenFilePicker({
+        types: [
+          {
+            description: 'Markdown 文件',
+            accept: {
+              'text/markdown': ['.md'],
+              'text/plain': ['.md']
+            }
+          }
+        ]
+      });
       
-      let loadedMd = '';
-      try {
-        const mdFile = await handle.getFileHandle('article.md');
-        const file = await mdFile.getFile();
-        loadedMd = await file.text();
-      } catch {
-        setSaveStatus('no-md');
-        setTimeout(() => setSaveStatus(''), 2000);
-        return;
-      }
+      const file = await fileHandle.getFile();
+      const loadedMd = await file.text();
       
       setContent(loadedMd);
-      
-      try {
-        const cssFile = await handle.getFileHandle('style.css');
-        const file = await cssFile.getFile();
-        const cssText = await file.text();
-        
-        const newStyles = { ...styles };
-        const matches: Record<string, string> = {};
-        cssText.replace(/--([\w-]+):\s*([^;]+);/g, (_, key: string, value: string) => {
-          matches[key] = value.trim();
-          return '';
-        });
-        
-        if (matches['theme-color']) newStyles.themeColor = matches['theme-color'];
-        if (matches['h2-color']) newStyles.h2Color = matches['h2-color'];
-        if (matches['h2-bg-color']) newStyles.h2BgColor = matches['h2-bg-color'];
-        if (matches['h2-bg-shape']) newStyles.h2BgShape = matches['h2-bg-shape'] as any;
-        if (matches['body-font']) newStyles.bodyFont = matches['body-font'];
-        if (matches['body-color']) newStyles.bodyColor = matches['body-color'];
-        if (matches['bold-color']) newStyles.boldColor = matches['bold-color'];
-        if (matches['quote-color']) newStyles.quoteColor = matches['quote-color'];
-        if (matches['quote-bg-color']) newStyles.quoteBgColor = matches['quote-bg-color'];
-        if (matches['quote-bg-shape']) newStyles.quoteBgShape = matches['quote-bg-shape'] as any;
-        
-        setStyles(newStyles);
-      } catch {
-        // No style.css is fine
-      }
       
       setSaveStatus('loaded');
       setTimeout(() => setSaveStatus(''), 2000);
@@ -519,6 +545,7 @@ export default function FormatPage() {
       if (matches['h2-bg-color']) newStyles.h2BgColor = matches['h2-bg-color'];
       if (matches['h2-bg-shape']) newStyles.h2BgShape = matches['h2-bg-shape'] as any;
       if (matches['body-font']) newStyles.bodyFont = matches['body-font'];
+      if (matches['body-font-size']) newStyles.bodyFontSize = parseInt(matches['body-font-size']);
       if (matches['body-color']) newStyles.bodyColor = matches['body-color'];
       if (matches['bold-color']) newStyles.boldColor = matches['bold-color'];
       if (matches['quote-color']) newStyles.quoteColor = matches['quote-color'];
@@ -557,7 +584,7 @@ export default function FormatPage() {
     function flushList() {
       if (listType && listContent.length > 0) {
         const listTag = listType === 'ul' ? 'ul' : 'ol';
-        result.push(`<${listTag} style="font-size: 15px; color: ${styles.bodyColor}; line-height: 200%; margin-top: 16px; margin-bottom: 16px; padding-left: 24px; list-style-type: ${listType === 'ul' ? 'disc' : 'decimal'};">`);
+        result.push(`<${listTag} style="font-size: ${styles.bodyFontSize}pt; color: ${styles.bodyColor}; line-height: 200%; margin-top: 16px; margin-bottom: 16px; padding-left: 24px; list-style-type: ${listType === 'ul' ? 'disc' : 'decimal'};">`);
         result.push(...listContent);
         result.push(`</${listTag}>`);
         listContent = [];
@@ -598,7 +625,7 @@ export default function FormatPage() {
       const cells = row.split('|').filter(c => c.trim() !== '');
       const cellTag = isHeader ? 'th' : 'td';
       const cellStyles = isHeader 
-        ? `border: 1px solid #e5e7eb; padding: 10px 12px; text-align: left; font-weight: 600; color: ${styles.h2Color}; background-color: ${styles.h2BgColor};`
+        ? `border: 1px solid #e5e7eb; padding: 10px 12px; text-align: left; font-weight: 600; color: ${styles.themeColor}; background-color: ${styles.h2BgColor};`
         : `border: 1px solid #e5e7eb; padding: 10px 12px; color: ${styles.bodyColor};`;
       
       return `<tr>${cells.map(cell => `<${cellTag} style="${cellStyles}">${processInlineStyles(cell.trim())}</${cellTag}>`).join('')}</tr>`;
@@ -662,7 +689,7 @@ export default function FormatPage() {
       }
 
       if (line.startsWith('# ')) {
-        result.push(`<h1 style="font-size: 20px; font-weight: 700; color: ${styles.boldColor}; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid ${styles.themeColor};">${processInlineStyles(line.slice(2).trim())}</h1>`);
+        result.push(`<h1 style="font-size: ${styles.bodyFontSize + 4}pt; font-weight: 700; color: ${styles.themeColor}; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid ${styles.themeColor};">${processInlineStyles(line.slice(2).trim())}</h1>`);
         continue;
       }
 
@@ -672,9 +699,9 @@ export default function FormatPage() {
         
         if (hasBg) {
           const h2BgStyles = [
-            `font-size: 17px;`,
+            `font-size: ${styles.bodyFontSize + 2}pt;`,
             `font-weight: 700;`,
-            `color: ${styles.h2Color};`,
+            `color: ${styles.themeColor};`,
             `margin-top: 28px;`,
             `margin-bottom: 16px;`,
             `padding: 8px 14px;`,
@@ -684,9 +711,9 @@ export default function FormatPage() {
           result.push(`<h2 style="${h2BgStyles.join(' ')}">${titleText}</h2>`);
         } else {
           const h2Styles = [
-            `font-size: 17px;`,
+            `font-size: ${styles.bodyFontSize + 2}pt;`,
             `font-weight: 700;`,
-            `color: ${styles.h2Color};`,
+            `color: ${styles.themeColor};`,
             `margin-top: 28px;`,
             `margin-bottom: 16px;`,
             `line-height: 150%;`
@@ -698,7 +725,7 @@ export default function FormatPage() {
       }
 
       if (line.startsWith('### ')) {
-        result.push(`<h3 style="font-size: 16px; font-weight: 600; color: ${styles.h2Color}; margin-top: 20px; margin-bottom: 12px;">${processInlineStyles(line.slice(4).trim())}</h3>`);
+        result.push(`<h3 style="font-size: ${styles.bodyFontSize + 1}pt; font-weight: 600; color: ${styles.themeColor}; margin-top: 20px; margin-bottom: 12px;">${processInlineStyles(line.slice(4).trim())}</h3>`);
         continue;
       }
 
@@ -745,7 +772,7 @@ export default function FormatPage() {
         continue;
       }
 
-      result.push(`<p style="font-size: 15px; color: ${styles.bodyColor}; line-height: 200%; margin-bottom: 16px;">${processInlineStyles(line.trim())}</p>`);
+      result.push(`<p style="font-size: ${styles.bodyFontSize}pt; color: ${styles.bodyColor}; line-height: 200%; margin-bottom: 16px;">${processInlineStyles(line.trim())}</p>`);
     }
 
     flushList();
@@ -865,20 +892,48 @@ export default function FormatPage() {
               {saveStatus === 'loaded' ? '已读取' : '打开文章'}
             </button>
 
-            <button
-              onClick={handleSaveToLocal}
-              disabled={!displayContent}
-              className={clsx(
-                'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors',
-                saveStatus === 'saved' ? 'bg-green-50 text-green-600'
-                  : saveStatus === 'error' ? 'bg-red-50 text-red-600'
-                  : 'text-gray-600 hover:bg-gray-100',
-                !displayContent && 'opacity-50 cursor-not-allowed'
+            <div className="relative">
+              <button
+                onClick={() => setShowSaveMenu(!showSaveMenu)}
+                disabled={!displayContent}
+                className={clsx(
+                  'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors',
+                  saveStatus === 'saved' ? 'bg-green-50 text-green-600'
+                    : saveStatus === 'error' ? 'bg-red-50 text-red-600'
+                    : 'text-gray-600 hover:bg-gray-100',
+                  !displayContent && 'opacity-50 cursor-not-allowed'
+                )}
+              >
+                <Save size={16} />
+                {saveStatus === 'saved' ? '已保存' : saveStatus === 'saving' ? '保存中...' : saveStatus === 'error' ? '保存失败' : '保存文章'}
+                <ChevronDown size={14} className={clsx('transition-transform', showSaveMenu && 'rotate-180')} />
+              </button>
+
+              {showSaveMenu && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-20" 
+                    onClick={() => setShowSaveMenu(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 min-w-36 py-1">
+                    <button
+                      onClick={() => handleSaveAs('md')}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition-colors"
+                    >
+                      <FileText size={14} className="text-gray-500" />
+                      <span className="text-sm text-gray-700">保存为 Markdown</span>
+                    </button>
+                    <button
+                      onClick={() => handleSaveAs('html')}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition-colors"
+                    >
+                      <FileText size={14} className="text-gray-500" />
+                      <span className="text-sm text-gray-700">保存为 HTML</span>
+                    </button>
+                  </div>
+                </>
               )}
-            >
-              <Save size={16} />
-              {saveStatus === 'saved' ? '已保存' : saveStatus === 'saving' ? '保存中...' : saveStatus === 'error' ? '保存失败' : '保存文章'}
-            </button>
+            </div>
 
             <div className="w-px h-6 bg-gray-200 mx-1" />
 
@@ -1149,6 +1204,26 @@ export default function FormatPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 w-16">字号</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setStyles({ ...styles, bodyFontSize: Math.max(12, styles.bodyFontSize - 1) })}
+                    className="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors border border-gray-300"
+                  >
+                    -
+                  </button>
+                  <span className="text-sm text-gray-700 w-8 text-center">{styles.bodyFontSize}</span>
+                  <button
+                    onClick={() => setStyles({ ...styles, bodyFontSize: Math.min(24, styles.bodyFontSize + 1) })}
+                    className="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors border border-gray-300"
+                  >
+                    +
+                  </button>
+                  <span className="text-xs text-gray-400">pt</span>
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -1424,9 +1499,9 @@ export default function FormatPage() {
                   components={{
                     h1: ({ children }) => (
                       <h1 style={{ 
-                        fontSize: '20px', 
+                        fontSize: `${styles.bodyFontSize + 4}pt`, 
                         fontWeight: 700, 
-                        color: styles.boldColor,
+                        color: styles.themeColor,
                         marginBottom: '20px',
                         paddingBottom: '12px',
                         borderBottom: '2px solid ' + styles.themeColor
@@ -1438,9 +1513,9 @@ export default function FormatPage() {
                       const hasBg = styles.h2BgShape !== 'none';
                       return (
                         <h2 style={{ 
-                          fontSize: '17px', 
+                          fontSize: `${styles.bodyFontSize + 2}pt`, 
                           fontWeight: 700, 
-                          color: styles.h2Color,
+                          color: styles.themeColor,
                           marginTop: '28px',
                           marginBottom: '16px',
                           paddingLeft: hasBg ? '14px' : '0',
@@ -1466,9 +1541,9 @@ export default function FormatPage() {
                     },
                     h3: ({ children }) => (
                       <h3 style={{ 
-                        fontSize: '16px', 
+                        fontSize: `${styles.bodyFontSize + 1}pt`, 
                         fontWeight: 600, 
-                        color: styles.h2Color,
+                        color: styles.themeColor,
                         marginTop: '20px',
                         marginBottom: '12px'
                       }}>
@@ -1477,7 +1552,7 @@ export default function FormatPage() {
                     ),
                     p: ({ children }) => (
                       <p style={{ 
-                        fontSize: '15px', 
+                        fontSize: `${styles.bodyFontSize}pt`, 
                         color: styles.bodyColor,
                         lineHeight: 2,
                         marginBottom: '16px',
@@ -1488,7 +1563,7 @@ export default function FormatPage() {
                     ),
                     ul: ({ children }) => (
                       <ul style={{ 
-                        fontSize: '15px', 
+                        fontSize: `${styles.bodyFontSize}pt`, 
                         color: styles.bodyColor,
                         lineHeight: 2,
                         marginBottom: '16px',
@@ -1500,7 +1575,7 @@ export default function FormatPage() {
                     ),
                     ol: ({ children }) => (
                       <ol style={{ 
-                        fontSize: '15px', 
+                        fontSize: `${styles.bodyFontSize}pt`, 
                         color: styles.bodyColor,
                         lineHeight: 2,
                         marginBottom: '16px',
@@ -1626,7 +1701,7 @@ export default function FormatPage() {
                         padding: '10px 12px',
                         textAlign: 'left',
                         fontWeight: 600,
-                        color: styles.h2Color
+                        color: styles.themeColor
                       }}>
                         {children}
                       </th>
