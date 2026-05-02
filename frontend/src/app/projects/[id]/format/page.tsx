@@ -862,7 +862,7 @@ export default function FormatPage() {
               )}
             >
               <FolderOpen size={16} />
-              {saveStatus === 'loaded' ? '已读取' : '打开目录'}
+              {saveStatus === 'loaded' ? '已读取' : '打开文章'}
             </button>
 
             <button
@@ -877,7 +877,7 @@ export default function FormatPage() {
               )}
             >
               <Save size={16} />
-              {saveStatus === 'saved' ? '已保存' : saveStatus === 'saving' ? '保存中...' : saveStatus === 'error' ? '保存失败' : '保存目录'}
+              {saveStatus === 'saved' ? '已保存' : saveStatus === 'saving' ? '保存中...' : saveStatus === 'error' ? '保存失败' : '保存文章'}
             </button>
 
             <div className="w-px h-6 bg-gray-200 mx-1" />
@@ -1016,7 +1016,7 @@ export default function FormatPage() {
                 <span className="text-xs text-gray-500 w-16">二级标题</span>
                 <div className="flex items-center gap-2">
                   <div className="relative">
-                    <span className="text-xs text-gray-400">字</span>
+                    <span className="text-xs text-gray-400">文字</span>
                     <button
                       onClick={() => setActiveColorPicker(activeColorPicker === 'h2Color' ? null : 'h2Color')}
                       className="w-5 h-5 rounded border border-gray-300 ml-1"
@@ -1064,7 +1064,7 @@ export default function FormatPage() {
                     )}
                   </div>
                   <div className="relative">
-                    <span className="text-xs text-gray-400">底</span>
+                    <span className="text-xs text-gray-400">背景</span>
                     <button
                       onClick={() => setActiveColorPicker(activeColorPicker === 'h2Bg' ? null : 'h2Bg')}
                       className="w-5 h-5 rounded border border-gray-300 ml-1"
@@ -1259,7 +1259,7 @@ export default function FormatPage() {
                 <span className="text-xs text-gray-500 w-16">引用样式</span>
                 <div className="flex items-center gap-2">
                   <div className="relative">
-                    <span className="text-xs text-gray-400">字</span>
+                    <span className="text-xs text-gray-400">文字</span>
                     <button
                       onClick={() => setActiveColorPicker(activeColorPicker === 'quoteColor' ? null : 'quoteColor')}
                       className="w-5 h-5 rounded border border-gray-300 ml-1"
@@ -1307,7 +1307,7 @@ export default function FormatPage() {
                     )}
                   </div>
                   <div className="relative">
-                    <span className="text-xs text-gray-400">底</span>
+                    <span className="text-xs text-gray-400">背景</span>
                     <button
                       onClick={() => setActiveColorPicker(activeColorPicker === 'quoteBg' ? null : 'quoteBg')}
                       className="w-5 h-5 rounded border border-gray-300 ml-1"
@@ -1396,7 +1396,7 @@ export default function FormatPage() {
       )}
 
       <main className="flex-1 flex">
-        <div className="w-3/5 border-r border-gray-200 flex flex-col">
+        <div className="w-1/2 border-r border-gray-200 flex flex-col">
           <div className="flex-1 overflow-hidden">
             <textarea
               value={content}
@@ -1407,7 +1407,7 @@ export default function FormatPage() {
           </div>
         </div>
 
-        <div className="w-2/5 flex flex-col bg-gray-100">
+        <div className="w-1/2 flex flex-col bg-gray-100">
           <div className="flex-1 overflow-auto p-6 flex justify-center items-start">
             <div 
               className="bg-white shadow-lg"
