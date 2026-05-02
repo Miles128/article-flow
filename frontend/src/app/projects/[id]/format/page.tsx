@@ -1,62 +1,130 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import { formatApi, projectsApi } from '@/lib/api/client';
-import type { Platform } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { 
   Type, 
   FileText,
-  MessageCircle,
-  BookOpen,
-  BookMarked,
-  Video,
-  Newspaper,
-  Sparkles,
   Loader2,
-  Copy,
-  Check,
+  ChevronDown,
+  Palette,
   Download,
-  Code,
-  Smartphone
+  Upload,
+  Settings,
+  X,
+  Hexagon,
+  RoundedSquare,
+  Square,
+  Circle,
+  Triangle
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
-const platformIcons: Record<string, React.ElementType> = {
-  wechat: MessageCircle,
-  zhihu: BookOpen,
-  xiaohongshu: BookMarked,
-  bilibili: Video,
-  jianshu: FileText,
-  toutiao: Newspaper,
+interface StyleConfig {
+  themeColor: string;
+  h2Color: string;
+  h2BgColor: string;
+  h2BgShape: 'none' | 'square' | 'rounded' | 'pill';
+  bodyFont: string;
+  bodyColor: string;
+  boldColor: string;
+  quoteColor: string;
+  quoteBgColor: string;
+  quoteBgShape: 'none' | 'square' | 'rounded' | 'pill';
+}
+
+const defaultStyles: StyleConfig = {
+  themeColor: '#0ea5e9',
+  h2Color: '#111827',
+  h2BgColor: '#f0f9ff',
+  h2BgShape: 'rounded',
+  bodyFont: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  bodyColor: '#374151',
+  boldColor: '#111827',
+  quoteColor: '#6b7280',
+  quoteBgColor: '#f9fafb',
+  quoteBgShape: 'rounded',
 };
 
-const exportFormats = [
-  { id: 'html', label: 'HTML', icon: Code },
-  { id: 'word', label: 'Word', icon: FileText },
-  { id: 'pdf', label: 'PDF', icon: FileText },
-  { id: 'plaintext', label: '纯文本', icon: FileText },
+const colorPresets = [
+  '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', 
+  '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
+  '#1f2937', '#4b5563', '#9ca3af', '#e5e7eb'
 ];
+
+const fontOptions = [
+  { label: '系统默认', value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
+  { label: '苹方', value: '"PingFang SC", sans-serif' },
+  { label: '思源黑体', value: '"Source Han Sans SC", sans-serif' },
+  { label: '微软雅黑', value: '"Microsoft YaHei", sans-serif' },
+  { label: '宋体', value: '"SimSun", serif' },
+  { label: '楷体', value: '"KaiTi", serif' },
+];
+
+const bgShapeOptions = [
+  { label: '无', value: 'none', icon: Square },
+  { label: '直角', value: 'square', icon: Square },
+  { label: '圆角', value: 'rounded', icon: RoundedSquare },
+  { label: '胶囊', value: 'pill', icon: Circle },
+];
+
+const presetThemes = [
+  { 
+    name: '清新蓝', 
+    styles: { ...defaultStyles, themeColor: '#0ea5e9', h2BgColor: '#f0f9ff', h2Color: '#0369a1' } 
+  },
+  { 
+    name: '活力橙', 
+    styles: { ...defaultStyles, themeColor: '#f59e0b', h2BgColor: '#fffbeb', h2Color: '#92400e' } 
+  },
+  { 
+    name: '自然绿', 
+    styles: { ...defaultStyles, themeColor: '#10b981', h2BgColor: '#f0fdf4', h2Color: '#065f46' } 
+  },
+  { 
+    name: '优雅紫', 
+    styles: { ...defaultStyles, themeColor: '#8b5cf6', h2BgColor: '#faf5ff', h2Color: '#5b21b6' } 
+  },
+  { 
+    name: '商务灰', 
+    styles: { ...defaultStyles, themeColor: '#4b5563', h2BgColor: '#f3f4f6', h2Color: '#1f2937', bodyColor: '#4b5563' } 
+  },
+  { 
+    name: '简约白', 
+    styles: { 
+      ...defaultStyles, 
+      themeColor: '#111827', 
+      h2BgColor: '#ffffff', 
+      h2Color: '#111827',
+      h2BgShape: 'none',
+      quoteBgColor: '#ffffff',
+      quoteBgShape: 'none'
+    } 
+  },
+];
+
+const IPHONE_17_WIDTH = 393;
 
 export default function FormatPage() {
   const params = useParams();
-  const { currentProject, setCurrentStep } = useAppStore();
+  const { setCurrentStep } = useAppStore();
   const [content, setContent] = useState('');
-  const [platforms, setPlatforms] = useState<Platform[]>([]);
-  const [selectedPlatform, setSelectedPlatform] = useState<string>('wechat');
-  const [convertedContent, setConvertedContent] = useState<string>('');
-  const [isConverting, setIsConverting] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [convertedContent, setConvertedContent] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [showStyleToolbar, setShowStyleToolbar] = useState(false);
+  const [styles, setStyles] = useState<StyleConfig>(defaultStyles);
+  const [isConverting, setIsConverting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [activeColorPicker, setActiveColorPicker] = useState<string | null>(null);
 
   useEffect(() => {
     setCurrentStep(7);
     loadContent();
-    loadPlatforms();
   }, []);
 
   async function loadContent() {
@@ -78,33 +146,89 @@ export default function FormatPage() {
     }
   }
 
-  async function loadPlatforms() {
-    try {
-      const response = await formatApi.getPlatforms();
-      setPlatforms(response.data);
-    } catch (error) {
-      console.error('Failed to load platforms:', error);
-    }
+  const displayContent = convertedContent || content || '';
+
+  function handleExportCSS() {
+    const cssContent = `/* 微信公众号样式配置 */
+:root {
+  --theme-color: ${styles.themeColor};
+  --h2-color: ${styles.h2Color};
+  --h2-bg-color: ${styles.h2BgColor};
+  --h2-bg-shape: ${styles.h2BgShape};
+  --body-font: ${styles.bodyFont};
+  --body-color: ${styles.bodyColor};
+  --bold-color: ${styles.boldColor};
+  --quote-color: ${styles.quoteColor};
+  --quote-bg-color: ${styles.quoteBgColor};
+  --quote-bg-shape: ${styles.quoteBgShape};
+}
+
+/* 使用方法：将此 CSS 应用到你的文章样式中 */
+`;
+    const blob = new Blob([cssContent], { type: 'text/css' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'wechat-style.css';
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
-  async function convertToPlatform(platformId: string) {
-    setSelectedPlatform(platformId);
-    setIsConverting(true);
+  function handleImportCSS(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
     
-    try {
-      const response = await formatApi.convert(content || '', platformId);
-      setConvertedContent(response.data.converted_content);
-    } catch (error) {
-      console.error('Failed to convert format:', error);
-    } finally {
-      setIsConverting(false);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const cssText = event.target?.result as string;
+      const newStyles = { ...styles };
+      
+      const matches: Record<string, string> = {};
+      cssText.replace(/--([\w-]+):\s*([^;]+);/g, (_, key, value) => {
+        matches[key] = value.trim();
+        return '';
+      });
+
+      if (matches['theme-color']) newStyles.themeColor = matches['theme-color'];
+      if (matches['h2-color']) newStyles.h2Color = matches['h2-color'];
+      if (matches['h2-bg-color']) newStyles.h2BgColor = matches['h2-bg-color'];
+      if (matches['h2-bg-shape']) newStyles.h2BgShape = matches['h2-bg-shape'] as any;
+      if (matches['body-font']) newStyles.bodyFont = matches['body-font'];
+      if (matches['body-color']) newStyles.bodyColor = matches['body-color'];
+      if (matches['bold-color']) newStyles.boldColor = matches['bold-color'];
+      if (matches['quote-color']) newStyles.quoteColor = matches['quote-color'];
+      if (matches['quote-bg-color']) newStyles.quoteBgColor = matches['quote-bg-color'];
+      if (matches['quote-bg-shape']) newStyles.quoteBgShape = matches['quote-bg-shape'] as any;
+
+      setStyles(newStyles);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  function getBgShapeStyle(shape: string) {
+    switch (shape) {
+      case 'square': return 'rounded-none';
+      case 'rounded': return 'rounded-lg';
+      case 'pill': return 'rounded-full';
+      default: return '';
     }
   }
 
-  async function normalizeMarkdown() {
+  function getBgShapeRadius(shape: string) {
+    switch (shape) {
+      case 'square': return '0px';
+      case 'rounded': return '8px';
+      case 'pill': return '9999px';
+      default: return '0px';
+    }
+  }
+
+  async function normalizeContent() {
+    if (!content.trim()) return;
     setIsConverting(true);
     try {
-      const response = await formatApi.normalizeMarkdown(content || '');
+      const response = await formatApi.normalizeMarkdown(content);
       setConvertedContent(response.data.normalized_content);
     } catch (error) {
       console.error('Failed to normalize:', error);
@@ -113,257 +237,671 @@ export default function FormatPage() {
     }
   }
 
-  async function exportToFormat(formatId: string) {
-    setIsExporting(true);
-    try {
-      const response = await formatApi.export(
-        convertedContent || content || '', 
-        formatId, 
-        currentProject?.title || '文章'
-      );
-      
-      if (formatId === 'html' && response.data.content) {
-        const blob = new Blob([response.data.content], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = response.data.filename || 'article.html';
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-      
-      alert(`已导出为 ${formatId.toUpperCase()} 格式`);
-    } catch (error) {
-      console.error('Failed to export:', error);
-      alert('导出失败');
-    } finally {
-      setIsExporting(false);
-    }
-  }
-
-  function copyToClipboard() {
-    const text = convertedContent || content || '';
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  const displayContent = convertedContent || content || '';
-
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="animate-spin h-8 w-8 text-primary-500" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <Type className="text-primary-500" size={24} />
-              格式处理
-            </h2>
-            <p className="text-gray-500 mt-1">Markdown 规范化、多平台格式适配、一键转换导出</p>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
+        <div className="max-w-none px-4 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Type className="text-gray-800" size={20} />
+            <h1 className="text-base font-semibold text-gray-900">格式处理</h1>
           </div>
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-2">
             <button
-              onClick={copyToClipboard}
-              className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              {copied ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
-              {copied ? '已复制' : '复制'}
+              <Upload size={16} />
+              导入样式
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".css,.json"
+              onChange={handleImportCSS}
+              className="hidden"
+            />
+
+            <button
+              onClick={handleExportCSS}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Download size={16} />
+              导出样式
+            </button>
+
+            <div className="w-px h-6 bg-gray-200 mx-1" />
+
+            <button
+              onClick={() => setShowStyleToolbar(!showStyleToolbar)}
+              className={clsx(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors',
+                showStyleToolbar 
+                  ? 'bg-primary-50 text-primary-600' 
+                  : 'text-gray-600 hover:bg-gray-100'
+              )}
+            >
+              <Settings size={16} />
+              格式编辑
+              <ChevronDown size={14} className={clsx('transition-transform', showStyleToolbar && 'rotate-180')} />
             </button>
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center border-b border-gray-200 bg-gray-50 px-4 py-3">
-              <div className="flex-1 flex items-center gap-2">
-                <FileText size={16} className="text-gray-500" />
-                <span className="text-sm font-medium text-gray-700">Markdown 原始内容</span>
-              </div>
+        {showStyleToolbar && (
+          <div className="bg-white border-b border-gray-200 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2">
-                <button
-                  onClick={normalizeMarkdown}
-                  disabled={isConverting}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-colors disabled:opacity-50 text-xs"
-                >
-                  {isConverting ? <Loader2 className="animate-spin" size={12} /> : <Sparkles size={12} />}
-                  规范化
-                </button>
+                <span className="text-xs text-gray-500 w-16">预设主题</span>
+                <div className="flex gap-1.5">
+                  {presetThemes.map((preset, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setStyles(preset.styles)}
+                      title={preset.name}
+                      className={clsx(
+                        'w-7 h-7 rounded-full border-2 transition-all hover:scale-110',
+                        JSON.stringify(styles) === JSON.stringify(preset.styles) 
+                          ? 'border-primary-500 ring-2 ring-primary-200' 
+                          : 'border-gray-200'
+                      )}
+                      style={{ backgroundColor: preset.styles.themeColor }}
+                    />
+                  ))}
+                </div>
               </div>
+
+              <div className="w-px h-8 bg-gray-200" />
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 w-16">主题色</span>
+                <div className="relative">
+                  <button
+                    onClick={() => setActiveColorPicker(activeColorPicker === 'theme' ? null : 'theme')}
+                    className="w-7 h-7 rounded-lg border border-gray-300 hover:border-gray-400 transition-colors"
+                    style={{ backgroundColor: styles.themeColor }}
+                  />
+                  {activeColorPicker === 'theme' && (
+                    <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-2 shadow-lg z-40">
+                      <div className="grid grid-cols-6 gap-1">
+                        {colorPresets.map((color, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => {
+                              setStyles({ ...styles, themeColor: color });
+                              setActiveColorPicker(null);
+                            }}
+                            className={clsx(
+                              'w-6 h-6 rounded',
+                              styles.themeColor === color && 'ring-2 ring-primary-500 ring-offset-1'
+                            )}
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={styles.themeColor}
+                          onChange={(e) => setStyles({ ...styles, themeColor: e.target.value })}
+                          className="w-8 h-8 cursor-pointer rounded border-0"
+                        />
+                        <input
+                          type="text"
+                          value={styles.themeColor}
+                          onChange={(e) => setStyles({ ...styles, themeColor: e.target.value })}
+                          className="w-20 px-2 py-1 text-xs border border-gray-300 rounded font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="w-px h-8 bg-gray-200" />
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 w-16">二级标题</span>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <span className="text-xs text-gray-400">字</span>
+                    <button
+                      onClick={() => setActiveColorPicker(activeColorPicker === 'h2Color' ? null : 'h2Color')}
+                      className="w-5 h-5 rounded border border-gray-300 ml-1"
+                      style={{ backgroundColor: styles.h2Color }}
+                    />
+                    {activeColorPicker === 'h2Color' && (
+                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-2 shadow-lg z-40">
+                        <div className="grid grid-cols-6 gap-1">
+                          {colorPresets.map((color, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => {
+                                setStyles({ ...styles, h2Color: color });
+                                setActiveColorPicker(null);
+                              }}
+                              className="w-5 h-5 rounded"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <span className="text-xs text-gray-400">底</span>
+                    <button
+                      onClick={() => setActiveColorPicker(activeColorPicker === 'h2Bg' ? null : 'h2Bg')}
+                      className="w-5 h-5 rounded border border-gray-300 ml-1"
+                      style={{ backgroundColor: styles.h2BgColor }}
+                    />
+                    {activeColorPicker === 'h2Bg' && (
+                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-2 shadow-lg z-40">
+                        <div className="grid grid-cols-6 gap-1">
+                          {colorPresets.map((color, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => {
+                                setStyles({ ...styles, h2BgColor: color });
+                                setActiveColorPicker(null);
+                              }}
+                              className="w-5 h-5 rounded"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-0.5">
+                    {bgShapeOptions.map((shape) => {
+                      const Icon = shape.icon;
+                      return (
+                        <button
+                          key={shape.value}
+                          onClick={() => setStyles({ ...styles, h2BgShape: shape.value as any })}
+                          title={shape.label}
+                          className={clsx(
+                            'w-6 h-6 rounded flex items-center justify-center transition-colors',
+                            styles.h2BgShape === shape.value 
+                              ? 'bg-primary-50 text-primary-600' 
+                              : 'text-gray-400 hover:text-gray-600'
+                          )}
+                        >
+                          <Icon size={14} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="w-px h-8 bg-gray-200" />
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 w-16">正文字体</span>
+                <select
+                  value={styles.bodyFont}
+                  onChange={(e) => setStyles({ ...styles, bodyFont: e.target.value })}
+                  className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                >
+                  {fontOptions.map((font) => (
+                    <option key={font.label} value={font.value}>
+                      {font.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 w-16">正文颜色</span>
+                <div className="relative">
+                  <button
+                    onClick={() => setActiveColorPicker(activeColorPicker === 'bodyColor' ? null : 'bodyColor')}
+                    className="w-5 h-5 rounded border border-gray-300"
+                    style={{ backgroundColor: styles.bodyColor }}
+                  />
+                  {activeColorPicker === 'bodyColor' && (
+                    <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-2 shadow-lg z-40">
+                      <div className="grid grid-cols-6 gap-1">
+                        {colorPresets.map((color, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => {
+                              setStyles({ ...styles, bodyColor: color });
+                              setActiveColorPicker(null);
+                            }}
+                            className="w-5 h-5 rounded"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 w-16">粗体颜色</span>
+                <div className="relative">
+                  <button
+                    onClick={() => setActiveColorPicker(activeColorPicker === 'boldColor' ? null : 'boldColor')}
+                    className="w-5 h-5 rounded border border-gray-300"
+                    style={{ backgroundColor: styles.boldColor }}
+                  />
+                  {activeColorPicker === 'boldColor' && (
+                    <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-2 shadow-lg z-40">
+                      <div className="grid grid-cols-6 gap-1">
+                        {colorPresets.map((color, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => {
+                              setStyles({ ...styles, boldColor: color });
+                              setActiveColorPicker(null);
+                            }}
+                            className="w-5 h-5 rounded"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="w-px h-8 bg-gray-200" />
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 w-16">引用样式</span>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <span className="text-xs text-gray-400">字</span>
+                    <button
+                      onClick={() => setActiveColorPicker(activeColorPicker === 'quoteColor' ? null : 'quoteColor')}
+                      className="w-5 h-5 rounded border border-gray-300 ml-1"
+                      style={{ backgroundColor: styles.quoteColor }}
+                    />
+                    {activeColorPicker === 'quoteColor' && (
+                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-2 shadow-lg z-40">
+                        <div className="grid grid-cols-6 gap-1">
+                          {colorPresets.map((color, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => {
+                                setStyles({ ...styles, quoteColor: color });
+                                setActiveColorPicker(null);
+                              }}
+                              className="w-5 h-5 rounded"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <span className="text-xs text-gray-400">底</span>
+                    <button
+                      onClick={() => setActiveColorPicker(activeColorPicker === 'quoteBg' ? null : 'quoteBg')}
+                      className="w-5 h-5 rounded border border-gray-300 ml-1"
+                      style={{ backgroundColor: styles.quoteBgColor }}
+                    />
+                    {activeColorPicker === 'quoteBg' && (
+                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-2 shadow-lg z-40">
+                        <div className="grid grid-cols-6 gap-1">
+                          {colorPresets.map((color, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => {
+                                setStyles({ ...styles, quoteBgColor: color });
+                                setActiveColorPicker(null);
+                              }}
+                              className="w-5 h-5 rounded"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-0.5">
+                    {bgShapeOptions.map((shape) => {
+                      const Icon = shape.icon;
+                      return (
+                        <button
+                          key={shape.value}
+                          onClick={() => setStyles({ ...styles, quoteBgShape: shape.value as any })}
+                          title={shape.label}
+                          className={clsx(
+                            'w-6 h-6 rounded flex items-center justify-center transition-colors',
+                            styles.quoteBgShape === shape.value 
+                              ? 'bg-primary-50 text-primary-600' 
+                              : 'text-gray-400 hover:text-gray-600'
+                          )}
+                        >
+                          <Icon size={14} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowStyleToolbar(false)}
+                className="ml-auto text-gray-400 hover:text-gray-600"
+              >
+                <X size={18} />
+              </button>
             </div>
-            
-            <div className="p-4">
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                className="w-full h-96 p-4 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none font-mono text-sm leading-relaxed resize-none bg-gray-50"
-                placeholder="暂无内容，请先完成写作步骤..."
-              />
+          </div>
+        )}
+      </header>
+
+      {activeColorPicker && (
+        <div 
+          className="fixed inset-0 z-30" 
+          onClick={() => setActiveColorPicker(null)}
+        />
+      )}
+
+      <main className="flex-1 flex">
+        <div className="w-3/5 border-r border-gray-200 flex flex-col">
+          <div className="px-4 py-2 bg-white border-b border-gray-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText size={14} className="text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Markdown</span>
             </div>
+            <div className="flex items-center gap-2">
+              {convertedContent && (
+                <span className="text-xs text-green-600">已规范化</span>
+              )}
+              <button
+                onClick={normalizeContent}
+                disabled={isConverting || !content.trim()}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
+              >
+                {isConverting ? <Loader2 className="animate-spin" size={12} /> : null}
+                规范化
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="w-full h-full p-4 font-mono text-sm leading-relaxed resize-none outline-none bg-white focus:bg-gray-50 transition-colors"
+              placeholder="输入或粘贴 Markdown 内容..."
+            />
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center border-b border-gray-200 bg-gray-50 px-4 py-3">
-              <Smartphone size={16} className="text-gray-500 mr-2" />
-              <span className="text-sm font-medium text-gray-700">微信公众号预览</span>
-            </div>
-            
-            <div className="p-4 flex justify-center">
-              <div className="w-64 bg-white rounded-3xl shadow-2xl overflow-hidden border-8 border-gray-800" style={{ aspectRatio: '9/19' }}>
-                <div className="bg-gray-900 px-4 py-2 flex items-center justify-between">
-                  <span className="text-white text-xs">9:41</span>
-                  <div className="flex items-center gap-1">
-                    <div className="w-4 h-2 bg-white rounded-sm" />
-                    <div className="w-2 h-2 bg-white rounded-full" />
-                  </div>
-                </div>
-                
-                <div className="bg-gray-100 px-3 py-2 flex items-center gap-2">
-                  <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                    <MessageCircle size={14} className="text-white" />
-                  </div>
-                  <span className="text-sm font-medium text-gray-800">公众号</span>
-                </div>
-                
-                <div className="bg-white overflow-y-auto" style={{ height: 'calc(100% - 88px)' }}>
-                  <div className="p-4">
-                    {displayContent ? (
-                      <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            h1: ({ children }) => <h1 className="text-lg font-bold text-gray-900 mb-3 pb-2 border-b border-gray-200">{children}</h1>,
-                            h2: ({ children }) => <h2 className="text-base font-bold text-gray-900 mt-4 mb-2 flex items-center gap-2">
-                              <span className="w-1 h-4 bg-primary-500 rounded-full" />
-                              {children}
-                            </h2>,
-                            h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-800 mt-3 mb-1.5">{children}</h3>,
-                            p: ({ children }) => <p className="text-sm text-gray-700 mb-3 leading-relaxed indent-2">{children}</p>,
-                            ul: ({ children }) => <ul className="text-sm text-gray-700 mb-3 pl-4 space-y-1.5 list-disc">{children}</ul>,
-                            ol: ({ children }) => <ol className="text-sm text-gray-700 mb-3 pl-4 space-y-1.5 list-decimal">{children}</ol>,
-                            li: ({ children }) => <li className="text-sm text-gray-700">{children}</li>,
-                            blockquote: ({ children }) => <blockquote className="border-l-2 border-primary-400 pl-3 my-3 text-sm text-gray-600 italic bg-primary-50 py-2 pr-2 rounded-r">{children}</blockquote>,
-                            code: ({ children }) => <code className="bg-gray-100 text-red-600 px-1.5 py-0.5 rounded text-xs font-mono">{children}</code>,
-                            a: ({ href, children }) => <a href={href} className="text-primary-600 underline text-sm">{children}</a>,
-                            strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
-                            em: ({ children }) => <em className="italic text-gray-700">{children}</em>,
-                            hr: () => <hr className="my-4 border-gray-200 border-dashed" />,
-                            br: () => <br />,
-                          }}
-                        >
-                          {displayContent}
-                        </ReactMarkdown>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-40 text-gray-400">
-                        <FileText size={32} className="mb-2 opacity-50" />
-                        <p className="text-sm">暂无预览内容</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div className="w-2/5 flex flex-col bg-gray-100">
+          <div className="px-4 py-2 bg-white border-b border-gray-200 flex items-center gap-2">
+            <Palette size={14} className="text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">预览</span>
           </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">平台适配</h3>
-            <div className="space-y-2">
-              {platforms.length > 0 ? platforms.map((platform) => {
-                const Icon = platformIcons[platform.id] || FileText;
-                return (
-                  <button
-                    key={platform.id}
-                    onClick={() => convertToPlatform(platform.id)}
-                    disabled={isConverting}
-                    className={clsx(
-                      'w-full text-left px-4 py-3 rounded-lg border-2 transition-all disabled:opacity-50',
-                      selectedPlatform === platform.id
-                        ? 'border-primary-500 bg-primary-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon size={20} className={clsx(
-                        selectedPlatform === platform.id ? 'text-primary-600' : 'text-gray-400'
-                      )} />
-                      <div>
-                        <p className={clsx(
-                          'font-medium text-sm',
-                          selectedPlatform === platform.id ? 'text-primary-700' : 'text-gray-900'
-                        )}>
-                          {platform.name}
-                        </p>
-                        <p className="text-xs text-gray-500">{platform.description}</p>
+          <div className="flex-1 overflow-auto p-6 flex justify-center items-start">
+            <div 
+              className="bg-white shadow-lg"
+              style={{ 
+                width: `${IPHONE_17_WIDTH}px`,
+                fontFamily: styles.bodyFont,
+                padding: '24px 20px',
+                minHeight: '300px'
+              }}
+            >
+              {displayContent ? (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    h1: ({ children }) => (
+                      <h1 style={{ 
+                        fontSize: '20px', 
+                        fontWeight: 700, 
+                        color: styles.boldColor,
+                        marginBottom: '20px',
+                        paddingBottom: '12px',
+                        borderBottom: '2px solid ' + styles.themeColor
+                      }}>
+                        {children}
+                      </h1>
+                    ),
+                    h2: ({ children }) => {
+                      const hasBg = styles.h2BgShape !== 'none';
+                      return (
+                        <h2 style={{ 
+                          fontSize: '17px', 
+                          fontWeight: 700, 
+                          color: styles.h2Color,
+                          marginTop: '28px',
+                          marginBottom: '16px',
+                          paddingLeft: hasBg ? '14px' : '0',
+                          paddingRight: hasBg ? '14px' : '0',
+                          paddingTop: hasBg ? '8px' : '0',
+                          paddingBottom: hasBg ? '8px' : '0',
+                          backgroundColor: hasBg ? styles.h2BgColor : 'transparent',
+                          borderRadius: getBgShapeRadius(styles.h2BgShape),
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px'
+                        }}>
+                          <span style={{
+                            width: '4px',
+                            height: '18px',
+                            backgroundColor: styles.themeColor,
+                            borderRadius: '2px',
+                            display: hasBg ? 'none' : 'block'
+                          }} />
+                          {children}
+                        </h2>
+                      );
+                    },
+                    h3: ({ children }) => (
+                      <h3 style={{ 
+                        fontSize: '16px', 
+                        fontWeight: 600, 
+                        color: styles.h2Color,
+                        marginTop: '20px',
+                        marginBottom: '12px'
+                      }}>
+                        {children}
+                      </h3>
+                    ),
+                    p: ({ children }) => (
+                      <p style={{ 
+                        fontSize: '15px', 
+                        color: styles.bodyColor,
+                        lineHeight: 2,
+                        marginBottom: '16px',
+                        textIndent: '2em'
+                      }}>
+                        {children}
+                      </p>
+                    ),
+                    ul: ({ children }) => (
+                      <ul style={{ 
+                        fontSize: '15px', 
+                        color: styles.bodyColor,
+                        lineHeight: 2,
+                        marginBottom: '16px',
+                        paddingLeft: '2em',
+                        listStyleType: 'disc'
+                      }}>
+                        {children}
+                      </ul>
+                    ),
+                    ol: ({ children }) => (
+                      <ol style={{ 
+                        fontSize: '15px', 
+                        color: styles.bodyColor,
+                        lineHeight: 2,
+                        marginBottom: '16px',
+                        paddingLeft: '2em',
+                        listStyleType: 'decimal'
+                      }}>
+                        {children}
+                      </ol>
+                    ),
+                    li: ({ children }) => (
+                      <li style={{ marginBottom: '8px' }}>
+                        {children}
+                      </li>
+                    ),
+                    blockquote: ({ children }) => {
+                      const hasBg = styles.quoteBgShape !== 'none';
+                      return (
+                        <blockquote style={{ 
+                          fontSize: '14px', 
+                          color: styles.quoteColor,
+                          lineHeight: 1.8,
+                          marginBottom: '16px',
+                          padding: hasBg ? '14px 16px' : '8px 14px',
+                          backgroundColor: hasBg ? styles.quoteBgColor : '#fafafa',
+                          borderRadius: hasBg ? getBgShapeRadius(styles.quoteBgShape) : '0',
+                          borderLeft: hasBg ? 'none' : '3px solid ' + styles.themeColor,
+                          fontStyle: 'italic'
+                        }}>
+                          {children}
+                        </blockquote>
+                      );
+                    },
+                    code: ({ className, children, ...props }) => {
+                      const match = /language-(\w+)/.exec(className || '');
+                      const isInline = !match;
+                      return isInline ? (
+                        <code style={{ 
+                          backgroundColor: '#f3f4f6',
+                          color: '#ef4444',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          fontFamily: 'Consolas, Monaco, monospace',
+                          fontSize: '13px'
+                        }} {...props}>
+                          {children}
+                        </code>
+                      ) : (
+                        <pre style={{
+                          backgroundColor: '#1f2937',
+                          color: '#e5e7eb',
+                          padding: '16px',
+                          borderRadius: '8px',
+                          overflowX: 'auto',
+                          marginBottom: '16px',
+                          fontSize: '13px',
+                          lineHeight: 1.6,
+                          fontFamily: 'Consolas, Monaco, monospace'
+                        }}>
+                          <code>{children}</code>
+                        </pre>
+                      );
+                    },
+                    a: ({ href, children }) => (
+                      <a href={href} style={{ 
+                        color: styles.themeColor,
+                        textDecoration: 'underline'
+                      }}>
+                        {children}
+                      </a>
+                    ),
+                    strong: ({ children }) => (
+                      <strong style={{ 
+                        fontWeight: 700,
+                        color: styles.boldColor
+                      }}>
+                        {children}
+                      </strong>
+                    ),
+                    em: ({ children }) => (
+                      <em style={{ fontStyle: 'italic' }}>
+                        {children}
+                      </em>
+                    ),
+                    hr: () => (
+                      <hr style={{ 
+                        border: 'none',
+                        borderTop: '1px dashed #e5e7eb',
+                        margin: '24px 0'
+                      }} />
+                    ),
+                    br: () => <br />,
+                    img: ({ src, alt }) => (
+                      <img 
+                        src={src} 
+                        alt={alt || ''} 
+                        style={{
+                          maxWidth: '100%',
+                          height: 'auto',
+                          borderRadius: '8px',
+                          margin: '16px 0'
+                        }}
+                      />
+                    ),
+                    table: ({ children }) => (
+                      <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
+                        <table style={{
+                          width: '100%',
+                          borderCollapse: 'collapse',
+                          fontSize: '14px'
+                        }}>
+                          {children}
+                        </table>
                       </div>
-                    </div>
-                  </button>
-                );
-              }) : (
-                <p className="text-sm text-gray-500 text-center py-4">暂无平台配置</p>
+                    ),
+                    thead: ({ children }) => (
+                      <thead style={{ backgroundColor: styles.h2BgColor }}>
+                        {children}
+                      </thead>
+                    ),
+                    th: ({ children }) => (
+                      <th style={{
+                        border: '1px solid #e5e7eb',
+                        padding: '10px 12px',
+                        textAlign: 'left',
+                        fontWeight: 600,
+                        color: styles.h2Color
+                      }}>
+                        {children}
+                      </th>
+                    ),
+                    td: ({ children }) => (
+                      <td style={{
+                        border: '1px solid #e5e7eb',
+                        padding: '10px 12px',
+                        color: styles.bodyColor
+                      }}>
+                        {children}
+                      </td>
+                    ),
+                  }}
+                >
+                  {displayContent}
+                </ReactMarkdown>
+              ) : (
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  minHeight: '200px',
+                  color: '#9ca3af'
+                }}>
+                  <FileText size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
+                  <p style={{ fontSize: '14px' }}>暂无内容</p>
+                </div>
               )}
             </div>
           </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">导出格式</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {exportFormats.map((format) => {
-                const Icon = format.icon;
-                return (
-                  <button
-                    key={format.id}
-                    onClick={() => exportToFormat(format.id)}
-                    disabled={isExporting}
-                    className="flex flex-col items-center gap-2 px-3 py-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-primary-300 transition-all disabled:opacity-50"
-                  >
-                    <Icon size={24} className="text-gray-500" />
-                    <span className="text-sm font-medium text-gray-700">{format.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">格式提示</h3>
-            <div className="space-y-3 text-sm">
-              <div className="flex items-start gap-2">
-                <MessageCircle size={16} className="text-green-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-medium text-gray-700">公众号</p>
-                  <p className="text-gray-500 text-xs">段落≤150字，对话式风格，适当使用 emoji</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <BookOpen size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-medium text-gray-700">知乎</p>
-                  <p className="text-gray-500 text-xs">结构清晰，使用 Markdown 标题层级</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <BookMarked size={16} className="text-red-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-medium text-gray-700">小红书</p>
-                  <p className="text-gray-500 text-xs">段落极短，添加话题标签 #，使用表情符号分隔</p>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
