@@ -58,7 +58,7 @@ def get_project_contents(project_id):
     if step is not None:
         contents = ProjectContent.get_by_project_step(project_id, step)
     else:
-        from .. import db
+        from .. import db_data as _db
         contents = list(db.project_contents.find({'project_id': project_id}))
         for c in contents:
             c['_id'] = str(c['_id'])
@@ -87,7 +87,7 @@ def update_project_content(project_id, content_id):
         return jsonify({'error': 'Content is required'}), 400
     
     if ProjectContent.update(content_id, data['content']):
-        from .. import db
+        from .. import db_data as _db
         content = db.project_contents.find_one({'_id': content_id})
         if content:
             content['_id'] = str(content['_id'])

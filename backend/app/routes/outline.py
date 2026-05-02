@@ -24,7 +24,7 @@ def create_or_update_outline():
     title = data.get('title', '文章大纲')
     nodes = data.get('nodes', [])
     
-    from .. import db
+    from .. import db_data as _db
     from bson.objectid import ObjectId
     
     existing = db.outlines.find_one({'project_id': project_id})

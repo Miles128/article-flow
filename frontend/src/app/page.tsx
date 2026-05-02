@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { Plus, MoreVertical, Calendar, FileText, TrendingUp, Target, PenTool } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Plus, MoreVertical, Calendar, FileText, TrendingUp, Target, PenTool, Loader2, Trash2, X } from 'lucide-react';
 import { projectsApi } from '@/lib/api/client';
 import type { Project } from '@/types';
 import { clsx } from 'clsx';
@@ -21,9 +22,15 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 };
 
 export default function HomePage() {
+  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [deleteConfirmProject, setDeleteConfirmProject] = useState<Project | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [newProject, setNewProject] = useState({
     title: '',
     workspace: 'general' as const,
@@ -48,13 +55,32 @@ export default function HomePage() {
   async function createProject() {
     if (!newProject.title.trim()) return;
     
+    setCreating(true);
+    setCreateError('');
     try {
-      await projectsApi.create(newProject);
+      const response = await projectsApi.create(newProject);
       setShowCreateModal(false);
       setNewProject({ title: '', workspace: 'general', targetWordCount: 2000 });
-      loadProjects();
+      router.push(`/projects/${response.data._id}`);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      const msg = err?.response?.data?.message || '创建失败，请检查后端服务是否运行';
+      setCreateError(msg);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function deleteProject(project: Project) {
+    setDeleting(true);
+    try {
+      await projectsApi.delete(project._id);
+      setProjects((prev) => prev.filter((p) => p._id !== project._id));
+      setDeleteConfirmProject(null);
     } catch (error) {
-      console.error('Failed to create project:', error);
+      console.error('Failed to delete project:', error);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -113,10 +139,9 @@ export default function HomePage() {
               const progress = Math.min(100, Math.round((project.wordCount / project.targetWordCount) * 100));
 
               return (
-                <Link
+                <div
                   key={project._id}
-                  href={`/projects/${project._id}`}
-                  className="group bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg hover:border-primary-300 transition-all"
+                  className="group bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg hover:border-primary-300 transition-all relative"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-2">
@@ -127,52 +152,80 @@ export default function HomePage() {
                         {status.label}
                       </span>
                     </div>
-                    <button
-                      onClick={(e) => e.preventDefault()}
-                      className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-                    >
-                      <MoreVertical size={16} />
-                    </button>
-                  </div>
-
-                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors mb-2">
-                    {project.title}
-                  </h3>
-
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
-                        <span>写作进度</span>
-                        <span>{project.wordCount} / {project.targetWordCount} 字</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-primary-500 h-2 rounded-full transition-all"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {project.aiTasteScore > 0 && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <TrendingUp size={14} className="text-gray-400" />
-                        <span className="text-gray-500">AI 味:</span>
-                        <span className={clsx(
-                          'font-medium',
-                          project.aiTasteScore < 30 ? 'text-green-600' :
-                          project.aiTasteScore < 50 ? 'text-yellow-600' : 'text-red-600'
-                        )}>
-                          {project.aiTasteScore}%
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <Calendar size={14} />
-                      <span>更新于 {new Date(project.updatedAt).toLocaleDateString('zh-CN')}</span>
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(openMenuId === project._id ? null : project._id);
+                        }}
+                        className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      {openMenuId === project._id && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-10"
+                            onClick={() => setOpenMenuId(null)}
+                          />
+                          <div className="absolute right-0 top-8 z-20 w-36 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuId(null);
+                                setDeleteConfirmProject(project);
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            >
+                              <Trash2 size={14} />
+                              删除项目
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
-                </Link>
+
+                  <Link href={`/projects/${project._id}`}>
+                    <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors mb-2">
+                      {project.title}
+                    </h3>
+
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
+                          <span>写作进度</span>
+                          <span>{project.wordCount} / {project.targetWordCount} 字</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-primary-500 h-2 rounded-full transition-all"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {project.aiTasteScore > 0 && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <TrendingUp size={14} className="text-gray-400" />
+                          <span className="text-gray-500">AI 味:</span>
+                          <span className={clsx(
+                            'font-medium',
+                            project.aiTasteScore < 30 ? 'text-green-600' :
+                            project.aiTasteScore < 50 ? 'text-yellow-600' : 'text-red-600'
+                          )}>
+                            {project.aiTasteScore}%
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Calendar size={14} />
+                        <span>更新于 {new Date(project.updatedAt).toLocaleDateString('zh-CN')}</span>
+                      </div>
+                    </div>
+                  </Link>
+                </div>
               );
             })}
           </div>
@@ -183,6 +236,12 @@ export default function HomePage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-6">创建新项目</h2>
+
+            {createError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                {createError}
+              </div>
+            )}
 
             <div className="space-y-4">
               <div>
@@ -255,10 +314,48 @@ export default function HomePage() {
               </button>
               <button
                 onClick={createProject}
-                disabled={!newProject.title.trim()}
-                className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!newProject.title.trim() || creating}
+                className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
               >
-                创建
+                {creating && <Loader2 size={16} className="animate-spin" />}
+                {creating ? '创建中...' : '创建'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirmProject && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">删除项目</h2>
+              <button
+                onClick={() => setDeleteConfirmProject(null)}
+                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-gray-600 mb-6">
+              确定要删除项目 <span className="font-semibold text-gray-900">"{deleteConfirmProject.title}"</span> 吗？
+              <br />
+              此操作无法撤销。
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirmProject(null)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => deleteProject(deleteConfirmProject)}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              >
+                {deleting && <Loader2 size={16} className="animate-spin" />}
+                {deleting ? '删除中...' : '确认删除'}
               </button>
             </div>
           </div>

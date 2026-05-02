@@ -1,12 +1,40 @@
 import axios from 'axios';
 import type { Project, ProjectContent, Topic, ResearchMaterial, Outline, HotNewsResult, Comment, VersionHistory, Platform, ModelInfo, AuditFlow } from '@/types';
 
+function snakeToCamel(str: string): string {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+function convertKeysSnakeToCamel(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map(convertKeysSnakeToCamel);
+  }
+  if (obj !== null && typeof obj === 'object') {
+    const result: any = {};
+    for (const key in obj) {
+      result[snakeToCamel(key)] = convertKeysSnakeToCamel(obj[key]);
+    }
+    return result;
+  }
+  return obj;
+}
+
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api',
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+api.interceptors.response.use(
+  (response) => {
+    if (response.data) {
+      response.data = convertKeysSnakeToCamel(response.data);
+    }
+    return response;
+  },
+  (error) => Promise.reject(error)
+);
 
 export const projectsApi = {
   getAll: () => api.get<Project[]>('/projects'),

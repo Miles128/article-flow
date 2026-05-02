@@ -30,7 +30,7 @@ def create_topic():
 
 @bp.route('/<topic_id>', methods=['GET'])
 def get_topic(topic_id):
-    from .. import db
+    from .. import db_data as _db
     from bson.objectid import ObjectId
     
     topic = db.topics.find_one({'_id': ObjectId(topic_id)})
@@ -50,7 +50,7 @@ def update_topic(topic_id):
     update_data = {k: v for k, v in data.items() if k in allowed_fields}
     
     if Topic.update(topic_id, update_data):
-        from .. import db
+        from .. import db_data as _db
         from bson.objectid import ObjectId
         topic = db.topics.find_one({'_id': ObjectId(topic_id)})
         if topic:
@@ -61,7 +61,7 @@ def update_topic(topic_id):
 
 @bp.route('/<topic_id>', methods=['DELETE'])
 def delete_topic(topic_id):
-    from .. import db
+    from .. import db_data as _db
     from bson.objectid import ObjectId
     
     result = db.topics.delete_one({'_id': ObjectId(topic_id)})
@@ -74,7 +74,7 @@ def delete_topic(topic_id):
 def evaluate_topic(topic_id):
     from ..services.llm_service import get_llm_service
     
-    from .. import db
+    from .. import db_data as _db
     from bson.objectid import ObjectId
     
     topic = db.topics.find_one({'_id': ObjectId(topic_id)})
