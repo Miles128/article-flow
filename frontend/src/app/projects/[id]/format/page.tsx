@@ -21,7 +21,9 @@ import {
   Minus,
   Check,
   Copy,
-  ClipboardCheck
+  ClipboardCheck,
+  FolderOpen,
+  Save
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -79,37 +81,245 @@ const bgShapeOptions = [
 ];
 
 const presetThemes = [
-  { 
-    name: '清新蓝', 
-    styles: { ...defaultStyles, themeColor: '#0ea5e9', h2BgColor: '#f0f9ff', h2Color: '#0369a1' } 
+  {
+    name: '经典商务',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#B8860B',
+      h2Color: '#4A4A4A',
+      h2BgColor: '#F5F5F0',
+      bodyColor: '#333333',
+      boldColor: '#1A1A1A',
+      quoteColor: '#888888',
+      quoteBgColor: '#FAFAFA',
+      h2BgShape: 'rounded',
+      quoteBgShape: 'none',
+    }
   },
-  { 
-    name: '活力橙', 
-    styles: { ...defaultStyles, themeColor: '#f59e0b', h2BgColor: '#fffbeb', h2Color: '#92400e' } 
+  {
+    name: '科技蓝',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#2563EB',
+      h2Color: '#3B82F6',
+      h2BgColor: '#EFF6FF',
+      bodyColor: '#374151',
+      boldColor: '#DC2626',
+      quoteColor: '#9CA3AF',
+      quoteBgColor: '#F8FAFC',
+      h2BgShape: 'rounded',
+      quoteBgShape: 'none',
+    }
   },
-  { 
-    name: '自然绿', 
-    styles: { ...defaultStyles, themeColor: '#10b981', h2BgColor: '#f0fdf4', h2Color: '#065f46' } 
-  },
-  { 
-    name: '优雅紫', 
-    styles: { ...defaultStyles, themeColor: '#8b5cf6', h2BgColor: '#faf5ff', h2Color: '#5b21b6' } 
-  },
-  { 
-    name: '商务灰', 
-    styles: { ...defaultStyles, themeColor: '#4b5563', h2BgColor: '#f3f4f6', h2Color: '#1f2937', bodyColor: '#4b5563' } 
-  },
-  { 
-    name: '简约白', 
-    styles: { 
-      ...defaultStyles, 
-      themeColor: '#111827', 
-      h2BgColor: '#ffffff', 
-      h2Color: '#111827',
+  {
+    name: '极简灰度',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#000000',
+      h2Color: '#333333',
+      h2BgColor: '#FAFAFA',
+      bodyColor: '#4B4B4B',
+      boldColor: '#000000',
+      quoteColor: '#A0A0A0',
+      quoteBgColor: '#FAFAFA',
       h2BgShape: 'none',
-      quoteBgColor: '#ffffff',
-      quoteBgShape: 'none'
-    } 
+      quoteBgShape: 'none',
+    }
+  },
+  {
+    name: '暖调人文',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#92400E',
+      h2Color: '#B45309',
+      h2BgColor: '#FEF3C7',
+      bodyColor: '#44403C',
+      boldColor: '#B45309',
+      quoteColor: '#A8A29E',
+      quoteBgColor: '#FFFBEB',
+      h2BgShape: 'rounded',
+      quoteBgShape: 'rounded',
+    }
+  },
+  {
+    name: '健康绿',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#15803D',
+      h2Color: '#16A34A',
+      h2BgColor: '#DCFCE7',
+      bodyColor: '#3F3F46',
+      boldColor: '#16A34A',
+      quoteColor: '#A1A1AA',
+      quoteBgColor: '#F0FDF4',
+      h2BgShape: 'rounded',
+      quoteBgShape: 'rounded',
+    }
+  },
+  {
+    name: '知识蓝',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#0369A1',
+      h2Color: '#0EA5E9',
+      h2BgColor: '#E0F2FE',
+      bodyColor: '#334155',
+      boldColor: '#EA580C',
+      quoteColor: '#94A3B8',
+      quoteBgColor: '#F0F9FF',
+      h2BgShape: 'rounded',
+      quoteBgShape: 'none',
+    }
+  },
+  {
+    name: '时尚粉',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#BE185D',
+      h2Color: '#DB2777',
+      h2BgColor: '#FCE7F3',
+      bodyColor: '#4B5563',
+      boldColor: '#DB2777',
+      quoteColor: '#9CA3AF',
+      quoteBgColor: '#FDF2F8',
+      h2BgShape: 'pill',
+      quoteBgShape: 'rounded',
+    }
+  },
+  {
+    name: '政务红',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#B91C1C',
+      h2Color: '#DC2626',
+      h2BgColor: '#FEE2E2',
+      bodyColor: '#1F2937',
+      boldColor: '#B91C1C',
+      quoteColor: '#6B7280',
+      quoteBgColor: '#FEF2F2',
+      h2BgShape: 'rounded',
+      quoteBgShape: 'none',
+    }
+  },
+  {
+    name: '极致高级灰',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#8C7B6B',
+      h2Color: '#8C7B6B',
+      h2BgColor: '#EFEFEF',
+      bodyColor: '#2C2C2C',
+      boldColor: '#1A1A1A',
+      quoteColor: '#8C7B6B',
+      quoteBgColor: '#F9F9F9',
+      h2BgShape: 'rounded',
+      quoteBgShape: 'none',
+    }
+  },
+  {
+    name: '藏青睿智',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#0F2B46',
+      h2Color: '#1E4D78',
+      h2BgColor: '#EDF2F7',
+      bodyColor: '#333333',
+      boldColor: '#0F2B46',
+      quoteColor: '#CDA44E',
+      quoteBgColor: '#FFFDF5',
+      h2BgShape: 'rounded',
+      quoteBgShape: 'none',
+    }
+  },
+  {
+    name: '东方雅韵',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#2F4F4F',
+      h2Color: '#5F7A7A',
+      h2BgColor: '#F0EDE8',
+      bodyColor: '#3E3A36',
+      boldColor: '#2F4F4F',
+      quoteColor: '#8B4513',
+      quoteBgColor: '#FAF7F2',
+      h2BgShape: 'rounded',
+      quoteBgShape: 'none',
+    }
+  },
+  {
+    name: '大地沉稳',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#4A4238',
+      h2Color: '#6B5D52',
+      h2BgColor: '#F2F0ED',
+      bodyColor: '#2D2D2D',
+      boldColor: '#4A4238',
+      quoteColor: '#8B7355',
+      quoteBgColor: '#F8F6F3',
+      h2BgShape: 'rounded',
+      quoteBgShape: 'none',
+    }
+  },
+  {
+    name: '翡翠生机',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#1B4332',
+      h2Color: '#2D6A4F',
+      h2BgColor: '#ECFDF5',
+      bodyColor: '#2C3333',
+      boldColor: '#1B4332',
+      quoteColor: '#D4AF37',
+      quoteBgColor: '#FFFCF0',
+      h2BgShape: 'rounded',
+      quoteBgShape: 'none',
+    }
+  },
+  {
+    name: '科技深空',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#111827',
+      h2Color: '#374151',
+      h2BgColor: '#F3F4F6',
+      bodyColor: '#1F2937',
+      boldColor: '#111827',
+      quoteColor: '#2563EB',
+      quoteBgColor: '#F0F5FF',
+      h2BgShape: 'rounded',
+      quoteBgShape: 'none',
+    }
+  },
+  {
+    name: '极简黑白',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#000000',
+      h2Color: '#4B4B4B',
+      h2BgColor: '#F5F5F5',
+      bodyColor: '#4B4B4B',
+      boldColor: '#000000',
+      quoteColor: '#999999',
+      quoteBgColor: '#FAFAFA',
+      h2BgShape: 'none',
+      quoteBgShape: 'none',
+    }
+  },
+  {
+    name: '玫瑰金奢华',
+    styles: {
+      ...defaultStyles,
+      themeColor: '#2C2C2C',
+      h2Color: '#5C4033',
+      h2BgColor: '#FBF7F4',
+      bodyColor: '#3D3D3D',
+      boldColor: '#2C2C2C',
+      quoteColor: '#B76E79',
+      quoteBgColor: '#FDF8F9',
+      h2BgShape: 'pill',
+      quoteBgShape: 'rounded',
+    }
   },
 ];
 
@@ -126,6 +336,7 @@ export default function FormatPage() {
   const [styles, setStyles] = useState<StyleConfig>(defaultStyles);
   const [isConverting, setIsConverting] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeColorPicker, setActiveColorPicker] = useState<string | null>(null);
@@ -184,6 +395,108 @@ export default function FormatPage() {
     a.download = 'wechat-style.css';
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function handleSaveToLocal() {
+    if (!displayContent) return;
+    setSaveStatus('saving');
+    try {
+      const handle = await (window as any).showDirectoryPicker();
+      
+      const mdFile = await handle.getFileHandle('article.md', { create: true });
+      const writable = await mdFile.createWritable();
+      await writable.write(displayContent);
+      await writable.close();
+      
+      const cssContent = `/* 微信公众号样式配置 */
+:root {
+  --theme-color: ${styles.themeColor};
+  --h2-color: ${styles.h2Color};
+  --h2-bg-color: ${styles.h2BgColor};
+  --h2-bg-shape: ${styles.h2BgShape};
+  --body-font: ${styles.bodyFont};
+  --body-color: ${styles.bodyColor};
+  --bold-color: ${styles.boldColor};
+  --quote-color: ${styles.quoteColor};
+  --quote-bg-color: ${styles.quoteBgColor};
+  --quote-bg-shape: ${styles.quoteBgShape};
+}
+`;
+      const cssFile = await handle.getFileHandle('style.css', { create: true });
+      const cssWritable = await cssFile.createWritable();
+      await cssWritable.write(cssContent);
+      await cssWritable.close();
+      
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus(''), 2000);
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error('Save failed:', err);
+        setSaveStatus('error');
+        setTimeout(() => setSaveStatus(''), 2000);
+      } else {
+        setSaveStatus('');
+      }
+    }
+  }
+
+  async function handleLoadFromLocal() {
+    setSaveStatus('loading');
+    try {
+      const handle = await (window as any).showDirectoryPicker();
+      
+      let loadedMd = '';
+      try {
+        const mdFile = await handle.getFileHandle('article.md');
+        const file = await mdFile.getFile();
+        loadedMd = await file.text();
+      } catch {
+        setSaveStatus('no-md');
+        setTimeout(() => setSaveStatus(''), 2000);
+        return;
+      }
+      
+      setContent(loadedMd);
+      
+      try {
+        const cssFile = await handle.getFileHandle('style.css');
+        const file = await cssFile.getFile();
+        const cssText = await file.text();
+        
+        const newStyles = { ...styles };
+        const matches: Record<string, string> = {};
+        cssText.replace(/--([\w-]+):\s*([^;]+);/g, (_, key: string, value: string) => {
+          matches[key] = value.trim();
+          return '';
+        });
+        
+        if (matches['theme-color']) newStyles.themeColor = matches['theme-color'];
+        if (matches['h2-color']) newStyles.h2Color = matches['h2-color'];
+        if (matches['h2-bg-color']) newStyles.h2BgColor = matches['h2-bg-color'];
+        if (matches['h2-bg-shape']) newStyles.h2BgShape = matches['h2-bg-shape'] as any;
+        if (matches['body-font']) newStyles.bodyFont = matches['body-font'];
+        if (matches['body-color']) newStyles.bodyColor = matches['body-color'];
+        if (matches['bold-color']) newStyles.boldColor = matches['bold-color'];
+        if (matches['quote-color']) newStyles.quoteColor = matches['quote-color'];
+        if (matches['quote-bg-color']) newStyles.quoteBgColor = matches['quote-bg-color'];
+        if (matches['quote-bg-shape']) newStyles.quoteBgShape = matches['quote-bg-shape'] as any;
+        
+        setStyles(newStyles);
+      } catch {
+        // No style.css is fine
+      }
+      
+      setSaveStatus('loaded');
+      setTimeout(() => setSaveStatus(''), 2000);
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error('Load failed:', err);
+        setSaveStatus('error');
+        setTimeout(() => setSaveStatus(''), 2000);
+      } else {
+        setSaveStatus('');
+      }
+    }
   }
 
   function handleImportCSS(e: React.ChangeEvent<HTMLInputElement>) {
@@ -542,18 +855,29 @@ export default function FormatPage() {
             <div className="w-px h-6 bg-gray-200 mx-1" />
 
             <button
-              onClick={handleCopyHtml}
+              onClick={handleLoadFromLocal}
+              className={clsx(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors',
+                saveStatus === 'loaded' ? 'bg-green-50 text-green-600' : 'text-gray-600 hover:bg-gray-100'
+              )}
+            >
+              <FolderOpen size={16} />
+              {saveStatus === 'loaded' ? '已读取' : '打开目录'}
+            </button>
+
+            <button
+              onClick={handleSaveToLocal}
               disabled={!displayContent}
               className={clsx(
                 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors',
-                copySuccess
-                  ? 'bg-green-50 text-green-600'
+                saveStatus === 'saved' ? 'bg-green-50 text-green-600'
+                  : saveStatus === 'error' ? 'bg-red-50 text-red-600'
                   : 'text-gray-600 hover:bg-gray-100',
                 !displayContent && 'opacity-50 cursor-not-allowed'
               )}
             >
-              {copySuccess ? <ClipboardCheck size={16} /> : <Copy size={16} />}
-              {copySuccess ? '已复制' : '复制 HTML'}
+              <Save size={16} />
+              {saveStatus === 'saved' ? '已保存' : saveStatus === 'saving' ? '保存中...' : saveStatus === 'error' ? '保存失败' : '保存目录'}
             </button>
 
             <div className="w-px h-6 bg-gray-200 mx-1" />
@@ -611,6 +935,23 @@ export default function FormatPage() {
               <Settings size={16} />
               格式编辑
               <ChevronDown size={14} className={clsx('transition-transform', showStyleToolbar && 'rotate-180')} />
+            </button>
+
+            <div className="w-px h-6 bg-gray-200 mx-1" />
+
+            <button
+              onClick={handleCopyHtml}
+              disabled={!displayContent}
+              className={clsx(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors',
+                copySuccess
+                  ? 'bg-green-50 text-green-600'
+                  : 'text-gray-600 hover:bg-gray-100',
+                !displayContent && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              {copySuccess ? <ClipboardCheck size={16} /> : <Copy size={16} />}
+              {copySuccess ? '已复制' : '复制 HTML'}
             </button>
           </div>
         </div>

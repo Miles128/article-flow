@@ -142,7 +142,7 @@ def generate_citation():
 
 @bp.route('/<material_id>', methods=['DELETE'])
 def delete_material(material_id):
-    from .. import db
+    from .. import db_data as _db
     from bson.objectid import ObjectId
     
     result = db.research_materials.delete_one({'_id': ObjectId(material_id)})

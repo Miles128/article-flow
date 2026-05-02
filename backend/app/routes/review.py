@@ -10,7 +10,7 @@ def get_comments():
     if not project_id:
         return jsonify({'error': 'project_id is required'}), 400
     
-    from .. import db
+    from .. import db_data as _db
     comments = list(db.comments.find({'project_id': project_id}).sort('created_at', -1))
     for c in comments:
         c['_id'] = str(c['_id'])
@@ -23,7 +23,7 @@ def create_comment():
     if not data or 'project_id' not in data or 'content' not in data:
         return jsonify({'error': 'project_id and content are required'}), 400
     
-    from .. import db
+    from .. import db_data as _db
     from datetime import datetime
     
     comment = {
@@ -47,7 +47,7 @@ def create_comment():
 def update_comment(comment_id):
     data = request.json
     
-    from .. import db
+    from .. import db_data as _db
     from bson.objectid import ObjectId
     from datetime import datetime
     
@@ -85,7 +85,7 @@ def update_comment(comment_id):
 
 @bp.route('/comments/<comment_id>', methods=['DELETE'])
 def delete_comment(comment_id):
-    from .. import db
+    from .. import db_data as _db
     from bson.objectid import ObjectId
     
     result = db.comments.delete_one({'_id': ObjectId(comment_id)})
