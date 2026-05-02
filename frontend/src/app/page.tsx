@@ -115,6 +115,13 @@ export default function HomePage() {
         </div>
       </header>
 
+      {openMenuId && (
+        <div
+          className="fixed inset-0 z-20"
+          onClick={() => setOpenMenuId(null)}
+        />
+      )}
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {projects.length === 0 ? (
           <div className="text-center py-16">
@@ -163,25 +170,19 @@ export default function HomePage() {
                         <MoreVertical size={16} />
                       </button>
                       {openMenuId === project._id && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-10"
-                            onClick={() => setOpenMenuId(null)}
-                          />
-                          <div className="absolute right-0 top-8 z-20 w-36 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuId(null);
-                                setDeleteConfirmProject(project);
-                              }}
-                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                            >
-                              <Trash2 size={14} />
-                              删除项目
-                            </button>
-                          </div>
-                        </>
+                        <div className="absolute right-0 top-8 z-30 w-36 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId(null);
+                              setDeleteConfirmProject(project);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                          >
+                            <Trash2 size={14} />
+                            删除项目
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
