@@ -142,7 +142,6 @@ export const hotnewsApi = {
   mineTopics: (data: {
     keywords?: string[];
     count?: number;
-    sources?: string[];
     llmConfig?: {
       apiKey: string;
       baseUrl: string;
@@ -151,6 +150,8 @@ export const hotnewsApi = {
     };
   }) =>
     api.post('/hotnews/mine-topics', data),
+  generateSearchLinks: (data: { keywords: string[] }) =>
+    api.post('/hotnews/generate-search-links', data),
 };
 
 export const aiApi = {
