@@ -15,30 +15,54 @@ import {
   BookOpen,
   Video,
   Newspaper,
+  Globe,
   Filter,
   Loader2,
-  Sparkles
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  Settings,
+  AlertCircle,
+  X,
+  Target,
+  Users,
+  Hash
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
-const sourceConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  weibo: { label: '微博', icon: MessageCircle, color: 'bg-red-100 text-red-600' },
-  zhihu: { label: '知乎', icon: BookOpen, color: 'bg-blue-100 text-blue-600' },
-  bilibili: { label: 'B站', icon: Video, color: 'bg-pink-100 text-pink-600' },
-  toutiao: { label: '头条', icon: Newspaper, color: 'bg-orange-100 text-orange-600' },
+const sourceConfig: Record<string, { label: string; icon: React.ElementType; color: string; badgeColor: string }> = {
+  all: { label: '全网', icon: Globe, color: 'bg-gray-100 text-gray-700', badgeColor: 'bg-gray-500' },
+  weibo: { label: '微博', icon: MessageCircle, color: 'bg-red-100 text-red-600', badgeColor: 'bg-red-500' },
+  zhihu: { label: '知乎', icon: BookOpen, color: 'bg-blue-100 text-blue-600', badgeColor: 'bg-blue-500' },
+  bilibili: { label: 'B站', icon: Video, color: 'bg-pink-100 text-pink-600', badgeColor: 'bg-pink-500' },
+  toutiao: { label: '头条', icon: Newspaper, color: 'bg-orange-100 text-orange-600', badgeColor: 'bg-orange-500' },
 };
+
+interface MinedTopic {
+  title: string;
+  angle: string;
+  heatScore: number;
+  audience: string;
+  tags: string[];
+  reasoning?: string;
+}
 
 export default function HotnewsPage() {
   const params = useParams();
-  const { setCurrentStep } = useAppStore();
+  const { setCurrentStep, llmConfig } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [hotnews, setHotnews] = useState<HotNewsResult | null>(null);
   const [selectedSource, setSelectedSource] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [miningKeyword, setMiningKeyword] = useState('');
-  const [miningResult, setMiningResult] = useState<any>(null);
+  
+  const [miningSources, setMiningSources] = useState<string[]>(['all']);
+  const [miningKeywords, setMiningKeywords] = useState('');
+  const [miningCount, setMiningCount] = useState(8);
+  const [miningResult, setMiningResult] = useState<{ topics: MinedTopic[]; hotnewsSummary?: any } | null>(null);
   const [miningLoading, setMiningLoading] = useState(false);
+  const [miningError, setMiningError] = useState<string | null>(null);
+  const [expandedTopic, setExpandedTopic] = useState<number | null>(null);
 
   useEffect(() => {
     setCurrentStep(1);
@@ -48,7 +72,10 @@ export default function HotnewsPage() {
   async function loadHotnews() {
     try {
       setLoading(true);
-      const response = await hotnewsApi.getAll(['weibo', 'zhihu', 'bilibili']);
+      const sources = selectedSource === 'all' 
+        ? ['weibo', 'zhihu', 'bilibili', 'toutiao']
+        : [selectedSource];
+      const response = await hotnewsApi.getAll(sources);
       setHotnews(response.data);
     } catch (error) {
       console.error('Failed to load hotnews:', error);
@@ -57,15 +84,51 @@ export default function HotnewsPage() {
     }
   }
 
+  function toggleMiningSource(source: string) {
+    if (source === 'all') {
+      setMiningSources(['all']);
+    } else {
+      const newSources = miningSources.filter(s => s !== 'all');
+      if (miningSources.includes(source)) {
+        const filtered = newSources.filter(s => s !== source);
+        setMiningSources(filtered.length > 0 ? filtered : ['all']);
+      } else {
+        setMiningSources([...newSources, source]);
+      }
+    }
+  }
+
   async function handleMineTopics() {
-    if (!miningKeyword.trim()) return;
-    
+    if (!llmConfig.apiKey) {
+      setMiningError('请先配置 LLM API Key（点击侧边栏的"LLM 设置"按钮）');
+      return;
+    }
+
+    setMiningLoading(true);
+    setMiningError(null);
+    setMiningResult(null);
+
     try {
-      setMiningLoading(true);
-      const response = await hotnewsApi.mineTopics([miningKeyword], 5);
+      const keywords = miningKeywords
+        .split(/[,，\s]+/)
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
+
+      const response = await hotnewsApi.mineTopics({
+        keywords: keywords.length > 0 ? keywords : undefined,
+        count: miningCount,
+        sources: miningSources,
+        llmConfig: {
+          apiKey: llmConfig.apiKey,
+          baseUrl: llmConfig.baseUrl,
+          modelName: llmConfig.modelName,
+          temperature: llmConfig.temperature,
+        },
+      });
+
       setMiningResult(response.data);
-    } catch (error) {
-      console.error('Failed to mine topics:', error);
+    } catch (error: any) {
+      setMiningError(error.response?.data?.error || error.message || '挖掘失败，请稍后重试');
     } finally {
       setMiningLoading(false);
     }
@@ -129,15 +192,16 @@ export default function HotnewsPage() {
           <button
             onClick={() => setSelectedSource('all')}
             className={clsx(
-              'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+              'inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
               selectedSource === 'all'
                 ? 'bg-primary-500 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             )}
           >
+            <Globe size={16} />
             全部平台
           </button>
-          {Object.entries(sourceConfig).map(([key, config]) => (
+          {Object.entries(sourceConfig).filter(([k]) => k !== 'all').map(([key, config]) => (
             <button
               key={key}
               onClick={() => setSelectedSource(key)}
@@ -216,7 +280,7 @@ export default function HotnewsPage() {
                     <div key={`${item.source}-${item.rank}`} className="p-4 hover:bg-gray-50 transition-colors">
                       <div className="flex items-start gap-3">
                         <span className={clsx(
-                          'w-6 h-6 rounded flex items-center justify-center text-xs font-bold',
+                          'w-6 h-6 rounded flex items-center justify-center text-xs font-bold shrink-0',
                           index < 3 ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-500'
                         )}>
                           {item.rank}
@@ -225,7 +289,7 @@ export default function HotnewsPage() {
                           <h4 className="font-medium text-gray-900 hover:text-primary-600 transition-colors cursor-pointer line-clamp-2">
                             {item.title}
                           </h4>
-                          <div className="flex items-center gap-3 mt-1">
+                          <div className="flex items-center gap-3 mt-1 flex-wrap">
                             <span className={clsx(
                               'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium',
                               source?.color || 'bg-gray-100 text-gray-600'
@@ -238,12 +302,18 @@ export default function HotnewsPage() {
                                 热度: {item.hotValue.toLocaleString()}
                               </span>
                             )}
-                            <span className="text-xs text-gray-400">
-                              {item.category}
-                            </span>
+                            {item.category && (
+                              <span className="text-xs text-gray-400">
+                                {item.category}
+                              </span>
+                            )}
                           </div>
                         </div>
-                        <button className="p-2 text-gray-400 hover:text-primary-500 transition-colors">
+                        <button 
+                          className="p-2 text-gray-400 hover:text-primary-500 hover:bg-primary-50 transition-colors rounded-lg"
+                          onClick={() => setMiningKeywords(prev => prev ? `${prev}, ${item.title}` : item.title)}
+                          title="添加到选题关键词"
+                        >
                           <Plus size={18} />
                         </button>
                       </div>
@@ -257,54 +327,220 @@ export default function HotnewsPage() {
 
         <div className="space-y-6">
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Sparkles size={18} className="text-primary-500" />
-              智能选题挖掘
-            </h3>
-            <div className="space-y-3">
-              <input
-                type="text"
-                value={miningKeyword}
-                onChange={(e) => setMiningKeyword(e.target.value)}
-                placeholder="输入关键词挖掘选题..."
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-              />
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Sparkles size={18} className="text-primary-500" />
+                智能选题挖掘
+              </h3>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  选题方向关键词（可选，多个用逗号分隔）
+                </label>
+                <input
+                  type="text"
+                  value={miningKeywords}
+                  onChange={(e) => setMiningKeywords(e.target.value)}
+                  placeholder="例如：AI, 人工智能, 大模型"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  数据来源平台
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {['all', 'weibo', 'zhihu', 'bilibili', 'toutiao'].map((source) => {
+                    const config = sourceConfig[source];
+                    const isSelected = miningSources.includes(source) || (source === 'all' && miningSources.includes('all'));
+                    return (
+                      <button
+                        key={source}
+                        onClick={() => toggleMiningSource(source)}
+                        className={clsx(
+                          'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border',
+                          isSelected
+                            ? 'bg-primary-50 text-primary-700 border-primary-300'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                        )}
+                      >
+                        <config.icon size={12} />
+                        {config.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  生成选题数量：{miningCount} 个
+                </label>
+                <input
+                  type="range"
+                  min="5"
+                  max="10"
+                  value={miningCount}
+                  onChange={(e) => setMiningCount(parseInt(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-500"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>5个</span>
+                  <span>10个</span>
+                </div>
+              </div>
+
+              {!llmConfig.apiKey && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-start gap-2">
+                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                  <span>请先配置 LLM API Key，点击侧边栏的「LLM 设置」按钮</span>
+                </div>
+              )}
+
+              {miningError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-start gap-2">
+                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <span>{miningError}</span>
+                    <button
+                      onClick={() => setMiningError(null)}
+                      className="ml-2 text-red-500 hover:text-red-700"
+                    >
+                      <X size={14} className="inline" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={handleMineTopics}
-                disabled={miningLoading || !miningKeyword.trim()}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
+                disabled={miningLoading || !llmConfig.apiKey}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
                 {miningLoading ? (
-                  <Loader2 className="animate-spin" size={18} />
+                  <>
+                    <Loader2 className="animate-spin" size={18} />
+                    AI 分析中...
+                  </>
                 ) : (
-                  <Sparkles size={18} />
+                  <>
+                    <Sparkles size={18} />
+                    开始智能挖掘
+                  </>
                 )}
-                挖掘选题
               </button>
             </div>
 
-            {miningResult && (
-              <div className="mt-4 space-y-2">
-                {miningResult.topics?.map((topic: any, index: number) => (
-                  <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center justify-between mb-1">
-                      <h4 className="font-medium text-gray-900 text-sm">{topic.title}</h4>
-                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                        {topic.heat_score}分
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500">{topic.angle}</p>
-                    {topic.tags && (
-                      <div className="flex gap-1 mt-2">
-                        {topic.tags.map((tag: string, i: number) => (
-                          <span key={i} className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">
-                            {tag}
-                          </span>
-                        ))}
+            {miningResult?.topics && miningResult.topics.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-gray-900">
+                    挖掘结果 ({miningResult.topics.length} 个选题)
+                  </h4>
+                  {miningResult.hotnewsSummary && (
+                    <span className="text-xs text-gray-500">
+                      基于 {miningResult.hotnewsSummary.totalItems} 条热点
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                  {miningResult.topics.map((topic, index) => (
+                    <div 
+                      key={index}
+                      className={clsx(
+                        'p-4 rounded-lg border transition-all cursor-pointer',
+                        expandedTopic === index
+                          ? 'bg-primary-50 border-primary-200'
+                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                      )}
+                      onClick={() => setExpandedTopic(expandedTopic === index ? null : index)}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={clsx(
+                              'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
+                              topic.heatScore >= 80 ? 'bg-red-500 text-white' :
+                              topic.heatScore >= 60 ? 'bg-amber-500 text-white' :
+                              'bg-gray-400 text-white'
+                            )}>
+                              {index + 1}
+                            </span>
+                            <h5 className="font-medium text-gray-900 text-sm line-clamp-2">
+                              {topic.title}
+                            </h5>
+                          </div>
+                          <div className="flex items-center gap-2 ml-8">
+                            <span className={clsx(
+                              'text-xs font-medium px-2 py-0.5 rounded',
+                              topic.heatScore >= 80 ? 'bg-red-100 text-red-700' :
+                              topic.heatScore >= 60 ? 'bg-amber-100 text-amber-700' :
+                              'bg-gray-100 text-gray-600'
+                            )}>
+                              热度 {topic.heatScore}分
+                            </span>
+                            {expandedTopic === index ? (
+                              <ChevronUp size={14} className="text-gray-400" />
+                            ) : (
+                              <ChevronDown size={14} className="text-gray-400" />
+                            )}
+                          </div>
+                        </div>
+                        <button 
+                          className="p-1.5 text-gray-400 hover:text-primary-500 hover:bg-primary-100 rounded transition-colors shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                          title="保存为选题"
+                        >
+                          <Plus size={16} />
+                        </button>
                       </div>
-                    )}
-                  </div>
-                ))}
+
+                      {expandedTopic === index && (
+                        <div className="mt-3 ml-8 space-y-3 text-sm">
+                          <div>
+                            <div className="flex items-center gap-1.5 text-gray-500 mb-1">
+                              <Target size={12} />
+                              <span className="font-medium">切入角度</span>
+                            </div>
+                            <p className="text-gray-700">{topic.angle}</p>
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5 text-gray-500 mb-1">
+                              <Users size={12} />
+                              <span className="font-medium">目标受众</span>
+                            </div>
+                            <p className="text-gray-700">{topic.audience}</p>
+                          </div>
+                          {topic.tags && topic.tags.length > 0 && (
+                            <div>
+                              <div className="flex items-center gap-1.5 text-gray-500 mb-1">
+                                <Hash size={12} />
+                                <span className="font-medium">标签</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {topic.tags.map((tag, i) => (
+                                  <span key={i} className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-xs">
+                                    #{tag}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {topic.reasoning && (
+                            <div className="p-2 bg-white/50 rounded border border-gray-200">
+                              <p className="text-gray-600 text-xs italic">{topic.reasoning}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -316,7 +552,7 @@ export default function HotnewsPage() {
                 {hotnews.trendingKeywords.slice(0, 15).map((item, index) => (
                   <button
                     key={index}
-                    onClick={() => setMiningKeyword(item.keyword)}
+                    onClick={() => setMiningKeywords(prev => prev ? `${prev}, ${item.keyword}` : item.keyword)}
                     className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-primary-100 hover:text-primary-700 transition-colors"
                   >
                     #{item.keyword}
