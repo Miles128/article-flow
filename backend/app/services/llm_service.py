@@ -6,42 +6,70 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 class LLMService:
-    def __init__(self, provider: str = None, model_name: str = None):
-        self.provider = provider or os.getenv('DEFAULT_MODEL_PROVIDER', 'openai')
-        self.model_name = model_name or os.getenv('DEFAULT_MODEL_NAME', 'gpt-4-turbo-preview')
+    def __init__(
+        self, 
+        provider: str = None, 
+        model_name: str = None,
+        api_key: str = None,
+        base_url: str = None,
+        temperature: float = None
+    ):
+        self.provider = provider or os.getenv('DEFAULT_MODEL_PROVIDER', 'custom')
+        self.model_name = model_name or os.getenv('DEFAULT_MODEL_NAME', 'gpt-3.5-turbo')
+        self.api_key = api_key
+        self.base_url = base_url
+        self.temperature = temperature if temperature is not None else 0.7
         self.llm = self._get_llm()
     
     def _get_llm(self) -> BaseChatModel:
-        if self.provider == 'openai':
+        if self.provider == 'custom' or self.api_key:
             from langchain_openai import ChatOpenAI
-            api_key = os.getenv('OPENAI_API_KEY')
+            
+            api_key = self.api_key or os.getenv('OPENAI_API_KEY')
+            if not api_key:
+                raise ValueError('API Key is required. Please configure LLM settings first.')
+            
+            base_url = self.base_url or os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+            
+            return ChatOpenAI(
+                model=self.model_name,
+                api_key=api_key,
+                base_url=base_url,
+                temperature=self.temperature
+            )
+        
+        elif self.provider == 'openai':
+            from langchain_openai import ChatOpenAI
+            api_key = self.api_key or os.getenv('OPENAI_API_KEY')
             if not api_key:
                 raise ValueError('OPENAI_API_KEY is not set')
             return ChatOpenAI(
                 model=self.model_name,
                 api_key=api_key,
-                temperature=0.7
+                base_url=self.base_url,
+                temperature=self.temperature
             )
         elif self.provider == 'anthropic':
             from langchain_anthropic import ChatAnthropic
-            api_key = os.getenv('ANTHROPIC_API_KEY')
+            api_key = self.api_key or os.getenv('ANTHROPIC_API_KEY')
             if not api_key:
                 raise ValueError('ANTHROPIC_API_KEY is not set')
             return ChatAnthropic(
                 model=self.model_name,
                 api_key=api_key,
-                temperature=0.7
+                temperature=self.temperature
             )
         elif self.provider == 'zhipu':
             from langchain_openai import ChatOpenAI
-            api_key = os.getenv('ZHIPU_API_KEY')
+            api_key = self.api_key or os.getenv('ZHIPU_API_KEY')
             if not api_key:
                 raise ValueError('ZHIPU_API_KEY is not set')
+            base_url = self.base_url or 'https://open.bigmodel.cn/api/paas/v4/'
             return ChatOpenAI(
                 model=self.model_name,
                 api_key=api_key,
-                base_url='https://open.bigmodel.cn/api/paas/v4/',
-                temperature=0.7
+                base_url=base_url,
+                temperature=self.temperature
             )
         else:
             raise ValueError(f'Unknown provider: {self.provider}')
@@ -181,5 +209,17 @@ class LLMService:
         return chain.invoke({})
 
 
-def get_llm_service(provider: str = None, model_name: str = None) -> LLMService:
-    return LLMService(provider=provider, model_name=model_name)
+def get_llm_service(
+    provider: str = None, 
+    model_name: str = None,
+    api_key: str = None,
+    base_url: str = None,
+    temperature: float = None
+) -> LLMService:
+    return LLMService(
+        provider=provider,
+        model_name=model_name,
+        api_key=api_key,
+        base_url=base_url,
+        temperature=temperature
+    )

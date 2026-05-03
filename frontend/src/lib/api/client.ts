@@ -139,8 +139,18 @@ export const hotnewsApi = {
   analyzeTrend: (keyword: string) => api.post('/hotnews/trend', { keyword }),
   getSources: () => api.get('/hotnews/sources'),
   getCategories: () => api.get('/hotnews/categories'),
-  mineTopics: (keywords: string[], count?: number) =>
-    api.post('/hotnews/mine-topics', { keywords, count }),
+  mineTopics: (data: {
+    keywords?: string[];
+    count?: number;
+    sources?: string[];
+    llmConfig?: {
+      apiKey: string;
+      baseUrl: string;
+      modelName: string;
+      temperature: number;
+    };
+  }) =>
+    api.post('/hotnews/mine-topics', data),
 };
 
 export const aiApi = {
