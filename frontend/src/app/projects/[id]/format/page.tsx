@@ -1,855 +1,512 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useRef } from 'react';
-import { useParams } from 'next/navigation';
-import { useAppStore } from '@/lib/store';
-import { formatApi, projectsApi } from '@/lib/api/client';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { 
-  Type, 
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { projectsApi } from "@/lib/api/client";
+import { useStepFromRoute } from "@/lib/hooks/useStepFromRoute";
+import { useProjectDraft } from "@/lib/hooks/useProjectDraft";
+import { StepPageFrame } from "@/components/layout/StepPageFrame";
+import { themes, codeThemes, getThemeByName } from "@/lib/themes";
+import {
+  CustomStyle,
+  defaultStyle,
+  generateCssFromStyle,
+  loadSavedStyles,
+  saveStylesToStorage,
+} from "@/lib/styleUtils";
+import { isTauri, openFile, saveFile } from "@/lib/platform";
+import MarkdownIt from "markdown-it";
+type MarkdownItInstance = InstanceType<typeof MarkdownIt>;
+import hljs from "highlight.js";
+import {
   FileText,
   Loader2,
   ChevronDown,
   Palette,
-  Download,
-  Upload,
-  Settings,
-  X,
-  Square,
-  Circle,
-  Minus,
+  Settings2,
   Check,
   Copy,
   ClipboardCheck,
   FolderOpen,
-  Save
-} from 'lucide-react';
-import { clsx } from 'clsx';
+  Save,
+  Trash2,
+  Download,
+  Upload,
+} from "lucide-react";
+import { clsx } from "clsx";
 
-interface StyleConfig {
-  themeColor: string;
-  h2Color: string;
-  h2BgColor: string;
-  h2BgShape: 'none' | 'square' | 'rounded' | 'pill';
-  bodyFont: string;
-  bodyFontSize: number;
-  bodyColor: string;
-  boldColor: string;
-  quoteColor: string;
-  quoteBgColor: string;
-  quoteBgShape: 'none' | 'square' | 'rounded' | 'pill';
-}
+const PHONE_WIDTH = 375;
 
-const defaultStyles: StyleConfig = {
-  themeColor: '#0ea5e9',
-  h2Color: '#111827',
-  h2BgColor: '#f0f9ff',
-  h2BgShape: 'rounded',
-  bodyFont: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  bodyFontSize: 15,
-  bodyColor: '#111827',
-  boldColor: '#111827',
-  quoteColor: '#6b7280',
-  quoteBgColor: '#f9fafb',
-  quoteBgShape: 'rounded',
-};
+const md: MarkdownItInstance = new MarkdownIt({
+  html: false,
+  linkify: true,
+  typographer: true,
+  breaks: true,
+  highlight(str: string, lang: string) {
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return `<pre class="hljs"><code>${hljs.highlight(str, { language: lang }).value}</code></pre>`;
+      } catch {}
+    }
+    return `<pre class="hljs"><code>${md.utils.escapeHtml(str)}</code></pre>`;
+  },
+});
 
-const colorPresets = [
-  '#0ea5e9', '#10b981', '#f59e0b', '#ef4444',
-  '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
-  '#3b82f6', '#14b8a6', '#f97316', '#f43f5e',
-  '#6366f1', '#a855f7', '#0891b2', '#65a30d',
-  '#1d4ed8', '#059669', '#d97706', '#dc2626',
-  '#4f46e5', '#9333ea', '#0e7490', '#4d7c0f',
-  '#111827', '#1f2937', '#374151', '#4b5563',
-  '#facc15', '#fef08a', '#e5e7eb', '#f3f4f6',
+const COLORS = [
+  "#000000",
+  "#434343",
+  "#666666",
+  "#999999",
+  "#b7b7b7",
+  "#cccccc",
+  "#d9d9d9",
+  "#efefef",
+  "#f3f3f3",
+  "#ffffff",
+  "#980000",
+  "#ff0000",
+  "#ff9900",
+  "#ffff00",
+  "#00ff00",
+  "#00ffff",
+  "#4a86e8",
+  "#0000ff",
+  "#9900ff",
+  "#ff00ff",
+  "#e6b8af",
+  "#f4cccc",
+  "#fce5cd",
+  "#fff2cc",
+  "#d9ead3",
+  "#d0e0e3",
+  "#c9daf8",
+  "#cfe2f3",
+  "#d9d2e9",
+  "#ead1dc",
+  "#dd7e6b",
+  "#ea9999",
+  "#f9cb9c",
+  "#ffe599",
+  "#b6d7a8",
+  "#a2c4c9",
+  "#a4c2f4",
+  "#9fc5e8",
+  "#b4a7d6",
+  "#d5a6bd",
+];
+
+type StyleTarget =
+  | "h1Color"
+  | "h2Color"
+  | "h3Color"
+  | "pColor"
+  | "strongColor"
+  | "emColor"
+  | "blockquoteColor"
+  | "aColor"
+  | "h1Bg"
+  | "h2Bg"
+  | "h3Bg"
+  | "pBg"
+  | "blockquoteBg"
+  | "codeBg";
+
+const styleTargets: { key: StyleTarget; label: string }[] = [
+  { key: "h1Color", label: "标题色" },
+  { key: "h2Color", label: "副标题色" },
+  { key: "pColor", label: "正文色" },
+  { key: "strongColor", label: "加粗色" },
+  { key: "emColor", label: "斜体色" },
+  { key: "blockquoteColor", label: "引用色" },
+  { key: "aColor", label: "链接色" },
+  { key: "h1Bg", label: "标题背景" },
+  { key: "h2Bg", label: "副标题背景" },
+  { key: "pBg", label: "正文背景" },
+  { key: "blockquoteBg", label: "引用背景" },
+  { key: "codeBg", label: "代码背景" },
 ];
 
 const fontOptions = [
-  { label: '系统默认', value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
-  { label: '苹方', value: '"PingFang SC", sans-serif' },
-  { label: '思源黑体', value: '"Source Han Sans SC", sans-serif' },
-  { label: '微软雅黑', value: '"Microsoft YaHei", sans-serif' },
-  { label: '宋体', value: '"SimSun", serif' },
-  { label: '楷体', value: '"KaiTi", serif' },
+  {
+    label: "系统默认",
+    value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  },
+  { label: "苹方", value: '"PingFang SC", sans-serif' },
+  { label: "宋体", value: '"SimSun", "STSong", serif' },
+  { label: "黑体", value: '"SimHei", "STHeiti", sans-serif' },
+  { label: "楷体", value: '"KaiTi", "STKaiti", serif' },
+  { label: "微软雅黑", value: '"Microsoft YaHei", sans-serif' },
 ];
-
-const bgShapeOptions = [
-  { label: '无', value: 'none', icon: Minus },
-  { label: '直角', value: 'square', icon: Square },
-  { label: '圆角', value: 'rounded', icon: Circle },
-  { label: '胶囊', value: 'pill', icon: Circle },
-];
-
-const presetThemes = [
-  {
-    name: '经典商务',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#B8860B',
-      h2Color: '#4A4A4A',
-      h2BgColor: '#F5F5F0',
-      bodyColor: '#333333',
-      boldColor: '#1A1A1A',
-      quoteColor: '#888888',
-      quoteBgColor: '#FAFAFA',
-      h2BgShape: 'rounded',
-      quoteBgShape: 'none',
-    }
-  },
-  {
-    name: '科技蓝',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#2563EB',
-      h2Color: '#3B82F6',
-      h2BgColor: '#EFF6FF',
-      bodyColor: '#374151',
-      boldColor: '#DC2626',
-      quoteColor: '#9CA3AF',
-      quoteBgColor: '#F8FAFC',
-      h2BgShape: 'rounded',
-      quoteBgShape: 'none',
-    }
-  },
-  {
-    name: '极简灰度',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#000000',
-      h2Color: '#333333',
-      h2BgColor: '#FAFAFA',
-      bodyColor: '#4B4B4B',
-      boldColor: '#000000',
-      quoteColor: '#A0A0A0',
-      quoteBgColor: '#FAFAFA',
-      h2BgShape: 'none',
-      quoteBgShape: 'none',
-    }
-  },
-  {
-    name: '暖调人文',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#92400E',
-      h2Color: '#B45309',
-      h2BgColor: '#FEF3C7',
-      bodyColor: '#44403C',
-      boldColor: '#B45309',
-      quoteColor: '#A8A29E',
-      quoteBgColor: '#FFFBEB',
-      h2BgShape: 'rounded',
-      quoteBgShape: 'rounded',
-    }
-  },
-  {
-    name: '健康绿',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#15803D',
-      h2Color: '#16A34A',
-      h2BgColor: '#DCFCE7',
-      bodyColor: '#3F3F46',
-      boldColor: '#16A34A',
-      quoteColor: '#A1A1AA',
-      quoteBgColor: '#F0FDF4',
-      h2BgShape: 'rounded',
-      quoteBgShape: 'rounded',
-    }
-  },
-  {
-    name: '知识蓝',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#0369A1',
-      h2Color: '#0EA5E9',
-      h2BgColor: '#E0F2FE',
-      bodyColor: '#334155',
-      boldColor: '#EA580C',
-      quoteColor: '#94A3B8',
-      quoteBgColor: '#F0F9FF',
-      h2BgShape: 'rounded',
-      quoteBgShape: 'none',
-    }
-  },
-  {
-    name: '时尚粉',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#BE185D',
-      h2Color: '#DB2777',
-      h2BgColor: '#FCE7F3',
-      bodyColor: '#4B5563',
-      boldColor: '#DB2777',
-      quoteColor: '#9CA3AF',
-      quoteBgColor: '#FDF2F8',
-      h2BgShape: 'pill',
-      quoteBgShape: 'rounded',
-    }
-  },
-  {
-    name: '政务红',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#B91C1C',
-      h2Color: '#DC2626',
-      h2BgColor: '#FEE2E2',
-      bodyColor: '#1F2937',
-      boldColor: '#B91C1C',
-      quoteColor: '#6B7280',
-      quoteBgColor: '#FEF2F2',
-      h2BgShape: 'rounded',
-      quoteBgShape: 'none',
-    }
-  },
-  {
-    name: '极致高级灰',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#8C7B6B',
-      h2Color: '#8C7B6B',
-      h2BgColor: '#EFEFEF',
-      bodyColor: '#2C2C2C',
-      boldColor: '#1A1A1A',
-      quoteColor: '#8C7B6B',
-      quoteBgColor: '#F9F9F9',
-      h2BgShape: 'rounded',
-      quoteBgShape: 'none',
-    }
-  },
-  {
-    name: '藏青睿智',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#0F2B46',
-      h2Color: '#1E4D78',
-      h2BgColor: '#EDF2F7',
-      bodyColor: '#333333',
-      boldColor: '#0F2B46',
-      quoteColor: '#CDA44E',
-      quoteBgColor: '#FFFDF5',
-      h2BgShape: 'rounded',
-      quoteBgShape: 'none',
-    }
-  },
-  {
-    name: '东方雅韵',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#2F4F4F',
-      h2Color: '#5F7A7A',
-      h2BgColor: '#F0EDE8',
-      bodyColor: '#3E3A36',
-      boldColor: '#2F4F4F',
-      quoteColor: '#8B4513',
-      quoteBgColor: '#FAF7F2',
-      h2BgShape: 'rounded',
-      quoteBgShape: 'none',
-    }
-  },
-  {
-    name: '大地沉稳',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#4A4238',
-      h2Color: '#6B5D52',
-      h2BgColor: '#F2F0ED',
-      bodyColor: '#2D2D2D',
-      boldColor: '#4A4238',
-      quoteColor: '#8B7355',
-      quoteBgColor: '#F8F6F3',
-      h2BgShape: 'rounded',
-      quoteBgShape: 'none',
-    }
-  },
-  {
-    name: '翡翠生机',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#1B4332',
-      h2Color: '#2D6A4F',
-      h2BgColor: '#ECFDF5',
-      bodyColor: '#2C3333',
-      boldColor: '#1B4332',
-      quoteColor: '#D4AF37',
-      quoteBgColor: '#FFFCF0',
-      h2BgShape: 'rounded',
-      quoteBgShape: 'none',
-    }
-  },
-  {
-    name: '科技深空',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#111827',
-      h2Color: '#374151',
-      h2BgColor: '#F3F4F6',
-      bodyColor: '#1F2937',
-      boldColor: '#111827',
-      quoteColor: '#2563EB',
-      quoteBgColor: '#F0F5FF',
-      h2BgShape: 'rounded',
-      quoteBgShape: 'none',
-    }
-  },
-  {
-    name: '极简黑白',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#000000',
-      h2Color: '#4B4B4B',
-      h2BgColor: '#F5F5F5',
-      bodyColor: '#4B4B4B',
-      boldColor: '#000000',
-      quoteColor: '#999999',
-      quoteBgColor: '#FAFAFA',
-      h2BgShape: 'none',
-      quoteBgShape: 'none',
-    }
-  },
-  {
-    name: '玫瑰金奢华',
-    styles: {
-      ...defaultStyles,
-      themeColor: '#2C2C2C',
-      h2Color: '#5C4033',
-      h2BgColor: '#FBF7F4',
-      bodyColor: '#3D3D3D',
-      boldColor: '#2C2C2C',
-      quoteColor: '#B76E79',
-      quoteBgColor: '#FDF8F9',
-      h2BgShape: 'pill',
-      quoteBgShape: 'rounded',
-    }
-  },
-];
-
-const IPHONE_17_WIDTH = 393;
 
 export default function FormatPage() {
-  const params = useParams();
-  const { setCurrentStep } = useAppStore();
-  const [content, setContent] = useState('');
-  const [convertedContent, setConvertedContent] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [showStyleToolbar, setShowStyleToolbar] = useState(false);
-  const [showPresetMenu, setShowPresetMenu] = useState(false);
+  const { stepId } = useStepFromRoute();
+  const { projectId, content, setContent, contentSource, loading } =
+    useProjectDraft({ autoSaveMs: 2000 });
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [showSaveMenu, setShowSaveMenu] = useState(false);
-  const [styles, setStyles] = useState<StyleConfig>(defaultStyles);
-  const [isConverting, setIsConverting] = useState(false);
+  const [currentTheme, setCurrentTheme] = useState(themes[0].name);
+  const [useCustomStyle, setUseCustomStyle] = useState(false);
+  const [customStyle, setCustomStyle] = useState<CustomStyle>(defaultStyle);
+  const [showStyleBar, setShowStyleBar] = useState(false);
+  const [activeTarget, setActiveTarget] = useState<StyleTarget>("h1Color");
+  const [customColorInput, setCustomColorInput] = useState("");
+  const [savedStyles, setSavedStyles] = useState<CustomStyle[]>([]);
+  const [showSaveStyleDialog, setShowSaveStyleDialog] = useState(false);
+  const [saveStyleName, setSaveStyleName] = useState("");
   const [copySuccess, setCopySuccess] = useState(false);
-  const [saveStatus, setSaveStatus] = useState('');
-  const [projectTitle, setProjectTitle] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [activeColorPicker, setActiveColorPicker] = useState<string | null>(null);
+  const [copying, setCopying] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("");
+  const [projectTitle, setProjectTitle] = useState("");
 
   useEffect(() => {
-    setCurrentStep(7);
-    loadContent();
-  }, []);
+    setSavedStyles(loadSavedStyles());
+    if (!projectId) return;
+    projectsApi
+      .getById(projectId)
+      .then((r) => {
+        if (r.data?.title) setProjectTitle(r.data.title);
+      })
+      .catch(() => {});
+  }, [projectId]);
 
-  async function loadContent() {
-    if (!params.id) return;
-    
-    setIsLoading(true);
-    try {
-      const projectRes = await projectsApi.getById(params.id as string);
-      if (projectRes.data?.title) {
-        setProjectTitle(projectRes.data.title);
-      }
-    } catch {}
+  const displayContent = content || "";
+  const theme = getThemeByName(currentTheme);
 
-    try {
-      const response = await projectsApi.getContents(params.id as string, 5);
-      if (response.data.length > 0) {
-        setContent(response.data[0].content);
-      } else {
-        setContent('');
-      }
-    } catch (error) {
-      console.error('Failed to load content:', error);
-      setContent('');
-    } finally {
-      setIsLoading(false);
+  const previewHtml = useMemo(() => {
+    if (!displayContent) return "";
+    return md.render(displayContent);
+  }, [displayContent]);
+
+  const previewCss = useMemo(() => {
+    if (useCustomStyle) {
+      const codeCss =
+        codeThemes[customStyle.codeTheme] || codeThemes["atom-one-dark"];
+      return generateCssFromStyle(customStyle) + codeCss;
+    }
+    const codeCss = codeThemes[theme.codeTheme] || codeThemes["atom-one-dark"];
+    return theme.css + codeCss;
+  }, [useCustomStyle, customStyle, currentTheme]);
+
+  function updateStyle<K extends keyof CustomStyle>(
+    key: K,
+    value: CustomStyle[K],
+  ) {
+    const newStyle = { ...customStyle, [key]: value };
+    if (key === "pFontSize") {
+      newStyle.h2FontSize = (value as number) + 2;
+    }
+    setCustomStyle(newStyle);
+    setUseCustomStyle(true);
+  }
+
+  function applyColor(color: string) {
+    updateStyle(activeTarget, color);
+    setCustomColorInput(color);
+  }
+
+  function handleCustomColorApply() {
+    if (customColorInput.trim()) {
+      applyColor(customColorInput.trim());
     }
   }
 
-  const displayContent = convertedContent || content || '';
-
-  const currentPreset = presetThemes.find(p => 
-    JSON.stringify(p.styles) === JSON.stringify(styles)
-  );
-
-  function handleExportCSS() {
-    const cssContent = `/* 微信公众号样式配置 */
-:root {
-  --theme-color: ${styles.themeColor};
-  --h2-color: ${styles.h2Color};
-  --h2-bg-color: ${styles.h2BgColor};
-  --h2-bg-shape: ${styles.h2BgShape};
-  --body-font: ${styles.bodyFont};
-  --body-font-size: ${styles.bodyFontSize}pt;
-  --body-color: ${styles.bodyColor};
-  --bold-color: ${styles.boldColor};
-  --quote-color: ${styles.quoteColor};
-  --quote-bg-color: ${styles.quoteBgColor};
-  --quote-bg-shape: ${styles.quoteBgShape};
-}
-
-/* 使用方法：将此 CSS 应用到你的文章样式中 */
-`;
-    const blob = new Blob([cssContent], { type: 'text/css' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'wechat-style.css';
-    a.click();
-    URL.revokeObjectURL(url);
+  function handleSaveStyle() {
+    if (!saveStyleName.trim()) return;
+    const newStyle = { ...customStyle, name: saveStyleName.trim() };
+    const existing = savedStyles.findIndex(
+      (s) => s.name === saveStyleName.trim(),
+    );
+    let updated: CustomStyle[];
+    if (existing >= 0) {
+      updated = [...savedStyles];
+      updated[existing] = newStyle;
+    } else {
+      updated = [...savedStyles, newStyle];
+    }
+    setSavedStyles(updated);
+    saveStylesToStorage(updated);
+    setShowSaveStyleDialog(false);
+    setSaveStyleName("");
   }
 
-  function generateFullHtml(): string {
-    if (!displayContent) return '';
-    const bodyHtml = convertMarkdownToWechatHtml(displayContent);
-    
-    return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>文章</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-      font-family: ${styles.bodyFont}; 
-      background-color: #fafafa;
-      padding: 20px;
-    }
-    .article-container {
-      max-width: 480px;
-      margin: 0 auto;
-      background: white;
-    }
-  </style>
-</head>
-<body>
-  <div class="article-container">
-${bodyHtml}
-  </div>
-</body>
-</html>`;
+  function handleLoadStyle(s: CustomStyle) {
+    setCustomStyle(s);
+    setUseCustomStyle(true);
   }
 
-  async function handleSaveAs(format: 'md' | 'html') {
-    if (!displayContent) return;
-    setSaveStatus('saving');
-    
-    try {
-      let content: string;
-      let mimeType: string;
-      
-      const h1Match = displayContent.match(/^#\s+(.+)$/m);
-      const baseName = projectTitle || (h1Match ? h1Match[1].trim() : 'article');
-      const safeName = baseName.replace(/[\\/:*?"<>|]/g, '');
-      
-      if (format === 'md') {
-        content = displayContent;
-        mimeType = 'text/markdown';
-      } else {
-        content = generateFullHtml();
-        mimeType = 'text/html';
-      }
-      
-      const suggestedName = `${safeName}.${format}`;
-      
+  function handleDeleteStyle(name: string) {
+    const updated = savedStyles.filter((s) => s.name !== name);
+    setSavedStyles(updated);
+    saveStylesToStorage(updated);
+  }
+
+  type WechatColors = {
+    accent: string;
+    h1Color: string;
+    h2Color: string;
+    h3Color: string;
+    bodyColor: string;
+    strongColor: string;
+    emColor: string;
+    linkColor: string;
+    quoteColor: string;
+    quoteBg: string;
+    codeBg: string;
+    codeColor: string;
+    thBg: string;
+    thColor: string;
+  };
+
+  function getWechatColors(): WechatColors {
+    if (useCustomStyle) {
+      return {
+        accent: customStyle.h1Color,
+        h1Color: customStyle.h1Color,
+        h2Color: customStyle.h2Color,
+        h3Color: customStyle.h3Color,
+        bodyColor: customStyle.pColor,
+        strongColor: customStyle.strongColor,
+        emColor: customStyle.emColor,
+        linkColor: customStyle.aColor,
+        quoteColor: customStyle.blockquoteColor,
+        quoteBg: customStyle.blockquoteBg,
+        codeBg: customStyle.codeBg,
+        codeColor: customStyle.strongColor,
+        thBg: customStyle.blockquoteBg || "#fdf8f2",
+        thColor: customStyle.h1Color,
+      };
+    }
+
+    const css = previewCss;
+    const extract = (selector: string, prop: string, fallback: string) => {
       try {
-        const handle = await (window as any).showSaveFilePicker({
-          suggestedName,
-          types: [{
-            description: format === 'md' ? 'Markdown 文件' : 'HTML 文件',
-            accept: {
-              [mimeType]: [format === 'md' ? '.md' : '.html']
-            }
-          }]
-        });
-        
-        const writable = await handle.createWritable();
-        await writable.write(content);
-        await writable.close();
+        const re = new RegExp(
+          selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") +
+            `\\s*\\{[^}]*?` +
+            prop +
+            `:\\s*([^;]+)`,
+          "i",
+        );
+        const m = css.match(re);
+        return m ? m[1].trim() : fallback;
       } catch {
-        const blob = new Blob([content], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = suggestedName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        return fallback;
       }
-      
-      setShowSaveMenu(false);
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus(''), 2000);
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.error('Save failed:', err);
-        setSaveStatus('error');
-        setTimeout(() => setSaveStatus(''), 2000);
+    };
+    const accent = extract(".preview-content h1", "color", "#ff6600");
+
+    return {
+      accent,
+      h1Color: extract(".preview-content h1", "color", "#ff6600"),
+      h2Color: extract(".preview-content h2", "color", "#e55a00"),
+      h3Color: extract(".preview-content h3", "color", "#cc5500"),
+      bodyColor: extract(".preview-content p", "color", "#333"),
+      strongColor: extract(".preview-content strong", "color", accent),
+      emColor: extract(".preview-content em", "color", accent),
+      linkColor: extract(".preview-content a", "color", accent),
+      quoteColor: extract(".preview-content blockquote", "color", "#666"),
+      quoteBg: extract(".preview-content blockquote", "background", "#fff8f0"),
+      codeBg: extract(".preview-content code", "background", "#f5f5f5"),
+      codeColor: extract(".preview-content code", "color", accent),
+      thBg: extract(".preview-content th", "background", "#fff8f0"),
+      thColor: extract(".preview-content th", "color", accent),
+    };
+  }
+
+  function generateWechatHtml(
+    markdownHtml: string,
+    colors: WechatColors,
+  ): string {
+    const div = document.createElement("div");
+    div.innerHTML = markdownHtml;
+
+    function walk(node: Node) {
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const el = node as Element;
+      const tag = el.tagName;
+
+      if (tag === "H1") {
+        el.setAttribute(
+          "style",
+          `font-size:20px;font-weight:bold;color:${colors.h1Color};text-align:center;margin:24px 0 16px;line-height:1.4;`,
+        );
+      } else if (tag === "H2") {
+        el.setAttribute(
+          "style",
+          `font-size:18px;font-weight:bold;color:${colors.h2Color};text-align:center;margin:20px 0 12px;line-height:1.4;`,
+        );
+      } else if (tag === "H3") {
+        el.setAttribute(
+          "style",
+          `font-size:16px;font-weight:bold;color:${colors.h3Color};margin:16px 0 8px;line-height:1.4;`,
+        );
+      } else if (tag === "P") {
+        el.setAttribute(
+          "style",
+          `font-size:15px;color:${colors.bodyColor};line-height:1.75;margin:0 0 1em;letter-spacing:0.5px;`,
+        );
+      } else if (tag === "LI") {
+        el.setAttribute(
+          "style",
+          `font-size:15px;color:${colors.bodyColor};line-height:1.75;margin-bottom:6px;`,
+        );
+      } else if (tag === "BLOCKQUOTE") {
+        const bg =
+          colors.quoteBg === "transparent" ? "#fff8f0" : colors.quoteBg;
+        el.setAttribute(
+          "style",
+          `border-left:4px solid ${colors.accent};padding:10px 16px;margin:16px 0;background:${bg};color:${colors.quoteColor};font-style:italic;border-radius:0 8px 8px 0;`,
+        );
+      } else if (tag === "STRONG" || tag === "B") {
+        el.setAttribute(
+          "style",
+          `color:${colors.strongColor};font-weight:bold;`,
+        );
+      } else if (tag === "EM" || tag === "I") {
+        el.setAttribute("style", `font-style:italic;color:${colors.emColor};`);
+      } else if (tag === "A") {
+        el.setAttribute(
+          "style",
+          `color:${colors.linkColor};text-decoration:none;border-bottom:1px solid ${colors.linkColor};`,
+        );
+      } else if (tag === "CODE") {
+        const parent = el.parentElement;
+        if (parent && parent.tagName === "PRE") {
+          el.setAttribute(
+            "style",
+            "background:none;color:inherit;padding:0;font-size:14px;",
+          );
+        } else {
+          const bg =
+            colors.codeBg === "transparent" ? "#f5f5f5" : colors.codeBg;
+          el.setAttribute(
+            "style",
+            `background:${bg};color:${colors.codeColor};padding:2px 6px;border-radius:3px;font-size:14px;font-family:Consolas,Monaco,monospace;`,
+          );
+        }
+      } else if (tag === "PRE") {
+        el.setAttribute(
+          "style",
+          "background:#282c34;color:#abb2bf;padding:16px;border-radius:8px;overflow-x:auto;margin:16px 0;font-size:14px;line-height:1.6;",
+        );
+      } else if (tag === "IMG") {
+        el.setAttribute(
+          "style",
+          "max-width:100%;border-radius:8px;margin:16px 0;display:block;",
+        );
+      } else if (tag === "TABLE") {
+        el.setAttribute(
+          "style",
+          "width:100%;border-collapse:collapse;margin:16px 0;",
+        );
+      } else if (tag === "TH") {
+        const bg = colors.thBg === "transparent" ? "#fdf8f2" : colors.thBg;
+        el.setAttribute(
+          "style",
+          `background:${bg};color:${colors.thColor};font-weight:bold;padding:10px;border:1px solid #e5e7eb;`,
+        );
+      } else if (tag === "TD") {
+        el.setAttribute(
+          "style",
+          `padding:10px;border:1px solid #e5e7eb;color:${colors.bodyColor};`,
+        );
+      } else if (tag === "UL" || tag === "OL") {
+        el.setAttribute("style", "padding-left:2em;margin:10px 0;");
+      }
+
+      for (const child of Array.from(el.children)) {
+        walk(child);
+      }
+    }
+
+    walk(div);
+
+    return div.innerHTML.replace(/class="[^"]*"/g, "").replace(/pt;/g, "px;");
+  }
+
+  async function handleCopyHtml() {
+    if (!displayContent || copying) return;
+    setCopying(true);
+    setCopySuccess(false);
+    try {
+      const wechatHtml = `<section style="background:transparent;padding:0;">${generateWechatHtml(previewHtml, getWechatColors())}</section>`;
+
+      const htmlBlob = new Blob([wechatHtml], { type: "text/html" });
+      const clipboardItem = new ClipboardItem({ "text/html": htmlBlob });
+
+      try {
+        await navigator.clipboard.write([clipboardItem]);
+      } catch {
+        const copyHandler = (e: ClipboardEvent) => {
+          e.preventDefault();
+          e.clipboardData?.setData("text/html", wechatHtml);
+          e.clipboardData?.setData("text/plain", displayContent);
+        };
+        document.addEventListener("copy", copyHandler);
+        document.execCommand("copy");
+        document.removeEventListener("copy", copyHandler);
+      }
+
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy:", error);
+    } finally {
+      setCopying(false);
+    }
+  }
+
+  async function handleSaveAs(format: "md" | "html") {
+    if (!displayContent) return;
+    setSaveStatus("saving");
+    try {
+      const h1Match = displayContent.match(/^#\s+(.+)$/m);
+      const baseName =
+        projectTitle || (h1Match ? h1Match[1].trim() : "article");
+      const safeName = baseName.replace(/[\\/:*?"<>|]/g, "");
+      const suggestedName = `${safeName}.${format}`;
+      if (format === "md") {
+        await saveFile({
+          content: displayContent,
+          suggestedName,
+          extensions: ["md"],
+        });
       } else {
-        setSaveStatus('');
+        const fullHtml = `<div class="preview-content">${previewHtml}</div>`;
+        await saveFile({
+          content: `<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${safeName}</title><style>${previewCss}</style></head>
+<body style="background:#fafafa;padding:20px;"><div style="max-width:480px;margin:0 auto;background:#fff;padding:24px 20px;">${fullHtml}</div></body></html>`,
+          suggestedName,
+          extensions: ["html"],
+        });
       }
+      setShowSaveMenu(false);
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus(""), 2000);
+    } catch (err: any) {
+      if (err.name !== "AbortError" && err.message !== "AbortError") {
+        setSaveStatus("error");
+        setTimeout(() => setSaveStatus(""), 2000);
+      } else setSaveStatus("");
     }
   }
 
   async function handleLoadFromLocal() {
-    setSaveStatus('loading');
+    setSaveStatus("loading");
     try {
-      const [fileHandle] = await (window as any).showOpenFilePicker({
-        types: [
-          {
-            description: 'Markdown 文件',
-            accept: {
-              'text/markdown': ['.md'],
-              'text/plain': ['.md']
-            }
-          }
-        ]
-      });
-      
-      const file = await fileHandle.getFile();
-      const loadedMd = await file.text();
-      
-      setContent(loadedMd);
-      
-      setSaveStatus('loaded');
-      setTimeout(() => setSaveStatus(''), 2000);
+      const result = await openFile(["md", "txt"]);
+      setContent(result.content);
+      setSaveStatus("loaded");
+      setTimeout(() => setSaveStatus(""), 2000);
     } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.error('Load failed:', err);
-        setSaveStatus('error');
-        setTimeout(() => setSaveStatus(''), 2000);
-      } else {
-        setSaveStatus('');
-      }
+      if (err.name !== "AbortError" && err.message !== "AbortError") {
+        setSaveStatus("error");
+        setTimeout(() => setSaveStatus(""), 2000);
+      } else setSaveStatus("");
     }
   }
 
-  function handleImportCSS(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const cssText = event.target?.result as string;
-      const newStyles = { ...styles };
-      
-      const matches: Record<string, string> = {};
-      cssText.replace(/--([\w-]+):\s*([^;]+);/g, (_, key, value) => {
-        matches[key] = value.trim();
-        return '';
-      });
-
-      if (matches['theme-color']) newStyles.themeColor = matches['theme-color'];
-      if (matches['h2-color']) newStyles.h2Color = matches['h2-color'];
-      if (matches['h2-bg-color']) newStyles.h2BgColor = matches['h2-bg-color'];
-      if (matches['h2-bg-shape']) newStyles.h2BgShape = matches['h2-bg-shape'] as any;
-      if (matches['body-font']) newStyles.bodyFont = matches['body-font'];
-      if (matches['body-font-size']) newStyles.bodyFontSize = parseInt(matches['body-font-size']);
-      if (matches['body-color']) newStyles.bodyColor = matches['body-color'];
-      if (matches['bold-color']) newStyles.boldColor = matches['bold-color'];
-      if (matches['quote-color']) newStyles.quoteColor = matches['quote-color'];
-      if (matches['quote-bg-color']) newStyles.quoteBgColor = matches['quote-bg-color'];
-      if (matches['quote-bg-shape']) newStyles.quoteBgShape = matches['quote-bg-shape'] as any;
-
-      setStyles(newStyles);
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  }
-
-  function getBgShapeRadius(shape: string) {
-    switch (shape) {
-      case 'square': return '0px';
-      case 'rounded': return '8px';
-      case 'pill': return '9999px';
-      default: return '0px';
-    }
-  }
-
-  function convertMarkdownToWechatHtml(markdown: string): string {
-    if (!markdown.trim()) return '';
-
-    const lines = markdown.split('\n');
-    const result: string[] = [];
-    let inCodeBlock = false;
-    let codeLang = '';
-    let codeContent: string[] = [];
-    let inList = false;
-    let listType: 'ul' | 'ol' | null = null;
-    let listContent: string[] = [];
-    let inTable = false;
-    let tableContent: string[] = [];
-
-    function flushList() {
-      if (listType && listContent.length > 0) {
-        const listTag = listType === 'ul' ? 'ul' : 'ol';
-        result.push(`<${listTag} style="font-size: ${styles.bodyFontSize}pt; color: ${styles.bodyColor}; line-height: 200%; margin-top: 16px; margin-bottom: 16px; padding-left: 24px; list-style-type: ${listType === 'ul' ? 'disc' : 'decimal'};">`);
-        result.push(...listContent);
-        result.push(`</${listTag}>`);
-        listContent = [];
-        listType = null;
-        inList = false;
-      }
-    }
-
-    function flushTable() {
-      if (tableContent.length > 0) {
-        result.push(`<table style="width: 100%; border-collapse: collapse; font-size: 14px; border: 1px solid #e5e7eb; margin-top: 16px; margin-bottom: 16px;">`);
-        result.push(...tableContent);
-        result.push('</table>');
-        tableContent = [];
-        inTable = false;
-      }
-    }
-
-    function processInlineStyles(text: string): string {
-      let processed = text;
-      
-      processed = processed.replace(/\*\*\*(.+?)\*\*\*/g, `<strong style="font-weight: 700; color: ${styles.boldColor};"><em style="font-style: italic;">$1</em></strong>`);
-      
-      processed = processed.replace(/\*\*(.+?)\*\*/g, `<strong style="font-weight: 700; color: ${styles.boldColor};">$1</strong>`);
-      
-      processed = processed.replace(/(?<!\*)\*(.+?)\*(?!\*)/g, `<em style="font-style: italic;">$1</em>`);
-      
-      processed = processed.replace(/`([^`]+)`/g, `<code style="background-color: #f3f4f6; color: #ef4444; padding: 2px 6px; border-radius: 4px; font-family: Consolas, Monaco, monospace; font-size: 13px;">$1</code>`);
-      
-      processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" style="color: ${styles.themeColor}; text-decoration: underline;">$1</a>`);
-      
-      processed = processed.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, `<img src="$2" alt="$1" style="max-width: 100%; height: auto; border-radius: 8px; margin-top: 16px; margin-bottom: 16px;" />`);
-      
-      return processed;
-    }
-
-    function processTableRow(row: string, isHeader: boolean = false): string {
-      const cells = row.split('|').filter(c => c.trim() !== '');
-      const cellTag = isHeader ? 'th' : 'td';
-      const cellStyles = isHeader 
-        ? `border: 1px solid #e5e7eb; padding: 10px 12px; text-align: left; font-weight: 600; color: ${styles.themeColor}; background-color: ${styles.h2BgColor};`
-        : `border: 1px solid #e5e7eb; padding: 10px 12px; color: ${styles.bodyColor};`;
-      
-      return `<tr>${cells.map(cell => `<${cellTag} style="${cellStyles}">${processInlineStyles(cell.trim())}</${cellTag}>`).join('')}</tr>`;
-    }
-
-    for (const line of lines) {
-      if (line.startsWith('```')) {
-        if (inCodeBlock) {
-          const codeHtml = codeContent.join('\n');
-          result.push(`<pre style="background-color: #1f2937; color: #e5e7eb; padding: 16px; border-radius: 8px; overflow-x: auto; margin-top: 16px; margin-bottom: 16px; font-size: 13px; line-height: 160%; font-family: Consolas, Monaco, monospace;"><code>${codeHtml}</code></pre>`);
-          codeContent = [];
-          inCodeBlock = false;
-        } else {
-          inCodeBlock = true;
-          codeLang = line.slice(3).trim();
-        }
-        continue;
-      }
-
-      if (inCodeBlock) {
-        codeContent.push(line.replace(/</g, '&lt;').replace(/>/g, '&gt;'));
-        continue;
-      }
-
-      if (line.startsWith('|') && line.endsWith('|')) {
-        if (!inTable) {
-          inTable = true;
-          tableContent.push(processTableRow(line, true));
-          continue;
-        }
-        
-        if (line.includes('---')) {
-          continue;
-        }
-        
-        tableContent.push(processTableRow(line, false));
-        continue;
-      } else if (inTable) {
-        flushTable();
-      }
-
-      if (line.startsWith('- ') || line.startsWith('* ') || line.startsWith('+ ')) {
-        flushList();
-        inList = true;
-        listType = 'ul';
-        listContent.push(`<li style="margin-bottom: 8px;">${processInlineStyles(line.slice(2).trim())}</li>`);
-        continue;
-      }
-
-      if (/^\d+\.\s/.test(line)) {
-        flushList();
-        inList = true;
-        listType = 'ol';
-        const content = line.replace(/^\d+\.\s/, '');
-        listContent.push(`<li style="margin-bottom: 8px;">${processInlineStyles(content.trim())}</li>`);
-        continue;
-      }
-
-      if (inList) {
-        flushList();
-      }
-
-      if (line.startsWith('# ')) {
-        result.push(`<h1 style="font-size: ${styles.bodyFontSize + 4}pt; font-weight: 700; color: ${styles.themeColor}; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid ${styles.themeColor};">${processInlineStyles(line.slice(2).trim())}</h1>`);
-        continue;
-      }
-
-      if (line.startsWith('## ')) {
-        const hasBg = styles.h2BgShape !== 'none';
-        const titleText = processInlineStyles(line.slice(3).trim());
-        
-        if (hasBg) {
-          const h2BgStyles = [
-            `font-size: ${styles.bodyFontSize + 2}pt;`,
-            `font-weight: 700;`,
-            `color: ${styles.themeColor};`,
-            `margin-top: 28px;`,
-            `margin-bottom: 16px;`,
-            `padding: 8px 14px;`,
-            `background-color: ${styles.h2BgColor};`,
-            `border-radius: ${getBgShapeRadius(styles.h2BgShape)};`
-          ];
-          result.push(`<h2 style="${h2BgStyles.join(' ')}">${titleText}</h2>`);
-        } else {
-          const h2Styles = [
-            `font-size: ${styles.bodyFontSize + 2}pt;`,
-            `font-weight: 700;`,
-            `color: ${styles.themeColor};`,
-            `margin-top: 28px;`,
-            `margin-bottom: 16px;`,
-            `line-height: 150%;`
-          ];
-          const leftBar = `<span style="display: inline-block; width: 4px; height: 18px; background-color: ${styles.themeColor}; border-radius: 2px; margin-right: 10px; vertical-align: middle;"></span>`;
-          result.push(`<h2 style="${h2Styles.join(' ')}">${leftBar}${titleText}</h2>`);
-        }
-        continue;
-      }
-
-      if (line.startsWith('### ')) {
-        result.push(`<h3 style="font-size: ${styles.bodyFontSize + 1}pt; font-weight: 600; color: ${styles.themeColor}; margin-top: 20px; margin-bottom: 12px;">${processInlineStyles(line.slice(4).trim())}</h3>`);
-        continue;
-      }
-
-      if (line.startsWith('> ')) {
-        const quoteText = processInlineStyles(line.slice(2).trim());
-        const hasBg = styles.quoteBgShape !== 'none';
-        
-        if (hasBg) {
-          const quoteBgStyles = [
-            `font-size: 14px;`,
-            `color: ${styles.quoteColor};`,
-            `line-height: 180%;`,
-            `margin-top: 16px;`,
-            `margin-bottom: 16px;`,
-            `font-style: italic;`,
-            `padding: 14px 16px;`,
-            `background-color: ${styles.quoteBgColor};`,
-            `border-radius: ${getBgShapeRadius(styles.quoteBgShape)};`
-          ];
-          result.push(`<blockquote style="${quoteBgStyles.join(' ')}">${quoteText}</blockquote>`);
-        } else {
-          const quoteStyles = [
-            `font-size: 14px;`,
-            `color: ${styles.quoteColor};`,
-            `line-height: 180%;`,
-            `margin-top: 16px;`,
-            `margin-bottom: 16px;`,
-            `font-style: italic;`,
-            `padding: 8px 14px;`,
-            `background-color: #fafafa;`,
-            `border-left: 3px solid ${styles.themeColor};`
-          ];
-          result.push(`<blockquote style="${quoteStyles.join(' ')}">${quoteText}</blockquote>`);
-        }
-        continue;
-      }
-
-      if (line.startsWith('---') || line.startsWith('***')) {
-        result.push(`<hr style="border: none; border-top: 1px dashed #e5e7eb; margin-top: 24px; margin-bottom: 24px;" />`);
-        continue;
-      }
-
-      if (line.trim() === '') {
-        continue;
-      }
-
-      result.push(`<p style="font-size: ${styles.bodyFontSize}pt; color: ${styles.bodyColor}; line-height: 200%; margin-bottom: 16px;">${processInlineStyles(line.trim())}</p>`);
-    }
-
-    flushList();
-    flushTable();
-
-    return `<div style="font-family: ${styles.bodyFont}; padding: 24px 20px;">${result.join('\n')}</div>`;
-  }
-
-  async function handleCopyHtml() {
-    if (!displayContent) return;
-    
-    try {
-      const html = convertMarkdownToWechatHtml(displayContent);
-      
-      if (navigator.clipboard && window.ClipboardItem) {
-        const blob = new Blob([html], { type: 'text/html' });
-        const item = new ClipboardItem({
-          'text/html': blob,
-          'text/plain': new Blob([html], { type: 'text/plain' })
-        });
-        await navigator.clipboard.write([item]);
-      } else {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = html;
-        tempDiv.style.position = 'fixed';
-        tempDiv.style.left = '-9999px';
-        tempDiv.style.top = '-9999px';
-        document.body.appendChild(tempDiv);
-        
-        const range = document.createRange();
-        range.selectNodeContents(tempDiv);
-        const selection = window.getSelection();
-        if (selection) {
-          selection.removeAllRanges();
-          selection.addRange(range);
-        }
-        
-        document.execCommand('copy');
-        
-        if (selection) {
-          selection.removeAllRanges();
-        }
-        document.body.removeChild(tempDiv);
-      }
-      
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-    } catch (error) {
-      console.error('Failed to copy:', error);
-    }
-  }
-
-  async function normalizeContent() {
-    if (!content.trim()) return;
-    setIsConverting(true);
-    try {
-      const response = await formatApi.normalizeMarkdown(content);
-      setConvertedContent(response.data.normalized_content);
-    } catch (error) {
-      console.error('Failed to normalize:', error);
-    } finally {
-      setIsConverting(false);
-    }
-  }
-
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="animate-spin h-8 w-8 text-primary-500" />
@@ -858,895 +515,428 @@ ${bodyHtml}
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-        <div className="max-w-none px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Type className="text-gray-800" size={20} />
-            <h1 className="text-base font-semibold text-gray-900">格式处理</h1>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <Upload size={16} />
-              导入样式
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".css,.json"
-              onChange={handleImportCSS}
-              className="hidden"
-            />
-
-            <button
-              onClick={handleExportCSS}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <Download size={16} />
-              导出样式
-            </button>
-
-            <div className="w-px h-6 bg-gray-200 mx-1" />
-
-            <button
-              onClick={handleLoadFromLocal}
-              className={clsx(
-                'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors',
-                saveStatus === 'loaded' ? 'bg-green-50 text-green-600' : 'text-gray-600 hover:bg-gray-100'
-              )}
-            >
-              <FolderOpen size={16} />
-              {saveStatus === 'loaded' ? '已读取' : '打开文章'}
-            </button>
-
-            <div className="relative">
+    <div className="min-h-screen bg-surface-200/30 flex flex-col">
+      <header className="bg-surface-100 border-b border-surface-300 sticky top-0 z-30">
+        <StepPageFrame
+          wide
+          title="格式处理"
+          subtitle={contentSource === "previous" ? "已从上一步顺移" : undefined}
+          stepId={stepId}
+          actions={
+            <>
               <button
-                onClick={() => setShowSaveMenu(!showSaveMenu)}
-                disabled={!displayContent}
+                onClick={handleLoadFromLocal}
                 className={clsx(
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors',
-                  saveStatus === 'saved' ? 'bg-green-50 text-green-600'
-                    : saveStatus === 'error' ? 'bg-red-50 text-red-600'
-                    : 'text-gray-600 hover:bg-gray-100',
-                  !displayContent && 'opacity-50 cursor-not-allowed'
+                  "wen-btn text-xs inline-flex items-center gap-1",
+                  saveStatus === "loaded" &&
+                    "!bg-green-50 !text-green-600 border-green-200",
                 )}
               >
-                <Save size={16} />
-                {saveStatus === 'saved' ? '已保存' : saveStatus === 'saving' ? '保存中...' : saveStatus === 'error' ? '保存失败' : '保存文章'}
-                <ChevronDown size={14} className={clsx('transition-transform', showSaveMenu && 'rotate-180')} />
+                <FolderOpen size={14} />
+                {saveStatus === "loaded" ? "已读取" : "打开"}
               </button>
-
-              {showSaveMenu && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-20" 
-                    onClick={() => setShowSaveMenu(false)}
-                  />
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 min-w-36 py-1">
-                    <button
-                      onClick={() => handleSaveAs('md')}
-                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition-colors"
-                    >
-                      <FileText size={14} className="text-gray-500" />
-                      <span className="text-sm text-gray-700">保存为 Markdown</span>
-                    </button>
-                    <button
-                      onClick={() => handleSaveAs('html')}
-                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition-colors"
-                    >
-                      <FileText size={14} className="text-gray-500" />
-                      <span className="text-sm text-gray-700">保存为 HTML</span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="w-px h-6 bg-gray-200 mx-1" />
-
-            <div className="relative">
-              <button
-                onClick={() => setShowPresetMenu(!showPresetMenu)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <Palette size={16} />
-                预设样式
-                <ChevronDown size={14} className={clsx('transition-transform', showPresetMenu && 'rotate-180')} />
-              </button>
-
-              {showPresetMenu && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-20" 
-                    onClick={() => setShowPresetMenu(false)}
-                  />
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 min-w-40 py-1">
-                    {presetThemes.map((preset, idx) => (
+              <div className="relative">
+                <button
+                  onClick={() => setShowSaveMenu(!showSaveMenu)}
+                  disabled={!displayContent}
+                  className={clsx(
+                    "wen-btn text-xs inline-flex items-center gap-1",
+                    saveStatus === "saved" &&
+                      "!bg-green-50 !text-green-600 border-green-200",
+                    saveStatus === "error" &&
+                      "!bg-red-50 !text-red-600 border-red-200",
+                    !displayContent && "opacity-50 cursor-not-allowed",
+                  )}
+                >
+                  <Save size={14} />
+                  {saveStatus === "saved" ? "已保存" : "保存"}
+                  <ChevronDown size={12} />
+                </button>
+                {showSaveMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-20"
+                      onClick={() => setShowSaveMenu(false)}
+                    />
+                    <div className="absolute right-0 top-full mt-1 wen-panel border border-surface-300 z-30 min-w-32 py-1">
                       <button
-                        key={idx}
-                        onClick={() => {
-                          setStyles(preset.styles);
-                          setShowPresetMenu(false);
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition-colors"
+                        onClick={() => handleSaveAs("md")}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-surface-200/30 text-xs text-ink-700"
                       >
-                        <div 
-                          className="w-5 h-5 rounded-full border border-gray-200"
-                          style={{ backgroundColor: preset.styles.themeColor }}
-                        />
-                        <span className="text-sm text-gray-700">{preset.name}</span>
-                        {currentPreset?.name === preset.name && (
-                          <Check size={14} className="ml-auto text-primary-500" />
+                        Markdown
+                      </button>
+                      <button
+                        onClick={() => handleSaveAs("html")}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-surface-200/30 text-xs text-ink-700"
+                      >
+                        HTML
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="w-px h-5 bg-gray-200 shrink-0 hidden sm:block" />
+              <button
+                type="button"
+                onClick={() => {
+                  setShowStyleBar(!showStyleBar);
+                  if (!showStyleBar) setUseCustomStyle(true);
+                }}
+                className={clsx(
+                  "wen-btn text-xs inline-flex items-center gap-1",
+                  showStyleBar && "wen-btn-active",
+                )}
+              >
+                <Settings2 size={14} />
+                格式编辑
+              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowThemeMenu(!showThemeMenu)}
+                  className="wen-btn text-xs inline-flex items-center gap-1"
+                >
+                  <Palette size={14} />
+                  {useCustomStyle ? "自定义" : currentTheme}
+                  <ChevronDown size={12} />
+                </button>
+                {showThemeMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-20"
+                      onClick={() => setShowThemeMenu(false)}
+                    />
+                    <div className="fixed right-4 z-40 mt-1 wen-panel border border-surface-300 min-w-36 py-1">
+                      <button
+                        onClick={() => {
+                          setUseCustomStyle(true);
+                          setShowThemeMenu(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-surface-200/30 text-xs text-ink-700"
+                      >
+                        自定义样式{" "}
+                        {useCustomStyle && (
+                          <Check
+                            size={12}
+                            className="ml-auto text-primary-500"
+                          />
                         )}
                       </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
-            <button
-              onClick={() => setShowStyleToolbar(!showStyleToolbar)}
-              className={clsx(
-                'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors',
-                showStyleToolbar 
-                  ? 'bg-primary-50 text-primary-600' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              )}
-            >
-              <Settings size={16} />
-              格式编辑
-              <ChevronDown size={14} className={clsx('transition-transform', showStyleToolbar && 'rotate-180')} />
-            </button>
-
-            <div className="w-px h-6 bg-gray-200 mx-1" />
-
-            <button
-              onClick={handleCopyHtml}
-              disabled={!displayContent}
-              className={clsx(
-                'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors',
-                copySuccess
-                  ? 'bg-green-50 text-green-600'
-                  : 'text-gray-600 hover:bg-gray-100',
-                !displayContent && 'opacity-50 cursor-not-allowed'
-              )}
-            >
-              {copySuccess ? <ClipboardCheck size={16} /> : <Copy size={16} />}
-              {copySuccess ? '已复制' : '复制 HTML'}
-            </button>
-          </div>
-        </div>
-
-        {showStyleToolbar && (
-          <div className="bg-white border-b border-gray-200 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-16">主题色</span>
-                <div className="relative">
-                  <button
-                    onClick={() => setActiveColorPicker(activeColorPicker === 'theme' ? null : 'theme')}
-                    className="w-7 h-7 rounded-lg border border-gray-300 hover:border-gray-400 transition-colors"
-                    style={{ backgroundColor: styles.themeColor }}
-                  />
-                  {activeColorPicker === 'theme' && (
-                    <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-40 min-w-64">
-                      <div className="grid grid-cols-8 gap-1.5">
-                        {colorPresets.map((color, idx) => (
+                      <div className="border-t border-surface-200 my-1" />
+                      <div className="max-h-72 overflow-y-auto">
+                        {themes.map((t) => (
                           <button
-                            key={idx}
+                            key={t.name}
                             onClick={() => {
-                              setStyles({ ...styles, themeColor: color });
-                              setActiveColorPicker(null);
+                              setCurrentTheme(t.name);
+                              setUseCustomStyle(false);
+                              setShowThemeMenu(false);
                             }}
-                            className={clsx(
-                              'w-6 h-6 rounded transition-transform hover:scale-110',
-                              styles.themeColor === color && 'ring-2 ring-primary-500 ring-offset-1'
+                            className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-surface-200/30 text-xs text-ink-700"
+                          >
+                            {t.name}{" "}
+                            {!useCustomStyle && currentTheme === t.name && (
+                              <Check
+                                size={12}
+                                className="ml-auto text-primary-500"
+                              />
                             )}
-                            style={{ backgroundColor: color }}
-                          />
+                          </button>
                         ))}
                       </div>
-                      <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={styles.themeColor}
-                          onChange={(e) => setStyles({ ...styles, themeColor: e.target.value })}
-                          className="w-7 h-7 cursor-pointer rounded border-0"
-                        />
-                        <input
-                          type="text"
-                          value={styles.themeColor}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
-                              setStyles({ ...styles, themeColor: val });
-                            }
-                          }}
-                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
-                          placeholder="#000000"
-                        />
-                      </div>
                     </div>
+                  </>
+                )}
+              </div>
+              <div className="w-px h-5 bg-gray-200 shrink-0 hidden sm:block" />
+              <button
+                type="button"
+                onClick={handleCopyHtml}
+                disabled={!displayContent || copying}
+                className={clsx(
+                  "wen-btn text-xs inline-flex items-center gap-1",
+                  copySuccess &&
+                    "!bg-green-50 !text-green-600 border-green-200",
+                  (!displayContent || copying) &&
+                    "opacity-50 cursor-not-allowed",
+                )}
+              >
+                {copying ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : copySuccess ? (
+                  <ClipboardCheck size={14} />
+                ) : (
+                  <Copy size={14} />
+                )}
+                {copying ? "处理中..." : copySuccess ? "已复制" : "复制微信"}
+              </button>
+            </>
+          }
+        >
+          {null}
+        </StepPageFrame>
+
+        {showStyleBar && (
+          <div className="border-t border-surface-200 bg-surface-100 px-4 py-2.5">
+            <div className="flex items-start gap-4">
+              <div className="flex flex-col gap-1.5 shrink-0">
+                <div className="flex flex-wrap gap-1">
+                  {styleTargets.map((t) => (
+                    <button
+                      key={t.key}
+                      onClick={() => {
+                        setActiveTarget(t.key);
+                        setCustomColorInput(
+                          customStyle[t.key] === "transparent"
+                            ? ""
+                            : customStyle[t.key],
+                        );
+                      }}
+                      className={clsx(
+                        "px-2 py-0.5 text-xs rounded transition-colors",
+                        activeTarget === t.key
+                          ? "bg-primary-500 text-white"
+                          : "bg-surface-200/50 text-ink-600 hover:bg-gray-200",
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-ink-400 shrink-0">当前:</span>
+                  <span
+                    className="w-4 h-4 rounded border border-surface-300 shrink-0"
+                    style={{
+                      backgroundColor:
+                        customStyle[activeTarget] === "transparent"
+                          ? "#fff"
+                          : customStyle[activeTarget],
+                    }}
+                  />
+                  <span className="text-xs text-ink-500 font-mono">
+                    {customStyle[activeTarget]}
+                  </span>
+                  {customStyle[activeTarget] !== "transparent" && (
+                    <button
+                      onClick={() => applyColor("transparent")}
+                      className="text-xs text-ink-400 hover:text-red-500"
+                    >
+                      清除
+                    </button>
                   )}
                 </div>
               </div>
 
-              <div className="w-px h-8 bg-gray-200" />
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-16">二级标题</span>
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <span className="text-xs text-gray-400">文字</span>
+              <div className="flex-1">
+                <div className="flex flex-wrap gap-1">
+                  {COLORS.map((c) => (
                     <button
-                      onClick={() => setActiveColorPicker(activeColorPicker === 'h2Color' ? null : 'h2Color')}
-                      className="w-5 h-5 rounded border border-gray-300 ml-1"
-                      style={{ backgroundColor: styles.h2Color }}
+                      key={c}
+                      onClick={() => applyColor(c)}
+                      className={clsx(
+                        "w-5 h-5 rounded border transition-transform hover:scale-125",
+                        customStyle[activeTarget] === c
+                          ? "border-primary-500 ring-1 ring-primary-300 scale-110"
+                          : "border-surface-300",
+                      )}
+                      style={{ backgroundColor: c }}
+                      title={c}
                     />
-                    {activeColorPicker === 'h2Color' && (
-                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-40 min-w-64">
-                        <div className="grid grid-cols-8 gap-1.5">
-                          {colorPresets.map((color, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => {
-                                setStyles({ ...styles, h2Color: color });
-                                setActiveColorPicker(null);
-                              }}
-                              className={clsx(
-                                'w-6 h-6 rounded transition-transform hover:scale-110',
-                                styles.h2Color === color && 'ring-2 ring-primary-500 ring-offset-1'
-                              )}
-                              style={{ backgroundColor: color }}
-                            />
-                          ))}
-                        </div>
-                        <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={styles.h2Color}
-                            onChange={(e) => setStyles({ ...styles, h2Color: e.target.value })}
-                            className="w-7 h-7 cursor-pointer rounded border-0"
-                          />
-                          <input
-                            type="text"
-                            value={styles.h2Color}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
-                                setStyles({ ...styles, h2Color: val });
-                              }
-                            }}
-                            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
-                            placeholder="#000000"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <span className="text-xs text-gray-400">背景</span>
-                    <button
-                      onClick={() => setActiveColorPicker(activeColorPicker === 'h2Bg' ? null : 'h2Bg')}
-                      className="w-5 h-5 rounded border border-gray-300 ml-1"
-                      style={{ backgroundColor: styles.h2BgColor }}
-                    />
-                    {activeColorPicker === 'h2Bg' && (
-                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-40 min-w-64">
-                        <div className="grid grid-cols-8 gap-1.5">
-                          {colorPresets.map((color, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => {
-                                setStyles({ ...styles, h2BgColor: color });
-                                setActiveColorPicker(null);
-                              }}
-                              className={clsx(
-                                'w-6 h-6 rounded transition-transform hover:scale-110',
-                                styles.h2BgColor === color && 'ring-2 ring-primary-500 ring-offset-1'
-                              )}
-                              style={{ backgroundColor: color }}
-                            />
-                          ))}
-                        </div>
-                        <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={styles.h2BgColor}
-                            onChange={(e) => setStyles({ ...styles, h2BgColor: e.target.value })}
-                            className="w-7 h-7 cursor-pointer rounded border-0"
-                          />
-                          <input
-                            type="text"
-                            value={styles.h2BgColor}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
-                                setStyles({ ...styles, h2BgColor: val });
-                              }
-                            }}
-                            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
-                            placeholder="#000000"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex gap-0.5">
-                    {bgShapeOptions.map((shape) => {
-                      const Icon = shape.icon;
-                      return (
-                        <button
-                          key={shape.value}
-                          onClick={() => setStyles({ ...styles, h2BgShape: shape.value as any })}
-                          title={shape.label}
-                          className={clsx(
-                            'w-6 h-6 rounded flex items-center justify-center transition-colors',
-                            styles.h2BgShape === shape.value 
-                              ? 'bg-primary-50 text-primary-600' 
-                              : 'text-gray-400 hover:text-gray-600'
-                          )}
-                        >
-                          <Icon size={14} />
-                        </button>
-                      );
-                    })}
-                  </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="color"
+                    value={
+                      customStyle[activeTarget] === "transparent"
+                        ? "#ffffff"
+                        : customStyle[activeTarget]
+                    }
+                    onChange={(e) => applyColor(e.target.value)}
+                    className="w-6 h-6 rounded cursor-pointer border border-surface-300"
+                  />
+                  <input
+                    type="text"
+                    value={customColorInput}
+                    onChange={(e) => setCustomColorInput(e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && handleCustomColorApply()
+                    }
+                    placeholder="#ff6600"
+                    className="w-24 px-2 py-0.5 text-xs border border-surface-300 rounded font-mono"
+                  />
+                  <button
+                    onClick={handleCustomColorApply}
+                    className="px-2 py-0.5 text-xs bg-surface-200/50 hover:bg-gray-200 rounded transition-colors"
+                  >
+                    应用
+                  </button>
                 </div>
               </div>
 
-              <div className="w-px h-8 bg-gray-200" />
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-16">正文字体</span>
+              <div className="shrink-0 flex flex-col gap-1.5 border-l border-surface-200 pl-4">
                 <select
-                  value={styles.bodyFont}
-                  onChange={(e) => setStyles({ ...styles, bodyFont: e.target.value })}
-                  className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                  value={customStyle.fontFamily}
+                  onChange={(e) => updateStyle("fontFamily", e.target.value)}
+                  className="px-2 py-0.5 text-xs border border-surface-300 rounded"
                 >
-                  {fontOptions.map((font) => (
-                    <option key={font.label} value={font.value}>
-                      {font.label}
+                  {fontOptions.map((f) => (
+                    <option key={f.label} value={f.value}>
+                      {f.label}
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-16">字号</span>
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setStyles({ ...styles, bodyFontSize: Math.max(12, styles.bodyFontSize - 1) })}
-                    className="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors border border-gray-300"
-                  >
-                    -
-                  </button>
-                  <span className="text-sm text-gray-700 w-8 text-center">{styles.bodyFontSize}</span>
-                  <button
-                    onClick={() => setStyles({ ...styles, bodyFontSize: Math.min(24, styles.bodyFontSize + 1) })}
-                    className="w-6 h-6 rounded flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors border border-gray-300"
-                  >
-                    +
-                  </button>
-                  <span className="text-xs text-gray-400">pt</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-16">正文颜色</span>
-                <div className="relative">
-                  <button
-                    onClick={() => setActiveColorPicker(activeColorPicker === 'bodyColor' ? null : 'bodyColor')}
-                    className="w-5 h-5 rounded border border-gray-300"
-                    style={{ backgroundColor: styles.bodyColor }}
+                  <span className="text-xs text-ink-400">字号</span>
+                  <input
+                    type="range"
+                    min={12}
+                    max={20}
+                    value={customStyle.pFontSize}
+                    onChange={(e) =>
+                      updateStyle("pFontSize", parseInt(e.target.value))
+                    }
+                    className="w-16 accent-primary-500"
                   />
-                  {activeColorPicker === 'bodyColor' && (
-                    <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-40 min-w-64">
-                      <div className="grid grid-cols-8 gap-1.5">
-                        {colorPresets.map((color, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => {
-                              setStyles({ ...styles, bodyColor: color });
-                              setActiveColorPicker(null);
-                            }}
-                            className={clsx(
-                              'w-6 h-6 rounded transition-transform hover:scale-110',
-                              styles.bodyColor === color && 'ring-2 ring-primary-500 ring-offset-1'
-                            )}
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
-                      </div>
-                      <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={styles.bodyColor}
-                          onChange={(e) => setStyles({ ...styles, bodyColor: e.target.value })}
-                          className="w-7 h-7 cursor-pointer rounded border-0"
-                        />
-                        <input
-                          type="text"
-                          value={styles.bodyColor}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
-                              setStyles({ ...styles, bodyColor: val });
-                            }
-                          }}
-                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
-                          placeholder="#000000"
-                        />
-                      </div>
+                  <span className="text-xs text-ink-500 w-6">
+                    {customStyle.pFontSize}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-ink-400">行高</span>
+                  <input
+                    type="range"
+                    min={1.2}
+                    max={3}
+                    step={0.1}
+                    value={customStyle.pLineHeight}
+                    onChange={(e) =>
+                      updateStyle("pLineHeight", parseFloat(e.target.value))
+                    }
+                    className="w-16 accent-primary-500"
+                  />
+                  <span className="text-xs text-ink-500 w-6">
+                    {customStyle.pLineHeight}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <button
+                    onClick={() => {
+                      setSaveStyleName(customStyle.name || "新样式");
+                      setShowSaveStyleDialog(!showSaveStyleDialog);
+                    }}
+                    className="p-1 text-ink-400 hover:text-primary-500 rounded"
+                    title="保存样式"
+                  >
+                    <Download size={14} />
+                  </button>
+                  {savedStyles.length > 0 && (
+                    <div className="relative">
+                      <button
+                        className="p-1 text-ink-400 hover:text-primary-500 rounded"
+                        title="加载样式"
+                      >
+                        <Upload size={14} />
+                      </button>
                     </div>
                   )}
                 </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-16">粗体颜色</span>
-                <div className="relative">
-                  <button
-                    onClick={() => setActiveColorPicker(activeColorPicker === 'boldColor' ? null : 'boldColor')}
-                    className="w-5 h-5 rounded border border-gray-300"
-                    style={{ backgroundColor: styles.boldColor }}
-                  />
-                  {activeColorPicker === 'boldColor' && (
-                    <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-40 min-w-64">
-                      <div className="grid grid-cols-8 gap-1.5">
-                        {colorPresets.map((color, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => {
-                              setStyles({ ...styles, boldColor: color });
-                              setActiveColorPicker(null);
-                            }}
-                            className={clsx(
-                              'w-6 h-6 rounded transition-transform hover:scale-110',
-                              styles.boldColor === color && 'ring-2 ring-primary-500 ring-offset-1'
-                            )}
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
-                      </div>
-                      <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={styles.boldColor}
-                          onChange={(e) => setStyles({ ...styles, boldColor: e.target.value })}
-                          className="w-7 h-7 cursor-pointer rounded border-0"
-                        />
-                        <input
-                          type="text"
-                          value={styles.boldColor}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
-                              setStyles({ ...styles, boldColor: val });
-                            }
-                          }}
-                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
-                          placeholder="#000000"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="w-px h-8 bg-gray-200" />
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-16">引用样式</span>
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <span className="text-xs text-gray-400">文字</span>
-                    <button
-                      onClick={() => setActiveColorPicker(activeColorPicker === 'quoteColor' ? null : 'quoteColor')}
-                      className="w-5 h-5 rounded border border-gray-300 ml-1"
-                      style={{ backgroundColor: styles.quoteColor }}
+                {showSaveStyleDialog && (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      value={saveStyleName}
+                      onChange={(e) => setSaveStyleName(e.target.value)}
+                      placeholder="样式名"
+                      className="w-16 px-1 py-0.5 text-xs border border-surface-300 rounded"
+                      onKeyDown={(e) => e.key === "Enter" && handleSaveStyle()}
                     />
-                    {activeColorPicker === 'quoteColor' && (
-                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-40 min-w-64">
-                        <div className="grid grid-cols-8 gap-1.5">
-                          {colorPresets.map((color, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => {
-                                setStyles({ ...styles, quoteColor: color });
-                                setActiveColorPicker(null);
-                              }}
-                              className={clsx(
-                                'w-6 h-6 rounded transition-transform hover:scale-110',
-                                styles.quoteColor === color && 'ring-2 ring-primary-500 ring-offset-1'
-                              )}
-                              style={{ backgroundColor: color }}
-                            />
-                          ))}
-                        </div>
-                        <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={styles.quoteColor}
-                            onChange={(e) => setStyles({ ...styles, quoteColor: e.target.value })}
-                            className="w-7 h-7 cursor-pointer rounded border-0"
-                          />
-                          <input
-                            type="text"
-                            value={styles.quoteColor}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
-                                setStyles({ ...styles, quoteColor: val });
-                              }
-                            }}
-                            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
-                            placeholder="#000000"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <span className="text-xs text-gray-400">背景</span>
                     <button
-                      onClick={() => setActiveColorPicker(activeColorPicker === 'quoteBg' ? null : 'quoteBg')}
-                      className="w-5 h-5 rounded border border-gray-300 ml-1"
-                      style={{ backgroundColor: styles.quoteBgColor }}
-                    />
-                    {activeColorPicker === 'quoteBg' && (
-                      <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-40 min-w-64">
-                        <div className="grid grid-cols-8 gap-1.5">
-                          {colorPresets.map((color, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => {
-                                setStyles({ ...styles, quoteBgColor: color });
-                                setActiveColorPicker(null);
-                              }}
-                              className={clsx(
-                                'w-6 h-6 rounded transition-transform hover:scale-110',
-                                styles.quoteBgColor === color && 'ring-2 ring-primary-500 ring-offset-1'
-                              )}
-                              style={{ backgroundColor: color }}
-                            />
-                          ))}
-                        </div>
-                        <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={styles.quoteBgColor}
-                            onChange={(e) => setStyles({ ...styles, quoteBgColor: e.target.value })}
-                            className="w-7 h-7 cursor-pointer rounded border-0"
-                          />
-                          <input
-                            type="text"
-                            value={styles.quoteBgColor}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
-                                setStyles({ ...styles, quoteBgColor: val });
-                              }
-                            }}
-                            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
-                            placeholder="#000000"
-                          />
-                        </div>
-                      </div>
-                    )}
+                      onClick={handleSaveStyle}
+                      className="px-1.5 py-0.5 text-xs bg-primary-500 text-white rounded"
+                    >
+                      存
+                    </button>
+                    <button
+                      onClick={() => setShowSaveStyleDialog(false)}
+                      className="px-1.5 py-0.5 text-xs text-ink-400 hover:bg-surface-200/50 rounded"
+                    >
+                      ✕
+                    </button>
                   </div>
-                  <div className="flex gap-0.5">
-                    {bgShapeOptions.map((shape) => {
-                      const Icon = shape.icon;
-                      return (
+                )}
+                {savedStyles.length > 0 && (
+                  <div className="max-h-24 overflow-y-auto space-y-0.5">
+                    {savedStyles.map((s, i) => (
+                      <div key={i} className="flex items-center gap-1">
                         <button
-                          key={shape.value}
-                          onClick={() => setStyles({ ...styles, quoteBgShape: shape.value as any })}
-                          title={shape.label}
-                          className={clsx(
-                            'w-6 h-6 rounded flex items-center justify-center transition-colors',
-                            styles.quoteBgShape === shape.value 
-                              ? 'bg-primary-50 text-primary-600' 
-                              : 'text-gray-400 hover:text-gray-600'
-                          )}
+                          onClick={() => handleLoadStyle(s)}
+                          className="text-xs text-primary-600 hover:underline truncate max-w-16"
                         >
-                          <Icon size={14} />
+                          {s.name}
                         </button>
-                      );
-                    })}
+                        <button
+                          onClick={() => handleDeleteStyle(s.name)}
+                          className="text-ink-300 hover:text-red-400"
+                        >
+                          <Trash2 size={10} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                )}
               </div>
-
-              <button
-                onClick={() => setShowStyleToolbar(false)}
-                className="ml-auto text-gray-400 hover:text-gray-600"
-              >
-                <X size={18} />
-              </button>
             </div>
           </div>
         )}
       </header>
 
-      {activeColorPicker && (
-        <div 
-          className="fixed inset-0 z-20" 
-          onClick={() => setActiveColorPicker(null)}
-        />
-      )}
-
       <main className="flex-1 flex">
-        <div className="w-1/2 border-r border-gray-200 flex flex-col">
+        <div className="w-1/2 border-r border-surface-300 flex flex-col">
+          <div className="px-4 py-1.5 bg-surface-200/30 border-b border-surface-200">
+            <span className="text-xs text-ink-500 font-medium">
+              Markdown 编辑
+            </span>
+          </div>
           <div className="flex-1 overflow-hidden">
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="w-full h-full p-4 font-mono text-sm leading-relaxed resize-none outline-none bg-white focus:bg-gray-50 transition-colors"
+              className="w-full h-full p-4 font-mono text-sm leading-relaxed resize-none outline-none bg-surface-100 focus:bg-surface-200/30 transition-colors"
               placeholder="输入或粘贴 Markdown 内容..."
             />
           </div>
         </div>
-
-        <div className="w-1/2 flex flex-col bg-gray-100">
+        <div className="w-1/2 flex flex-col bg-surface-200/50">
+          <div className="px-4 py-1.5 bg-surface-200/30 border-b border-surface-200 flex items-center justify-between">
+            <span className="text-xs text-ink-500 font-medium">预览</span>
+            <span className="text-xs text-ink-400">
+              {PHONE_WIDTH}px · {useCustomStyle ? "自定义" : currentTheme}
+            </span>
+          </div>
           <div className="flex-1 overflow-auto p-6 flex justify-center items-start">
-            <div 
-              className="bg-white shadow-lg"
-              style={{ 
-                width: `${IPHONE_17_WIDTH}px`,
-                fontFamily: styles.bodyFont,
-                padding: '24px 20px',
-                minHeight: '300px'
-              }}
+            <div
+              className="bg-surface-100 overflow-hidden"
+              style={{ width: `${PHONE_WIDTH}px`, minHeight: "300px" }}
             >
               {displayContent ? (
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    h1: ({ children }) => (
-                      <h1 style={{ 
-                        fontSize: `${styles.bodyFontSize + 4}pt`, 
-                        fontWeight: 700, 
-                        color: styles.themeColor,
-                        marginBottom: '20px',
-                        paddingBottom: '12px',
-                        borderBottom: '2px solid ' + styles.themeColor
-                      }}>
-                        {children}
-                      </h1>
-                    ),
-                    h2: ({ children }) => {
-                      const hasBg = styles.h2BgShape !== 'none';
-                      return (
-                        <h2 style={{ 
-                          fontSize: `${styles.bodyFontSize + 2}pt`, 
-                          fontWeight: 700, 
-                          color: styles.themeColor,
-                          marginTop: '28px',
-                          marginBottom: '16px',
-                          paddingLeft: hasBg ? '14px' : '0',
-                          paddingRight: hasBg ? '14px' : '0',
-                          paddingTop: hasBg ? '8px' : '0',
-                          paddingBottom: hasBg ? '8px' : '0',
-                          backgroundColor: hasBg ? styles.h2BgColor : 'transparent',
-                          borderRadius: getBgShapeRadius(styles.h2BgShape),
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px'
-                        }}>
-                          <span style={{
-                            width: '4px',
-                            height: '18px',
-                            backgroundColor: styles.themeColor,
-                            borderRadius: '2px',
-                            display: hasBg ? 'none' : 'block'
-                          }} />
-                          {children}
-                        </h2>
-                      );
-                    },
-                    h3: ({ children }) => (
-                      <h3 style={{ 
-                        fontSize: `${styles.bodyFontSize + 1}pt`, 
-                        fontWeight: 600, 
-                        color: styles.themeColor,
-                        marginTop: '20px',
-                        marginBottom: '12px'
-                      }}>
-                        {children}
-                      </h3>
-                    ),
-                    p: ({ children }) => (
-                      <p style={{ 
-                        fontSize: `${styles.bodyFontSize}pt`, 
-                        color: styles.bodyColor,
-                        lineHeight: 2,
-                        marginBottom: '16px',
-                        textIndent: '2em'
-                      }}>
-                        {children}
-                      </p>
-                    ),
-                    ul: ({ children }) => (
-                      <ul style={{ 
-                        fontSize: `${styles.bodyFontSize}pt`, 
-                        color: styles.bodyColor,
-                        lineHeight: 2,
-                        marginBottom: '16px',
-                        paddingLeft: '2em',
-                        listStyleType: 'disc'
-                      }}>
-                        {children}
-                      </ul>
-                    ),
-                    ol: ({ children }) => (
-                      <ol style={{ 
-                        fontSize: `${styles.bodyFontSize}pt`, 
-                        color: styles.bodyColor,
-                        lineHeight: 2,
-                        marginBottom: '16px',
-                        paddingLeft: '2em',
-                        listStyleType: 'decimal'
-                      }}>
-                        {children}
-                      </ol>
-                    ),
-                    li: ({ children }) => (
-                      <li style={{ marginBottom: '8px' }}>
-                        {children}
-                      </li>
-                    ),
-                    blockquote: ({ children }) => {
-                      const hasBg = styles.quoteBgShape !== 'none';
-                      return (
-                        <blockquote style={{ 
-                          fontSize: '14px', 
-                          color: styles.quoteColor,
-                          lineHeight: 1.8,
-                          marginBottom: '16px',
-                          padding: hasBg ? '14px 16px' : '8px 14px',
-                          backgroundColor: hasBg ? styles.quoteBgColor : '#fafafa',
-                          borderRadius: hasBg ? getBgShapeRadius(styles.quoteBgShape) : '0',
-                          borderLeft: hasBg ? 'none' : '3px solid ' + styles.themeColor,
-                          fontStyle: 'italic'
-                        }}>
-                          {children}
-                        </blockquote>
-                      );
-                    },
-                    code: ({ className, children, ...props }) => {
-                      const match = /language-(\w+)/.exec(className || '');
-                      const isInline = !match;
-                      return isInline ? (
-                        <code style={{ 
-                          backgroundColor: '#f3f4f6',
-                          color: '#ef4444',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          fontFamily: 'Consolas, Monaco, monospace',
-                          fontSize: '13px'
-                        }} {...props}>
-                          {children}
-                        </code>
-                      ) : (
-                        <pre style={{
-                          backgroundColor: '#1f2937',
-                          color: '#e5e7eb',
-                          padding: '16px',
-                          borderRadius: '8px',
-                          overflowX: 'auto',
-                          marginBottom: '16px',
-                          fontSize: '13px',
-                          lineHeight: 1.6,
-                          fontFamily: 'Consolas, Monaco, monospace'
-                        }}>
-                          <code>{children}</code>
-                        </pre>
-                      );
-                    },
-                    a: ({ href, children }) => (
-                      <a href={href} style={{ 
-                        color: styles.themeColor,
-                        textDecoration: 'underline'
-                      }}>
-                        {children}
-                      </a>
-                    ),
-                    strong: ({ children }) => (
-                      <strong style={{ 
-                        fontWeight: 700,
-                        color: styles.boldColor
-                      }}>
-                        {children}
-                      </strong>
-                    ),
-                    em: ({ children }) => (
-                      <em style={{ fontStyle: 'italic' }}>
-                        {children}
-                      </em>
-                    ),
-                    hr: () => (
-                      <hr style={{ 
-                        border: 'none',
-                        borderTop: '1px dashed #e5e7eb',
-                        margin: '24px 0'
-                      }} />
-                    ),
-                    br: () => <br />,
-                    img: ({ src, alt }) => (
-                      <img 
-                        src={src} 
-                        alt={alt || ''} 
-                        style={{
-                          maxWidth: '100%',
-                          height: 'auto',
-                          borderRadius: '8px',
-                          margin: '16px 0'
-                        }}
-                      />
-                    ),
-                    table: ({ children }) => (
-                      <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
-                        <table style={{
-                          width: '100%',
-                          borderCollapse: 'collapse',
-                          fontSize: '14px'
-                        }}>
-                          {children}
-                        </table>
-                      </div>
-                    ),
-                    thead: ({ children }) => (
-                      <thead style={{ backgroundColor: styles.h2BgColor }}>
-                        {children}
-                      </thead>
-                    ),
-                    th: ({ children }) => (
-                      <th style={{
-                        border: '1px solid #e5e7eb',
-                        padding: '10px 12px',
-                        textAlign: 'left',
-                        fontWeight: 600,
-                        color: styles.themeColor
-                      }}>
-                        {children}
-                      </th>
-                    ),
-                    td: ({ children }) => (
-                      <td style={{
-                        border: '1px solid #e5e7eb',
-                        padding: '10px 12px',
-                        color: styles.bodyColor
-                      }}>
-                        {children}
-                      </td>
-                    ),
-                  }}
-                >
-                  {displayContent}
-                </ReactMarkdown>
+                <div
+                  className="preview-content"
+                  dangerouslySetInnerHTML={{ __html: previewHtml }}
+                />
               ) : (
-                <div style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  minHeight: '200px',
-                  color: '#9ca3af'
-                }}>
-                  <FileText size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
-                  <p style={{ fontSize: '14px' }}>暂无内容</p>
+                <div className="flex flex-col items-center justify-center py-16 text-ink-400">
+                  <FileText size={32} className="mb-3 opacity-50" />
+                  <p className="text-sm">暂无内容</p>
                 </div>
               )}
             </div>
           </div>
         </div>
       </main>
+
+      <style dangerouslySetInnerHTML={{ __html: previewCss }} />
     </div>
   );
 }

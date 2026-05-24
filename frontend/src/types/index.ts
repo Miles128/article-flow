@@ -2,6 +2,7 @@ export interface Project {
   _id: string;
   title: string;
   workspace: 'wechat' | 'video' | 'general';
+  contentType?: 'script' | 'article' | 'general';
   currentStep: number;
   wordCount: number;
   targetWordCount: number;
@@ -9,6 +10,10 @@ export interface Project {
   status: 'draft' | 'in_progress' | 'reviewing' | 'published';
   createdAt: string;
   updatedAt: string;
+  styleProfileId?: string | null;
+  selectedTitle?: string;
+  coverLine?: string;
+  workflowVersion?: number;
   breakpoints: {
     specification: boolean;
     draft: boolean;
@@ -61,7 +66,51 @@ export interface OutlineNode {
   title: string;
   content?: string;
   type?: 'section' | 'heading' | 'paragraph';
+  sectionType?: 'info' | 'experience';
   children?: OutlineNode[];
+}
+
+export interface Claim {
+  _id: string;
+  projectId: string;
+  text: string;
+  materialId?: string;
+  sourceQuote?: string;
+  verified: boolean;
+  createdAt: string;
+}
+
+export interface AntiAiScanResult {
+  score: number;
+  targetScore: number;
+  passed: boolean;
+  matchCount: number;
+  matches: Array<{
+    text: string;
+    category: string;
+    start: number;
+    end: number;
+    suggestion: string;
+  }>;
+  dimensions: Record<string, number>;
+  gateStatus?: string;
+}
+
+export interface ContentEvalResult {
+  totalScore: number;
+  passed: boolean;
+  dimensions: Record<string, number>;
+  aiFlavorScore: number;
+  aiFlavorBand: string;
+  suggestions: string[];
+  rewriteRequired?: boolean;
+}
+
+export interface CriticResult {
+  score: number;
+  passed: boolean;
+  feedback: string;
+  breakdown: Record<string, number>;
 }
 
 export interface Outline {
@@ -75,24 +124,29 @@ export interface Outline {
 }
 
 export interface HotNewsItem {
-  rank: number;
   title: string;
   url: string;
+  content?: string;
   hotValue: number;
-  source: 'weibo' | 'zhihu' | 'bilibili' | 'toutiao';
+  source: 'baidu' | 'bing' | 'duckduckgo' | 'tavily';
   category: string;
-  excerpt?: string;
-  cover?: string;
-  author?: string;
-  timestamp: string;
 }
 
-export interface HotNewsResult {
-  sources: Record<string, HotNewsItem[]>;
-  merged: HotNewsItem[];
-  byCategory: Record<string, HotNewsItem[]>;
-  trendingKeywords: { keyword: string; count: number }[];
+export interface HotNewsCategory {
+  name: string;
+  icon: string;
+  description: string;
+}
+
+export interface HotNewsSearchResult {
+  category?: string;
+  query?: string;
+  engineQuery?: string;
+  searchLanguage?: string;
+  items: HotNewsItem[];
   timestamp: string;
+  error?: string;
+  warnings?: string[];
 }
 
 export interface AITasteAnalysis {
@@ -162,8 +216,9 @@ export interface Platform {
 }
 
 export interface LLMConfig {
-  provider: 'openai' | 'anthropic' | 'zhipu';
+  baseUrl: string;
   modelName: string;
+  temperature: number;
 }
 
 export interface ModelInfo {

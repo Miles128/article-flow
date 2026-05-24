@@ -1,0 +1,13 @@
+title:
+  min_chars: 20
+  max_chars: 28
+  patterns: [数字, 信息差, 反直觉, 痛点]
+digest:
+  max_chars: 54
+keywords:
+  intro_zone_chars: 200
+  repeat_count: [3, 5]
+readability:
+  max_paragraph_chars: 150
+  hook_every_paragraphs: 4
+  image_every_chars: 450

@@ -1,47 +1,47 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, MoreVertical, Calendar, FileText, TrendingUp, Target, PenTool, Loader2, Trash2, X, Settings } from 'lucide-react';
+import { Plus, Loader2, MoreVertical } from 'lucide-react';
 import { projectsApi } from '@/lib/api/client';
 import type { Project } from '@/types';
 import { clsx } from 'clsx';
-import { LLMSettingsModal } from '@/components/modal/LLMSettingsModal';
-
-const workspaceConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  wechat: { label: '公众号', icon: FileText, color: 'bg-green-100 text-green-700' },
-  video: { label: '视频脚本', icon: PenTool, color: 'bg-blue-100 text-blue-700' },
-  general: { label: '通用写作', icon: FileText, color: 'bg-gray-100 text-gray-700' },
-};
+import { WorkspaceModal } from '@/components/modal/WorkspaceModal';
+import { AppShell } from '@/components/layout/AppShell';
+import { useAppStore } from '@/lib/store';
+import { isTauri } from '@/lib/platform';
+import { CONTENT_TYPE_CONFIG, type ContentType } from '@/lib/store';
 
 const statusConfig: Record<string, { label: string; color: string }> = {
-  draft: { label: '草稿', color: 'bg-gray-100 text-gray-600' },
-  in_progress: { label: '进行中', color: 'bg-blue-100 text-blue-700' },
-  reviewing: { label: '审核中', color: 'bg-amber-100 text-amber-700' },
-  published: { label: '已发布', color: 'bg-green-100 text-green-700' },
+  draft: { label: '草稿', color: 'text-ink-400' },
+  in_progress: { label: '进行中', color: 'text-accent-600' },
+  reviewing: { label: '审核中', color: 'text-accent-600' },
+  published: { label: '已发布', color: 'text-ink-500' },
 };
 
 export default function HomePage() {
   const router = useRouter();
+  const { workspace, setWorkspace, setCurrentProject, showWorkspacePicker, setShowWorkspacePicker, workspaceFiles } = useAppStore();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [deleteConfirmProject, setDeleteConfirmProject] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [newProject, setNewProject] = useState({
     title: '',
-    workspace: 'general' as const,
+    contentType: 'article' as ContentType,
     targetWordCount: 2000,
   });
 
   useEffect(() => {
+    setCurrentProject(null);
     loadProjects();
-  }, []);
+  }, [setCurrentProject]);
 
   async function loadProjects() {
     try {
@@ -54,6 +54,35 @@ export default function HomePage() {
     }
   }
 
+  async function handleOpenMDFile(file: { name: string; path: string }) {
+    if (!isTauri) {
+      alert('打开文件功能仅在桌面版中可用');
+      return;
+    }
+    try {
+      const { readTextFile } = await import('@tauri-apps/plugin-fs');
+      const text = await readTextFile(file.path);
+
+      const response = await projectsApi.create({
+        title: file.name.replace(/\.(md|markdown|txt)$/, ''),
+        workspace: 'general',
+        targetWordCount: 2000
+      });
+
+      const projectId = response.data._id;
+      await projectsApi.createContent(projectId, {
+        step: 5,
+        content: text,
+        contentType: 'markdown'
+      });
+
+      router.push(`/projects/${projectId}`);
+    } catch (error: any) {
+      console.error('打开文件失败:', error);
+      alert('打开失败: ' + (error.friendlyMessage || error.message || ''));
+    }
+  }
+
   async function createProject() {
     if (!newProject.title.trim()) return;
     
@@ -62,7 +91,7 @@ export default function HomePage() {
     try {
       const response = await projectsApi.create(newProject);
       setShowCreateModal(false);
-      setNewProject({ title: '', workspace: 'general', targetWordCount: 2000 });
+      setNewProject({ title: '', contentType: 'article', targetWordCount: 2000 });
       router.push(`/projects/${response.data._id}`);
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
@@ -75,11 +104,14 @@ export default function HomePage() {
 
   async function deleteProject(project: Project) {
     setDeleting(true);
+    setDeleteError('');
     try {
       await projectsApi.delete(project._id);
       setProjects((prev) => prev.filter((p) => p._id !== project._id));
       setDeleteConfirmProject(null);
-    } catch (error) {
+    } catch (error: any) {
+      const msg = error?.friendlyMessage || error?.message || '删除失败，请确认后端服务已启动';
+      setDeleteError(msg);
       console.error('Failed to delete project:', error);
     } finally {
       setDeleting(false);
@@ -88,229 +120,186 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-          <p className="text-gray-500">加载中...</p>
+      <AppShell>
+        <div className="flex items-center justify-center h-full min-h-[50vh]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-ink-200 border-t-ink-600 mx-auto mb-3"></div>
+            <p className="text-ink-400">加载中...</p>
+          </div>
         </div>
-      </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <LLMSettingsModal 
-        isOpen={showSettings} 
-        onClose={() => setShowSettings(false)} 
-      />
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">项目列表</h1>
-              <p className="text-sm text-gray-500 mt-1">管理您的文章写作项目</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowSettings(true)}
-                className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <Settings size={18} />
-              </button>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-              >
-                <Plus size={18} />
-                新建项目
-              </button>
-            </div>
+    <AppShell
+      header={
+        <div className="max-w-3xl mx-auto px-6 py-4">
+          <div className="flex items-center gap-3">
+            <h1 className="wen-title">项目</h1>
+            <div className="flex-1" />
+            <button type="button" onClick={() => setShowCreateModal(true)} className="wen-btn">
+              <Plus size={14} strokeWidth={1.5} />
+              新建
+            </button>
           </div>
         </div>
-      </header>
-
+      }
+    >
+      <WorkspaceModal
+        isOpen={showWorkspacePicker}
+        onClose={() => setShowWorkspacePicker(false)}
+        onConfirm={(path) => setWorkspace({ path, type: 'general' })}
+      />
       {openMenuId && (
-        <div
-          className="fixed inset-0 z-20"
-          onClick={() => setOpenMenuId(null)}
-        />
+        <div className="fixed inset-0 z-20" onClick={() => setOpenMenuId(null)} />
       )}
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {projects.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FileText size={32} className="text-gray-400" />
+      <div className="max-w-3xl mx-auto px-6 py-6">
+        {workspaceFiles.length > 0 ? (
+          <div>
+            <div className="flex items-baseline gap-2 mb-4 pb-3 border-b border-surface-300">
+              <h2 className="wen-title">工作区文件</h2>
+              <span className="text-ink-300">{workspace.path?.split('/').pop()}</span>
+              <span className="text-ink-400">{workspaceFiles.length} 篇</span>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">还没有项目</h3>
-            <p className="text-gray-500 mb-6">点击上方按钮创建您的第一个项目</p>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-            >
-              <Plus size={18} />
+            <div className="border-t border-surface-300">
+              {workspaceFiles.map((file) => (
+                <button
+                  key={file.path}
+                  type="button"
+                  onClick={() => handleOpenMDFile(file)}
+                  className="wen-list-row w-full text-left px-1"
+                >
+                  <h3 className="wen-title text-ink-800 hover:text-primary-600 transition-colors truncate">
+                    {file.name.replace(/\.(md|markdown|txt)$/, '')}
+                  </h3>
+                  <p className="text-ink-400 mt-1">{file.name.split('.').pop()?.toUpperCase()}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : projects.length === 0 ? (
+          <div className="text-center py-24">
+            <h3 className="wen-title mb-2">还没有项目</h3>
+            <p className="text-ink-400 mb-8">落笔之前，先立一项</p>
+            <button type="button" onClick={() => setShowCreateModal(true)} className="wen-btn-seal">
+              <Plus size={14} strokeWidth={1.5} />
               创建项目
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="border-t border-surface-300">
             {projects.map((project) => {
-              const workspace = workspaceConfig[project.workspace];
+              const ct = project.contentType || 'article';
+              const ctConfig = CONTENT_TYPE_CONFIG[ct as ContentType] || CONTENT_TYPE_CONFIG.article;
               const status = statusConfig[project.status];
               const progress = Math.min(100, Math.round((project.wordCount / project.targetWordCount) * 100));
 
               return (
-                <div
-                  key={project._id}
-                  className="group bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg hover:border-primary-300 transition-all relative"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <span className={clsx('px-2 py-1 text-xs font-medium rounded-full', workspace.color)}>
-                        {workspace.label}
-                      </span>
-                      <span className={clsx('px-2 py-1 text-xs font-medium rounded-full', status.color)}>
-                        {status.label}
-                      </span>
-                    </div>
-                    <div className="relative">
+                <div key={project._id} className="wen-list-row relative px-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <Link href={`/projects/${project._id}`} className="flex-1 min-w-0">
+                      <h3 className="wen-title text-ink-900 hover:text-primary-600 transition-colors truncate mb-1.5">
+                        {project.title}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ink-400">
+                        <span>{ctConfig.label}</span>
+                        <span className="text-ink-200">·</span>
+                        <span className={status.color}>{status.label}</span>
+                        <span className="text-ink-200">·</span>
+                        <span>{project.wordCount} / {project.targetWordCount} 字</span>
+                        <span className="text-ink-200">·</span>
+                        <span>{new Date(project.updatedAt).toLocaleDateString('zh-CN')}</span>
+                      </div>
+                      <div className="mt-2 h-px bg-surface-300 relative overflow-hidden max-w-xs">
+                        <div className="absolute inset-y-0 left-0 bg-ink-600/70" style={{ width: `${progress}%` }} />
+                      </div>
+                    </Link>
+                    <div className="relative shrink-0">
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuId(openMenuId === project._id ? null : project._id);
                         }}
-                        className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                        className="p-1 text-ink-300 hover:text-ink-600"
                       >
-                        <MoreVertical size={16} />
+                        <MoreVertical size={14} strokeWidth={1.5} />
                       </button>
                       {openMenuId === project._id && (
-                        <div className="absolute right-0 top-8 z-30 w-36 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+                        <div className="absolute right-0 top-6 z-30 w-24 bg-surface-100 border border-surface-300 py-0.5">
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               setOpenMenuId(null);
                               setDeleteConfirmProject(project);
                             }}
-                            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            className="w-full px-3 py-1.5 text-left text-red-600 hover:bg-red-50"
                           >
-                            <Trash2 size={14} />
-                            删除项目
+                            删除
                           </button>
                         </div>
                       )}
                     </div>
                   </div>
-
-                  <Link href={`/projects/${project._id}`}>
-                    <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors mb-2">
-                      {project.title}
-                    </h3>
-
-                    <div className="space-y-3">
-                      <div>
-                        <div className="flex items-center justify-between text-sm text-gray-500 mb-1">
-                          <span>写作进度</span>
-                          <span>{project.wordCount} / {project.targetWordCount} 字</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-primary-500 h-2 rounded-full transition-all"
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {project.aiTasteScore > 0 && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <TrendingUp size={14} className="text-gray-400" />
-                          <span className="text-gray-500">AI 味:</span>
-                          <span className={clsx(
-                            'font-medium',
-                            project.aiTasteScore < 30 ? 'text-green-600' :
-                            project.aiTasteScore < 50 ? 'text-yellow-600' : 'text-red-600'
-                          )}>
-                            {project.aiTasteScore}%
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <Calendar size={14} />
-                        <span>更新于 {new Date(project.updatedAt).toLocaleDateString('zh-CN')}</span>
-                      </div>
-                    </div>
-                  </Link>
                 </div>
               );
             })}
           </div>
         )}
-      </main>
+      </div>
 
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">创建新项目</h2>
+        <div className="fixed inset-0 bg-black/15 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-100 max-w-md w-full p-6 border border-surface-300">
+            <h2 className="wen-title mb-5">创建新项目</h2>
 
             {createError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+              <div className="mb-4 p-3 border border-red-200 text-red-600 bg-red-50/50">
                 {createError}
               </div>
             )}
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  项目名称
-                </label>
+                <label className="block text-ink-400 mb-1.5 font-kaiti">项目名称</label>
                 <input
                   type="text"
                   value={newProject.title}
                   onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
                   placeholder="输入文章标题"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                  className="wen-input font-kaiti"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  工作区类型
-                </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {Object.entries(workspaceConfig).map(([key, config]) => (
+                <label className="block text-ink-400 mb-1.5 font-kaiti">内容类型</label>
+                <div className="grid grid-cols-3 gap-px bg-surface-300 border border-surface-300">
+                  {(Object.entries(CONTENT_TYPE_CONFIG) as [ContentType, typeof CONTENT_TYPE_CONFIG[ContentType]][]).map(([key, config]) => (
                     <button
                       key={key}
-                      onClick={() => setNewProject({ ...newProject, workspace: key as any })}
+                      type="button"
+                      onClick={() => setNewProject({ ...newProject, contentType: key })}
                       className={clsx(
-                        'p-3 rounded-lg border-2 text-center transition-all',
-                        newProject.workspace === key
-                          ? 'border-primary-500 bg-primary-50'
-                          : 'border-gray-200 hover:border-gray-300'
+                        'p-2.5 text-center transition-colors bg-surface-100',
+                        newProject.contentType === key
+                          ? 'text-primary-600 bg-primary-50'
+                          : 'text-ink-500 hover:text-ink-800'
                       )}
                     >
-                      <config.icon size={24} className={clsx(
-                        'mx-auto mb-1',
-                        newProject.workspace === key ? 'text-primary-600' : 'text-gray-400'
-                      )} />
-                      <span className={clsx(
-                        'text-sm font-medium',
-                        newProject.workspace === key ? 'text-primary-600' : 'text-gray-600'
-                      )}>
-                        {config.label}
-                      </span>
+                      <span className="font-kaiti block">{config.label}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  目标字数
-                </label>
+                <label className="block text-ink-400 mb-1.5 font-kaiti">目标字数</label>
                 <select
                   value={newProject.targetWordCount}
                   onChange={(e) => setNewProject({ ...newProject, targetWordCount: Number(e.target.value) })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                  className="wen-input"
                 >
                   <option value={1000}>1000 字</option>
                   <option value={2000}>2000 字</option>
@@ -320,19 +309,17 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
+            <div className="flex justify-end gap-2 mt-6">
+              <button type="button" onClick={() => setShowCreateModal(false)} className="wen-btn">
                 取消
               </button>
               <button
+                type="button"
                 onClick={createProject}
                 disabled={!newProject.title.trim() || creating}
-                className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                className="wen-btn-seal"
               >
-                {creating && <Loader2 size={16} className="animate-spin" />}
+                {creating && <Loader2 size={14} className="animate-spin" />}
                 {creating ? '创建中...' : '创建'}
               </button>
             </div>
@@ -341,41 +328,32 @@ export default function HomePage() {
       )}
 
       {deleteConfirmProject && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">删除项目</h2>
-              <button
-                onClick={() => setDeleteConfirmProject(null)}
-                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <p className="text-gray-600 mb-6">
-              确定要删除项目 <span className="font-semibold text-gray-900">"{deleteConfirmProject.title}"</span> 吗？
-              <br />
-              此操作无法撤销。
+        <div className="fixed inset-0 bg-black/15 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-100 max-w-sm w-full p-6 border border-surface-300">
+            <h2 className="wen-title mb-3">删除项目</h2>
+            <p className="text-ink-500 mb-4">
+              确定要删除 <span className="font-kaiti text-ink-800">「{deleteConfirmProject.title}」</span> 吗？此操作无法撤销。
             </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setDeleteConfirmProject(null)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
+            {deleteError && (
+              <p className="text-red-600 border border-red-200 px-3 py-2 mb-4">{deleteError}</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => { setDeleteConfirmProject(null); setDeleteError(''); }} className="wen-btn">
                 取消
               </button>
               <button
+                type="button"
                 onClick={() => deleteProject(deleteConfirmProject)}
                 disabled={deleting}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                className="wen-btn text-red-600 border-red-300 hover:border-red-400 hover:bg-red-50"
               >
-                {deleting && <Loader2 size={16} className="animate-spin" />}
+                {deleting && <Loader2 size={14} className="animate-spin" />}
                 {deleting ? '删除中...' : '确认删除'}
               </button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }

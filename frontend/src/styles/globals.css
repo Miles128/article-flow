@@ -2,28 +2,108 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 方案 C · 文房纸墨 */
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 255, 255, 255;
-  --background-end-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+  --paper: #f5f4ed;
+  --paper-line: #e8e6dc;
+  --ink-muted: #87867f;
+  --ink-body: #30302e;
+  --ink-deep: #141413;
+  --seal: #c96442;
+  --wen-body-size: 15px;
+  --wen-title-size: calc(var(--wen-body-size) + 2pt);
+  --foreground-rgb: 20, 20, 19;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  color: var(--ink-deep);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-kaiti {
+  font-family:
+    "Kaiti SC", "STKaiti", "KaiTi", "楷体", "BiauKai", "AR PL UKai CN", serif;
+}
+
+.font-editor {
+  font-family:
+    "PingFang SC", "PingFang SC Regular", "Microsoft YaHei", "微软雅黑",
+    sans-serif;
+}
+
+@layer components {
+  .wen-title {
+    @apply font-kaiti text-ink-900 tracking-wide;
+    font-size: var(--wen-title-size);
+    line-height: 1.45;
+  }
+
+  .wen-label {
+    @apply font-kaiti text-ink-700;
+    font-size: var(--wen-title-size);
+    line-height: 1.45;
+  }
+
+  .wen-panel {
+    @apply bg-surface-100 border border-surface-300;
+  }
+
+  .wen-toolbar {
+    @apply flex items-center justify-between border-b border-surface-300 bg-surface-100 px-3 py-2;
+  }
+
+  .wen-btn {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 text-xs text-ink-600 border border-surface-300 bg-transparent hover:border-ink-300 hover:text-ink-900 transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .wen-btn-seal {
+    @apply wen-btn text-primary-600 border-primary-400 hover:bg-primary-50 hover:border-primary-500;
+  }
+
+  .wen-btn-active {
+    @apply border-ink-700 text-ink-900;
+  }
+
+  .wen-input {
+    @apply w-full px-3 py-2 border border-surface-300 bg-surface-100 text-[13px] text-ink-800 outline-none focus:border-ink-400 placeholder:text-ink-300;
+  }
+
+  .wen-list-row {
+    @apply py-4 border-b border-surface-300 last:border-b-0 hover:bg-surface-200/40 transition-colors;
+  }
+
+  .wen-nav-item {
+    @apply block w-full text-left px-3 py-1.5 text-ink-500 hover:text-ink-900 transition-colors border-l border-transparent font-kaiti;
+    font-size: var(--wen-title-size);
+  }
+
+  .wen-nav-step-item {
+    @apply block w-full text-left px-3 py-1.5 text-[13px] text-ink-500 hover:text-ink-900 transition-colors border-l border-transparent font-editor;
+  }
+
+  .wen-nav-item-active {
+    @apply wen-nav-item text-ink-900 border-l-ink-800 font-kaiti;
+    font-size: var(--wen-title-size);
+  }
+
+  .wen-nav-step-active {
+    @apply block w-full text-left px-3 py-1.5 text-primary-500 border-l-primary-500 font-kaiti hover:text-primary-600 transition-colors;
+    font-size: var(--wen-title-size);
+  }
+
+  .wen-panel-padded {
+    @apply wen-panel p-4;
+  }
+
+  .wen-alert-error {
+    @apply p-3 border border-red-200 text-[13px] text-red-700 bg-red-50/40;
+  }
+
+  .wen-alert-warn {
+    @apply p-3 border border-primary-300 text-[13px] text-primary-700 bg-primary-50/40;
+  }
 }
 
 @layer utilities {
@@ -33,11 +113,78 @@ body {
 }
 
 .w-md-editor {
-  @apply rounded-lg border border-gray-200;
+  @apply border border-surface-300;
 }
 
 .w-md-editor-text-pre > code,
 .w-md-editor-text-input {
   font-size: 14px !important;
   line-height: 1.8 !important;
+}
+
+::selection {
+  background: #f0cfc0;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1cfc5;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #b0aea5;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+.md-preview > :first-child {
+  margin-top: 0;
+}
+
+.md-preview h1,
+.md-preview h2,
+.md-preview h3,
+.md-preview h4,
+.md-preview h5,
+.md-preview h6 {
+  font-family:
+    "Kaiti SC", "STKaiti", "KaiTi", "楷体", "BiauKai", "AR PL UKai CN", serif;
+  font-size: var(--wen-title-size);
+  line-height: 1.45;
+  color: var(--ink-deep);
+}
+
+main h1,
+main h2,
+main h3,
+main h4,
+main h5,
+main h6 {
+  font-family:
+    "Kaiti SC", "STKaiti", "KaiTi", "楷体", "BiauKai", "AR PL UKai CN", serif;
+  font-size: var(--wen-title-size);
+  line-height: 1.45;
+  color: var(--ink-deep);
 }

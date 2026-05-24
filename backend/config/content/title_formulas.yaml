@@ -1,0 +1,26 @@
+formulas:
+  - id: pain_number
+    name: 痛点+方案+数字
+    template: "{痛点}？{数字}个方法{结果}"
+  - id: identity_result
+    name: 身份代入+结果
+    template: "{身份}如何{时间}做到{结果}"
+  - id: counter_intuitive
+    name: 反常识/悬念
+    template: "你以为{常识}，其实{反转}"
+  - id: contrast
+    name: 对比式
+    template: "{A} vs {B}：{结论}"
+  - id: data_hook
+    name: 数据冲击
+    template: "{数字}{单位}，{意外结论}"
+
+banned_title_words:
+  - 震惊
+  - 重磅
+  - 逆天
+  - 炸裂
+  - 遥遥领先
+  - 万字长文
+  - 深度好文
+  - 建议收藏

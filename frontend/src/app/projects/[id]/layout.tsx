@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { useAppStore } from '@/lib/store';
-import { projectsApi } from '@/lib/api/client';
-import type { Project } from '@/types';
-import { ArrowLeft, Loader2 } from 'lucide-react';
-import Link from 'next/link';
+import { useEffect, useState, useRef } from "react";
+import { useParams, useRouter, usePathname } from "next/navigation";
+import { AppShell } from "@/components/layout/AppShell";
+import { useAppStore } from "@/lib/store";
+import { projectsApi } from "@/lib/api/client";
+import type { Project } from "@/types";
+import { ArrowLeft, Loader2, Pencil } from "lucide-react";
+import Link from "next/link";
 
 export default function ProjectLayout({
   children,
@@ -15,10 +15,15 @@ export default function ProjectLayout({
   children: React.ReactNode;
 }) {
   const params = useParams();
+  const pathname = usePathname();
+  const isWritingPage = pathname?.includes("/writing");
   const router = useRouter();
   const { currentProject, setCurrentProject } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleValue, setTitleValue] = useState("");
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   const projectId = params.id as string;
 
@@ -26,11 +31,36 @@ export default function ProjectLayout({
     if (projectId) {
       loadProject(projectId);
     }
-    
+
     return () => {
       setCurrentProject(null);
     };
   }, [projectId]);
+
+  useEffect(() => {
+    if (editingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [editingTitle]);
+
+  async function handleTitleSave() {
+    setEditingTitle(false);
+    if (
+      !currentProject ||
+      !titleValue.trim() ||
+      titleValue === currentProject.title
+    )
+      return;
+    try {
+      await projectsApi.update(currentProject._id, {
+        title: titleValue.trim(),
+      });
+      setCurrentProject({ ...currentProject, title: titleValue.trim() });
+    } catch (e) {
+      console.error("Failed to update title:", e);
+    }
+  }
 
   async function loadProject(id: string) {
     try {
@@ -39,8 +69,8 @@ export default function ProjectLayout({
       setCurrentProject(response.data);
       setError(null);
     } catch (err) {
-      console.error('Failed to load project:', err);
-      setError('项目加载失败');
+      console.error("Failed to load project:", err);
+      setError("项目加载失败");
     } finally {
       setLoading(false);
     }
@@ -51,7 +81,7 @@ export default function ProjectLayout({
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="animate-spin h-12 w-12 text-primary-500 mx-auto mb-4" />
-          <p className="text-gray-500">加载项目...</p>
+          <p className="text-ink-500">加载项目...</p>
         </div>
       </div>
     );
@@ -59,13 +89,10 @@ export default function ProjectLayout({
 
   if (error || !currentProject) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-surface-200/30">
         <div className="text-center">
-          <p className="text-gray-500 mb-4">{error || '项目不存在'}</p>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-          >
+          <p className="text-ink-500 mb-4">{error || "项目不存在"}</p>
+          <Link href="/" className="wen-btn-seal transition-colors">
             <ArrowLeft size={18} />
             返回项目列表
           </Link>
@@ -75,11 +102,42 @@ export default function ProjectLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar />
-      <main className="md:ml-64 min-h-screen">
-        {children}
-      </main>
-    </div>
+    <AppShell
+      header={
+        <div className={isWritingPage ? "w-full flex items-center gap-2 px-3 py-4" : "max-w-4xl mx-auto flex items-center gap-2 px-6 py-4"}>
+          {editingTitle ? (
+            <input
+              ref={titleInputRef}
+              value={titleValue}
+              onChange={(e) => setTitleValue(e.target.value)}
+              onBlur={handleTitleSave}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleTitleSave();
+                if (e.key === "Escape") setEditingTitle(false);
+              }}
+              className="wen-title border-b border-primary-500 outline-none bg-transparent flex-1 max-w-md"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setTitleValue(currentProject.title);
+                setEditingTitle(true);
+              }}
+              className="wen-title hover:text-primary-600 transition-colors flex items-center gap-1.5 group"
+            >
+              {currentProject.title}
+              <Pencil
+                size={13}
+                strokeWidth={1.5}
+                className="text-ink-300 group-hover:text-primary-400 transition-colors"
+              />
+            </button>
+          )}
+        </div>
+      }
+    >
+      {children}
+    </AppShell>
   );
 }

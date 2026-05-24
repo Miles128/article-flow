@@ -1,0 +1,59 @@
+# 写作模式配置
+modes:
+  coach:
+    id: coach
+    name: 教练模式
+    icon: GraduationCap
+    description: AI 引导你自己写每一段，不生成内容
+    aiGeneration: "0%"
+    timeEstimate: 3-4h
+    aiDetectionRate: <15%
+    quality: ⭐⭐⭐⭐⭐
+    bestFor: 产品测评、使用体验、深度观点
+    workflow: AI提供结构框架→逐段引导提问→用户写作→AI检查→修改→继续
+
+  fast:
+    id: fast
+    name: 快速模式
+    icon: Zap
+    description: AI 生成初稿，你审校修改
+    aiGeneration: "100%"
+    timeEstimate: 1-2h
+    aiDetectionRate: 25-40%
+    quality: ⭐⭐⭐
+    bestFor: 论文解读、技术总结、知识科普
+    workflow: 读取上下文→AI生成初稿→展示统计→迭代修改(最多3轮)→保存
+
+  mixed:
+    id: mixed
+    name: 混合模式
+    icon: Shuffle
+    description: AI 写框架和信息型内容，你填经验和观点
+    aiGeneration: "40%"
+    timeEstimate: 2-3h
+    aiDetectionRate: 18-25%
+    quality: ⭐⭐⭐⭐
+    bestFor: 教程类、案例分析、技术方案
+    workflow: 分析章节性质→AI写信息型部分→用户填写经验型→整合检查
+
+  framework:
+    id: framework
+    name: 框架约束模式
+    icon: LayoutTemplate
+    description: 自动读取项目大纲，AI 严格按大纲结构填内容
+    aiGeneration: 60-80%
+    timeEstimate: 1.5-3h
+    aiDetectionRate: 20-35%
+    quality: ⭐⭐⭐⭐
+    bestFor: 项目报告、开题报告、标书、专利申请
+    workflow: 读取项目大纲→解析结构→逐章生成→一致性检查
+
+# 风格白名单（防止 Prompt Injection）
+styles:
+  formal: 正式专业风格，适合商务和专业文章
+  casual: 轻松随意风格，适合博客和社交媒体
+  conversational: 对话式风格，像和朋友聊天一样
+  academic: 学术严谨风格，适合论文和研究报告
+  poetic: 诗意优美风格，富有文学性
+  humorous: 幽默风趣风格，轻松活泼
+  professional: 正式专业，适合商务和专业文章

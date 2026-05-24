@@ -1,0 +1,66 @@
+# 平台格式配置
+platforms:
+  - id: wechat
+    name: 微信公众号
+    icon: MessageCircle
+    description: 适配微信公众号排版
+    rules:
+      maxParagraphLength: 150
+      style: 短段落、emoji、加粗重点
+      useEmoji: true
+      useHashtags: false
+
+  - id: zhihu
+    name: 知乎
+    icon: BookOpen
+    description: 适配知乎专栏格式
+    rules:
+      style: 结构清晰、引用规范
+      useEmoji: false
+      useHashtags: false
+
+  - id: xiaohongshu
+    name: 小红书
+    icon: Heart
+    description: 适配小红书笔记格式
+    rules:
+      maxParagraphLength: 50
+      style: emoji点缀、话题标签
+      useEmoji: true
+      useHashtags: true
+
+  - id: bilibili
+    name: B站专栏
+    icon: Tv
+    description: 适配B站专栏格式
+    rules:
+      style: 互动性强、分区明确
+      useEmoji: true
+      useHashtags: false
+
+  - id: jianshu
+    name: 简书
+    icon: FileText
+    description: 适配简书Markdown格式
+    rules:
+      style: 标准Markdown、简洁清晰
+      useEmoji: false
+      useHashtags: false
+
+  - id: toutiao
+    name: 今日头条
+    icon: Newspaper
+    description: 适配今日头条格式
+    rules:
+      style: 信息密度高、标题吸引
+      useEmoji: false
+      useHashtags: false
+
+  - id: general
+    name: 通用
+    icon: File
+    description: 通用Markdown格式
+    rules:
+      style: 标准Markdown、层次分明
+      useEmoji: false
+      useHashtags: false

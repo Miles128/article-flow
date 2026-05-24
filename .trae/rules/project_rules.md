@@ -2,21 +2,31 @@
 
 ## 项目结构
 
-- 后端：`/backend`，Flask + 本地 JSON 文件存储
+- 后端：`/backend`，Flask + 本地 JSON 文件存储，使用 uv 管理依赖
 - 前端：`/frontend`，Next.js + React + Tailwind CSS
 - 数据目录：`/backend/data/`，存储 JSON 文件（projects.json 等）
 
 ## 后端
 
-### 虚拟环境
+### 虚拟环境（uv）
 
-- 路径：`/backend/venv`
-- 创建：`/opt/homebrew/bin/python3 -m venv /backend/venv`
-- 激活：`source /backend/venv/bin/activate`
-- 依赖安装：`pip install -r /backend/requirements.txt`
-- 启动命令：`source /backend/venv/bin/activate && cd /backend && python run.py`
+- 包管理器：uv（`/opt/homebrew/bin/uv`）
+- 虚拟环境：`/backend/.venv`（uv 自动创建）
+- 安装依赖：`cd /backend && uv sync`
+- 添加依赖：`cd /backend && uv add <package>`
+- 启动命令：`cd /backend && uv run python run.py`
 - 运行端口：5001
 - 健康检查：`curl http://localhost:5001/api/health`
+
+### 环境变量（可选）
+
+后端优先从环境变量读取 LLM 配置，未设置时从请求中的用户输入读取：
+
+| 变量 | 用途 |
+|------|------|
+| `LLM_API_KEY` | API Key（推荐设，避免前端传输） |
+| `LLM_BASE_URL` | API 地址 |
+| `LLM_MODEL_NAME` | 默认模型名 |
 
 ### 注意事项
 
