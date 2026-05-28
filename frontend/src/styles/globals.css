@@ -1,0 +1,245 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 方案 C · 文房纸墨 · 牛皮纸暖调 */
+:root {
+  --paper: #f4ead8;
+  --paper-warm: #f0e2cc;
+  --paper-line: #e0d0b4;
+  --ink-muted: #8a7f6e;
+  --ink-body: #3a342c;
+  --ink-deep: #1a1612;
+  --seal: #c96442;
+  --wen-body-size: 15px;
+  --wen-title-size: calc(var(--wen-body-size) + 2pt);
+  --foreground-rgb: 26, 22, 18;
+}
+
+html {
+  min-height: 100%;
+  background-color: #dfc59a;
+}
+
+body {
+  position: relative;
+  min-height: 100%;
+  color: var(--ink-deep);
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: #ead4b4;
+  background-image:
+    radial-gradient(ellipse 95% 75% at 12% 8%, #faf3e8 0%, transparent 58%),
+    radial-gradient(ellipse 85% 65% at 88% 12%, #f5e6cc 0%, transparent 52%),
+    radial-gradient(ellipse 110% 85% at 50% 105%, #d4b88a 0%, transparent 68%),
+    radial-gradient(ellipse 75% 55% at 0% 85%, #c9a876 0%, transparent 58%),
+    radial-gradient(ellipse 60% 45% at 100% 70%, #ddb888 0%, transparent 50%),
+    linear-gradient(155deg, #f2e4cc 0%, #f8eed8 32%, #ecd9b8 68%, #dfc59a 100%);
+}
+
+.font-kaiti {
+  font-family:
+    "Kaiti SC", "STKaiti", "KaiTi", "楷体", "BiauKai", "AR PL UKai CN", serif;
+}
+
+.font-editor {
+  font-family:
+    "PingFang SC", "PingFang SC Regular", "Microsoft YaHei", "微软雅黑",
+    sans-serif;
+}
+
+@layer components {
+  .wen-title {
+    @apply font-kaiti text-ink-900 tracking-wide;
+    font-size: var(--wen-title-size);
+    line-height: 1.45;
+  }
+
+  .wen-label {
+    @apply font-kaiti text-ink-700;
+    font-size: var(--wen-title-size);
+    line-height: 1.45;
+  }
+
+  .wen-panel {
+    @apply bg-surface-50/75 backdrop-blur-[3px] border border-surface-300;
+  }
+
+  .wen-toolbar {
+    @apply relative z-30 overflow-visible flex items-center justify-between border-b border-surface-300 bg-surface-50/80 backdrop-blur-[3px] px-3 py-2;
+  }
+
+  .wen-toolbar-seamless {
+    @apply relative z-30 overflow-visible flex items-center justify-between border-b-0 bg-surface-50/80 backdrop-blur-[3px] px-3 py-2;
+  }
+
+  .wen-toolbar .wen-btn,
+  .wen-toolbar .wen-btn-seal,
+  .wen-toolbar-seamless .wen-btn,
+  .wen-toolbar-seamless .wen-btn-seal {
+    @apply shrink-0 whitespace-nowrap;
+  }
+
+  .wen-btn {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 text-xs text-ink-600 border border-surface-300 bg-transparent hover:border-ink-300 hover:text-ink-900 transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .wen-btn-seal {
+    @apply wen-btn text-primary-600 border-primary-400 hover:bg-primary-50/70 hover:border-primary-500;
+  }
+
+  .wen-btn-action {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm text-ink-800 border border-surface-300 bg-surface-50/70 backdrop-blur-[3px] hover:bg-surface-50/85 hover:border-ink-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .wen-btn-action-accent {
+    @apply wen-btn-action text-primary-700 border-primary-400 bg-primary-50/70 hover:bg-primary-100/80 hover:border-primary-500;
+  }
+
+  .wen-chip-active {
+    @apply bg-primary-50/70 backdrop-blur-[2px] text-primary-700 border border-primary-400 font-medium;
+  }
+
+  .wen-btn-active {
+    @apply border-ink-700 text-ink-900;
+  }
+
+  .wen-input {
+    @apply w-full px-3 py-2 border border-surface-300 bg-surface-50/70 backdrop-blur-[3px] text-[13px] text-ink-800 outline-none focus:border-ink-400 placeholder:text-ink-300;
+  }
+
+  .wen-list-row {
+    @apply py-4 border-b border-surface-300 last:border-b-0 hover:bg-surface-200/40 transition-colors;
+  }
+
+  .wen-nav-item {
+    @apply block w-full text-left px-3 py-1.5 text-ink-500 hover:text-ink-900 transition-colors border-l border-transparent font-kaiti;
+    font-size: var(--wen-title-size);
+  }
+
+  .wen-nav-step-item {
+    @apply block w-full text-left px-3 py-1.5 text-[13px] text-ink-500 hover:text-ink-900 transition-colors border-l border-transparent font-editor;
+  }
+
+  .wen-nav-item-active {
+    @apply wen-nav-item text-ink-900 border-l-ink-800 font-kaiti;
+    font-size: var(--wen-title-size);
+  }
+
+  .wen-nav-step-active {
+    @apply block w-full text-left px-3 py-1.5 text-primary-500 border-l-primary-500 font-kaiti hover:text-primary-600 transition-colors;
+    font-size: var(--wen-title-size);
+  }
+
+  .wen-panel-padded {
+    @apply wen-panel p-4;
+  }
+
+  .wen-alert-error {
+    @apply p-3 border border-red-200 text-[13px] text-red-700 bg-red-50/40;
+  }
+
+  .wen-alert-warn {
+    @apply p-3 border border-primary-300 text-[13px] text-primary-700 bg-primary-50/40;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .wen-glass {
+    @apply bg-surface-50/70 backdrop-blur-[3px];
+  }
+
+  .wen-glass-heavy {
+    @apply bg-surface-50/82 backdrop-blur-[5px];
+  }
+}
+
+.w-md-editor {
+  @apply border border-surface-300;
+}
+
+.w-md-editor-text-pre > code,
+.w-md-editor-text-input {
+  font-size: 14px !important;
+  line-height: 1.8 !important;
+}
+
+::selection {
+  background: #e8c9a8;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4c4a8;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #bfa888;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+.md-preview > :first-child {
+  margin-top: 0;
+}
+
+.md-preview h1,
+.md-preview h2,
+.md-preview h3,
+.md-preview h4,
+.md-preview h5,
+.md-preview h6 {
+  font-family:
+    "Kaiti SC", "STKaiti", "KaiTi", "楷体", "BiauKai", "AR PL UKai CN", serif;
+  font-size: var(--wen-title-size);
+  line-height: 1.45;
+  color: var(--ink-deep);
+}
+
+main h1,
+main h2,
+main h3,
+main h4,
+main h5,
+main h6 {
+  font-family:
+    "Kaiti SC", "STKaiti", "KaiTi", "楷体", "BiauKai", "AR PL UKai CN", serif;
+  font-size: var(--wen-title-size);
+  line-height: 1.45;
+  color: var(--ink-deep);
+}
