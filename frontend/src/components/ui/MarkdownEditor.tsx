@@ -48,15 +48,20 @@ interface MarkdownEditorProps {
   onSave?: () => void;
   isSaving?: boolean;
   showToolbar?: boolean;
+  seamlessToolbar?: boolean;
   placeholder?: string;
   minHeight?: number | string;
   onAIAction?: (action: string, selection?: string) => void;
   aiBusyAction?: string | null;
+  onSelectionChange?: (
+    selection: { start: number; end: number; text: string } | null,
+  ) => void;
 }
 
 export interface MarkdownEditorHandle {
   insertAtCursor: (text: string) => void;
   focus: () => void;
+  scrollToTop: () => void;
 }
 
 const ToolbarButton: React.FC<{
@@ -88,10 +93,12 @@ export const MarkdownEditor = forwardRef<
     onSave,
     isSaving = false,
     showToolbar = true,
+    seamlessToolbar = false,
     placeholder = "开始输入...",
     minHeight = 400,
     onAIAction,
     aiBusyAction = null,
+    onSelectionChange,
   },
   ref,
 ) {
@@ -138,6 +145,10 @@ export const MarkdownEditor = forwardRef<
       },
       focus() {
         textareaRef.current?.focus();
+      },
+      scrollToTop() {
+        const el = textareaRef.current;
+        if (el) el.scrollTop = 0;
       },
     }),
     [value, onChange],
@@ -193,23 +204,41 @@ export const MarkdownEditor = forwardRef<
     const end = textareaRef.current.selectionEnd;
     updateCaret();
     if (start !== end) {
-      setSelection({
+      const next = {
         start,
         end,
         text: value.substring(start, end),
-      });
+      };
+      setSelection(next);
+      onSelectionChange?.(next);
     } else {
       setSelection(null);
+      onSelectionChange?.(null);
     }
   };
 
-  const wordCount = countArticleWords(value);
+  const statsText = selection?.text?.trim() ? selection.text : value;
+  const wordCount = countArticleWords(statsText);
   const charCount = value.length;
 
   return (
-    <div className="border border-surface-300 overflow-hidden bg-surface-100">
+    <div
+      className={clsx(
+        "overflow-hidden bg-surface-50/70 backdrop-blur-[2px]",
+        seamlessToolbar
+          ? "border-x border-b border-surface-300 border-t-0"
+          : "border border-surface-300",
+      )}
+    >
       {showToolbar && (
-        <div className="wen-toolbar flex-wrap gap-1">
+        <div
+          className={clsx(
+            seamlessToolbar
+              ? "wen-toolbar-seamless border-b border-surface-300"
+              : "wen-toolbar",
+            "flex-wrap gap-1",
+          )}
+        >
           <div className="flex items-center gap-0.5 flex-wrap">
             <ToolbarButton
               onClick={() => insertMarkdown("**", "**", "粗体文字")}
@@ -431,14 +460,14 @@ export const MarkdownEditor = forwardRef<
               onKeyUp={handleSelectionChange}
               onBlur={updateCaret}
               placeholder={placeholder}
-              className="flex-1 w-full p-4 resize-none focus:outline-none font-editor text-[15px] leading-[1.9] text-ink-800 bg-surface-100 placeholder:text-ink-300"
+              className="flex-1 w-full p-4 resize-none focus:outline-none font-editor text-[15px] leading-[1.9] text-ink-800 bg-transparent placeholder:text-ink-300"
               spellCheck={false}
             />
           </div>
         )}
 
         {(mode === "preview" || mode === "split") && (
-          <div className="flex-1 overflow-y-auto bg-surface-50">
+          <div className="flex-1 overflow-y-auto bg-surface-50/40">
             <div className="md-preview font-editor p-6 max-w-none">
               {value ? (
                 <ReactMarkdown
@@ -600,8 +629,18 @@ export const MarkdownEditor = forwardRef<
 
       <div className="border-t border-surface-300 px-4 py-2 flex items-center justify-between text-xs text-ink-400">
         <div className="flex items-center gap-4 text-ink-400">
-          <span>字数: {wordCount}</span>
-          <span>字符: {charCount}</span>
+          <span>
+            {selection?.text?.trim() ? "选中" : "字数"}:{" "}
+            <span className="font-kaiti tabular-nums text-ink-600">
+              {wordCount}
+            </span>
+          </span>
+          <span>
+            字符:{" "}
+            <span className="font-kaiti tabular-nums text-ink-600">
+              {selection?.text?.trim() ? selection.text.length : charCount}
+            </span>
+          </span>
         </div>
         <span className="text-ink-300">Markdown</span>
       </div>

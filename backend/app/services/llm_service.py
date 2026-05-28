@@ -8,6 +8,10 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
+from ..article_format import get_article_format_prompt, section_opening_rule
+from ..services.anti_ai_service import get_anti_ai_style_prompt
+from ..config_loader import get_seo_rules, get_title_formulas
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,16 +27,20 @@ MAX_CACHE_SIZE = 50
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 1
 
-# 允许的 style 白名单（防止 Prompt Injection）
-STYLE_WHITELIST = {
-    'formal': '正式专业风格，适合商务和专业文章',
-    'casual': '轻松随意风格，适合博客和社交媒体',
-    'conversational': '对话式风格，像和朋友聊天一样',
-    'academic': '学术严谨风格，适合论文和研究报告',
-    'poetic': '诗意优美风格，富有文学性',
-    'humorous': '幽默风趣风格，轻松活泼',
-    'professional': '正式专业，适合商务和专业文章',
-}
+
+def max_output_tokens_for_words(word_count: int) -> int:
+    """按目标字数限制模型输出 token，减少单节写爆导致全文超标、被截断。"""
+    wc = max(80, int(word_count))
+    return min(8192, max(384, int(wc * 2.2)))
+
+from ..config_loader import get_default_writing_style
+from ..prompts.writing_style import rewrite_style_messages
+from ..prompts.writing_style_intensity import format_style_prompt, parse_style_intensity_from_data
+from ..prompts.writing_quality import (
+    get_section_length_instruction,
+    get_writing_quality_rules,
+)
+from ..utils_writing_sanitize import polish_generated_draft
 
 # 允许的 platform 白名单
 PLATFORM_WHITELIST = {
@@ -166,27 +174,37 @@ class LLMService:
         chain = prompt | self.llm | StrOutputParser()
         return _invoke_with_retry(chain, input_vars={})
 
-    def polish_content(self, content: str, style: str = 'professional') -> str:
-        # 安全校验 style
-        style_desc = STYLE_WHITELIST.get(style, STYLE_WHITELIST['professional'])
+    def polish_content(
+        self,
+        content: str,
+        style: str = 'professional',
+        *,
+        intensity: int | None = None,
+    ) -> str:
+        fallback = get_default_writing_style()
+        style_key = style if format_style_prompt(style, intensity) else fallback
+        style_desc = format_style_prompt(style_key, intensity)
 
         prompt = ChatPromptTemplate.from_messages([
             ('system', '你是一位资深的编辑和写作顾问，擅长润色文章，提升表达质量。'),
-            ('user', f'请润色以下文章内容，要求风格：{style_desc}\n\n原文：\n{content}\n\n请输出润色后的完整文章，保持原意不变，优化表达、语法和流畅度。')
+            ('user', f'请润色以下正文，要求风格：{style_desc}\n\n原文：\n{content}\n\n'
+                     '请输出润色后的正文，保持原意不变，优化表达、语法和流畅度。'
+                     '不要添加或修改文章标题。\n'
+                     f'{get_article_format_prompt()}')
         ])
         chain = prompt | self.llm | StrOutputParser()
         return _invoke_with_retry(chain, input_vars={})
 
-    def rewrite_content(self, content: str, style: str) -> str:
-        # 安全校验 style - 防止 Prompt Injection
-        style_desc = STYLE_WHITELIST.get(style)
-        if not style_desc:
-            raise ValueError(f'不支持的风格类型: {style}。可选: {", ".join(STYLE_WHITELIST.keys())}')
-
-        prompt = ChatPromptTemplate.from_messages([
-            ('system', '你是一位专业的写作风格转换专家。'),
-            ('user', f'请将以下内容重写为{style_desc}：\n\n原文：\n{content}\n\n请直接输出重写后的内容，保持原意不变，只改变表达风格。')
-        ])
+    def rewrite_content(
+        self,
+        content: str,
+        style: str,
+        *,
+        intensity: int | None = None,
+    ) -> str:
+        prompt = ChatPromptTemplate.from_messages(
+            rewrite_style_messages(content, style, intensity=intensity),
+        )
         chain = prompt | self.llm | StrOutputParser()
         return _invoke_with_retry(chain, input_vars={})
 
@@ -195,13 +213,15 @@ class LLMService:
         prompt = ChatPromptTemplate.from_messages([
             (
                 'system',
-                '你是一位资深编辑。根据用户的整体修改要求改写全文，保留核心事实与结构，'
-                '避免「在当今/随着/值得注意的是/综上所述」等 AI 套话。只输出修改后的正文。',
+                '你是一位资深编辑。根据用户的整体修改要求改写正文，保留核心事实与结构，'
+                '避免「在当今/随着/值得注意的是/综上所述」等 AI 套话。只输出修改后的正文，'
+                '不要添加或修改文章标题。',
             ),
             (
                 'user',
-                '整体修改要求：\n{instruction}\n\n原文：\n{content}{style_block}'
-                '\n\n请直接输出修改后的完整文章，不要解释。',
+                '整体修改要求：\n{instruction}\n\n正文：\n{content}{style_block}'
+                '\n\n请直接输出修改后的正文，不要解释。\n'
+                f'{get_article_format_prompt()}',
             ),
         ])
         chain = prompt | self.llm | StrOutputParser()
@@ -338,7 +358,11 @@ Brief: {brief}
         return _invoke_with_retry(chain, input_vars={})
 
     def framework_mode_generate(self, outline: str, context: Dict[str, Any]) -> str:
-        research = (context.get('research') or '')[:3000]
+        from ..utils_outline import truncate_text, writing_context_limits
+
+        tw = int(context.get('target_word_count') or context.get('target_total_words') or 2000)
+        limits = writing_context_limits(tw)
+        research = truncate_text(context.get('research') or '', limits['research_max'])
         anti = context.get('anti_ai_rules', '')
         prompt = ChatPromptTemplate.from_messages([
             ('system', '你是一位专业的文档撰写专家。必须严格按给定大纲的章节顺序与要点写作，不得遗漏章节，不得另起话题。'),
@@ -355,7 +379,9 @@ Brief: {brief}
 1. 大纲中的每个章节标题都必须出现在正文中（## 标题，逐字一致）
 2. 每个章节下的要点说明必须全部体现
 3. 不得跳过、合并或重排章节
-4. 保持全篇术语与数据口径一致'''),
+4. 保持全篇术语与数据口径一致
+
+{get_article_format_prompt()}'''),
         ])
         chain = prompt | self.llm | StrOutputParser()
         return _invoke_with_retry(chain, input_vars={})
@@ -455,6 +481,8 @@ AI味常见特征：
     def generate_title(self, content: str, count: int = 5, platform: str = 'general') -> str:
         count = min(count, 10)
         platform_desc = PLATFORM_WHITELIST.get(platform, PLATFORM_WHITELIST['general'])
+        seo_block = self._build_seo_constraints()
+        seo_section = f'\n\nSEO 标题要求：\n{seo_block}' if seo_block else ''
 
         excerpt = content[:2000]
         if len(content) > 2500:
@@ -462,10 +490,43 @@ AI味常见特征：
 
         prompt = ChatPromptTemplate.from_messages([
             ('system', '你是一位标题专家，擅长创作吸引人的文章标题。'),
-            ('user', f'请为以下文章生成{count}个标题，风格：{platform_desc}\n\n文章内容：\n{excerpt}\n\n请以JSON格式返回：\n{{"titles": [{{"title": "标题1", "description": "简要说明"}}]}}')
+            ('user', f'请为以下文章生成{count}个标题，风格：{platform_desc}{seo_section}\n\n文章内容：\n{excerpt}\n\n请以JSON格式返回：\n{{"titles": [{{"title": "标题1", "description": "简要说明"}}]}}')
         ])
         chain = prompt | self.llm | StrOutputParser()
         return _invoke_with_retry(chain, input_vars={})
+
+    def _build_seo_constraints(self) -> str:
+        """从 SEO 规则和标题公式配置构建标题创作约束"""
+        parts: list[str] = []
+        try:
+            seo = get_seo_rules()
+            title_cfg = seo.get('title', {})
+            if title_cfg:
+                min_c = title_cfg.get('min_chars', '')
+                max_c = title_cfg.get('max_chars', '')
+                if min_c and max_c:
+                    parts.append(f'标题字数控制在 {min_c}-{max_c} 字之间')
+                patterns = title_cfg.get('patterns', [])
+                if patterns:
+                    parts.append(f'标题应包含以下至少一种元素：{", ".join(patterns)}（如数字、反直觉结论、痛点等）')
+        except Exception:
+            pass  # 配置缺失不阻断
+
+        try:
+            formulas_cfg = get_title_formulas()
+            formulas = formulas_cfg.get('formulas', [])
+            if formulas:
+                formula_names = [f.get('name', '') for f in formulas[:5] if f.get('name')]
+                if formula_names:
+                    parts.append(f'推荐标题公式：{", ".join(formula_names)}')
+
+            banned = formulas_cfg.get('banned_title_words', [])
+            if banned:
+                parts.append(f'标题中禁止使用以下词汇：{"、".join(banned)}')
+        except Exception:
+            pass
+
+        return '\n'.join(parts) if parts else ''
 
     def title_workshop(
         self,
@@ -479,6 +540,8 @@ AI味常见特征：
         count = min(count, 10)
         platform_desc = PLATFORM_WHITELIST.get(platform, PLATFORM_WHITELIST['general'])
         style_block = f'\n\n作者风格要求：\n{style_prompt}' if style_prompt else ''
+        seo_block = self._build_seo_constraints()
+        seo_section = f'\n\nSEO 标题要求：\n{seo_block}' if seo_block else ''
         json_schema = (
             '{"titles": [{"title": "主标题", "subtitle": "副标题", "hook": "点击理由", '
             '"cover_line": "封面一句话"}], "recommended_index": 0}'
@@ -489,6 +552,7 @@ AI味常见特征：
             ('user', (
                 '为以下内容生成 {count} 个标题 + 每个标题的副标题 + 一句封面文案（cover_line）。\n\n'
                 '平台风格：{platform_desc}\n'
+                '{seo_section}'
                 '选题：{topic}\n'
                 '大纲摘要：\n{outline}\n\n'
                 '正文摘要：\n{draft_excerpt}\n'
@@ -502,6 +566,7 @@ AI味常见特征：
             input_vars={
                 'count': count,
                 'platform_desc': platform_desc,
+                'seo_section': seo_section,
                 'topic': topic,
                 'outline': outline[:1500],
                 'draft_excerpt': draft_excerpt[:1200],
@@ -520,58 +585,106 @@ AI味常见特征：
         prior = context.get('prior_sections', '')
         anti = context.get('anti_ai_rules', '')
         section_brief = (context.get('section_brief') or '').strip()
-        full_outline = (context.get('full_outline') or '').strip()
+        from ..utils_outline import truncate_text, writing_context_limits
+
+        tw = int(context.get('target_word_count') or context.get('target_total_words') or 400)
+        limits = writing_context_limits(tw)
+        outline_index = truncate_text(
+            (context.get('outline_index') or '').strip(),
+            limits['outline_index_max'],
+        )
+        if not outline_index:
+            full_outline = (context.get('full_outline') or '').strip()
+            outline_index = truncate_text(full_outline, limits['outline_index_max'])
         section_index = context.get('section_index') or 0
         section_total = context.get('section_total') or 0
+        target_words = int(context.get('target_word_count') or 0)
+        if target_words <= 0:
+            target_words = 400
+        max_words = max(target_words + 40, int(target_words * 1.12))
+        out_tokens = max_output_tokens_for_words(max_words)
+        llm_bound = self.llm.bind(max_tokens=out_tokens)
 
         if section_type == 'experience':
             brief_block = f'\n本节大纲要点：\n{section_brief}' if section_brief else ''
-            return (
-                f'## {section_title}\n\n'
-                f'（此节为「经验型」，请根据引导问题自行填写真实经历与观点）\n\n'
-                f'引导问题：\n'
-                f'1. 你第一次遇到这个问题的具体场景是什么？\n'
-                f'2. 当时你做了什么？结果如何？\n'
-                f'3. 如果重来，你会怎么改？\n'
-                f'{brief_block}\n'
-            )
+            exp_prompt = ChatPromptTemplate.from_messages([
+                ('system',
+                 '你是专业写作者。用第一人称"我"写个人经验，必须具体、有细节、有数据、有反思。'
+                 '像真人博客，不要AI腔。\n'
+                 + get_writing_quality_rules()),
+                ('user', f'''请撰写章节「{section_title}」（经验型，第一人称）。
+
+【强制要求】
+1. {section_opening_rule(section_title)}
+2. 用第一人称「我」写真实经验——像个人博客，不要教科书腔
+3. 必须有具体场景（时间、地点、发生了什么）、具体数据、个人反思
+4. 禁止「通过/实现/显著/在当今」等AI套话
+5. 可以加入个人情绪（踩坑了、后悔了、学到了）
+
+本节大纲要点：
+{section_brief if section_brief else '（无额外要点，根据章节标题自由发挥个人经验）'}
+
+文章章节索引（勿展开其他节）：
+{outline_index or '（无）'}
+
+风格与约束：
+{style_block}
+{anti}
+
+参考资料：
+{research if research else '（无）'}
+
+{get_article_format_prompt()}
+
+{get_section_length_instruction(target_words, max_words)}
+只输出本节新正文；可用 1～2 句承接上文，勿复制前文段落、勿写其他章节。'''),
+            ])
+            chain = exp_prompt | llm_bound | StrOutputParser()
+            raw = _invoke_with_retry(chain, input_vars={})
+            return polish_generated_draft(raw)
 
         index_hint = ''
         if section_index and section_total:
             index_hint = f'\n当前进度：第 {section_index}/{section_total} 节。只写本节，禁止写其他章节。'
 
         prompt = ChatPromptTemplate.from_messages([
-            ('system', '你是专业写作者。必须严格按大纲撰写，不得偏离章节范围，不得省略大纲要点。'),
+            ('system',
+             '你是专业写作者。按大纲写深度评论，不是堆砌要点。\n'
+             + get_writing_quality_rules()),
             ('user', f'''请撰写章节「{section_title}」。
 {index_hint}
 
 【强制要求】
-1. 正文必须以 ## {section_title} 开头（标题逐字一致）
+1. {section_opening_rule(section_title)}
 2. 必须覆盖下方「本节大纲要点」中的所有信息，不得另起话题
-3. 不得写入其他章节的标题或内容
+3. 不得写入其他章节的标题或内容，不得复述前文段落
 4. 不得跳过或合并章节
 
 本节大纲要点（必须全部体现）：
 {section_brief if section_brief else '（无额外要点，但仍须紧扣章节标题）'}
 
-完整文章大纲（仅供定位，不要写其他节）：
-{full_outline[:4000] if full_outline else '（无）'}
+文章章节索引（勿写其他节）：
+{outline_index or '（无）'}
 
 章节类型：信息型（由 AI 撰写）
 风格与约束：
 {style_block}
 {anti}
 
-前文已写（保持衔接，勿重复）：
-{prior[-2500:] if prior else '（无）'}
+衔接参考（禁止复制到正文）：
+{prior if prior else '（无）'}
 
-参考资料（可引用，勿编造）：
-{research[:3000] if research else '（无）'}
+参考资料（仅可引用此处已有事实，勿编造）：
+{research if research else '（无）'}
 
-要求：Markdown 格式；300-600字；具体例子与数据；禁止「在当今/综上所述/值得注意的是」。'''),
+{get_article_format_prompt()}
+
+{get_section_length_instruction(target_words, max_words)}
+只输出本节新段落；禁止「在当今/综上所述/值得注意的是」。'''),
         ])
-        chain = prompt | self.llm | StrOutputParser()
-        return _invoke_with_retry(chain, input_vars={})
+        chain = prompt | llm_bound | StrOutputParser()
+        raw = _invoke_with_retry(chain, input_vars={})
+        return polish_generated_draft(raw)
 
     def judge_section(self, section_content: str, section_title: str) -> str:
         prompt = ChatPromptTemplate.from_messages([
@@ -636,13 +749,14 @@ AI味常见特征：
         prompt = ChatPromptTemplate.from_messages([
             ('system', '你是去AI味编辑。删除套话，改口语，加具体细节，不改变核心事实。'),
             ('user', f'''请对下文做去AI味润色。禁止：在当今/随着/值得注意的是/综上所述/显著提升/不仅而且。
+{get_anti_ai_style_prompt()}
 
 {style_block}
 
 原文：
 {content}
 
-请直接输出润色后全文。'''),
+请直接输出润色后全文（必须保留 Markdown 标题层级与 **加粗**）。'''),
         ])
         chain = prompt | self.llm | StrOutputParser()
         return _invoke_with_retry(chain, input_vars={})

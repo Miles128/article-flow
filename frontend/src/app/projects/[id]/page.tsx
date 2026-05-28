@@ -9,7 +9,7 @@ import {
   CONTENT_TYPE_CONFIG,
   type ContentType,
 } from "@/lib/store";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { clsx } from "clsx";
 import { getStepIcon } from "@/lib/stepIcons";
@@ -63,7 +63,7 @@ export default function ProjectPage() {
                     className={clsx(
                       "w-12 h-12 flex items-center justify-center",
                       isActive
-                        ? "bg-primary-500 text-white"
+                        ? "bg-primary-100 text-primary-700"
                         : "bg-surface-200/50 text-ink-500 group-hover:bg-primary-100 group-hover:text-primary-600",
                     )}
                   >
@@ -180,6 +180,16 @@ export default function ProjectPage() {
             }
           </p>
         </div>
+      </div>
+      <div className="mt-8 text-center">
+        <Link
+          href={`/projects/${params.id}/stats`}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm text-ink-500 hover:text-primary-600 border border-surface-300 hover:border-primary-300 transition-colors"
+        >
+          <BarChart3 size={16} />
+          查看写作统计
+          <ChevronRight size={14} />
+        </Link>
       </div>
     </div>
   );

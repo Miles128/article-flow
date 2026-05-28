@@ -31,7 +31,7 @@ export function WorkspaceSettingsModal({
       role="presentation"
     >
       <div
-        className="bg-surface-100 max-w-md w-full border border-surface-300"
+        className="bg-surface-50/70 backdrop-blur-[3px] max-w-md w-full border border-surface-300"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-surface-300">
@@ -55,7 +55,7 @@ export function WorkspaceSettingsModal({
           <div className="flex items-center gap-2">
             {isTauri ? (
               <>
-                <div className="flex-1 px-3 py-2 bg-surface-100 border border-surface-300 text-sm truncate text-ink-700">
+                <div className="flex-1 px-3 py-2 bg-surface-50/70 backdrop-blur-[3px] border border-surface-300 text-sm truncate text-ink-700">
                   {workspace.path || "未设置"}
                 </div>
                 <button

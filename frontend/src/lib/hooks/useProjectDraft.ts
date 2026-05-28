@@ -22,6 +22,7 @@ export function useProjectDraft(opts: Options = {}) {
   const [loading, setLoading] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentIdRef = useRef<string | null>(null);
+  const loadGenerationRef = useRef(0);
   const onLoadedRef = useRef(onLoaded);
   onLoadedRef.current = onLoaded;
 
@@ -31,16 +32,18 @@ export function useProjectDraft(opts: Options = {}) {
 
   const load = useCallback(async () => {
     if (!projectId) return null;
+    const generation = ++loadGenerationRef.current;
     setLoading(true);
     try {
       const loaded = await loadDraftForStep(projectId, draftFallbackStep(stepId));
+      if (generation !== loadGenerationRef.current) return loaded;
       setContentState(loaded.content);
       setContentId(loaded.contentId);
       setContentSource(loaded.source);
       onLoadedRef.current?.(loaded);
       return loaded;
     } finally {
-      setLoading(false);
+      if (generation === loadGenerationRef.current) setLoading(false);
     }
   }, [projectId, stepId]);
 
@@ -59,6 +62,7 @@ export function useProjectDraft(opts: Options = {}) {
 
   const setContent = useCallback(
     (value: string | ((prev: string) => string)) => {
+      loadGenerationRef.current += 1;
       setContentState((prev) => {
         const next = typeof value === 'function' ? value(prev) : value;
         if (autoSaveMs > 0 && projectId && next.trim()) {

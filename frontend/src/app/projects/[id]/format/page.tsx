@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { projectsApi } from "@/lib/api/client";
+import { projectsApi, formatApi } from "@/lib/api/client";
 import { useStepFromRoute } from "@/lib/hooks/useStepFromRoute";
 import { useProjectDraft } from "@/lib/hooks/useProjectDraft";
 import { StepPageFrame } from "@/components/layout/StepPageFrame";
@@ -491,6 +491,56 @@ export default function FormatPage() {
     }
   }
 
+  async function handleDownloadDocx() {
+    if (!displayContent) return;
+    setSaveStatus("saving");
+    try {
+      const resp = await formatApi.exportMarkdown({
+        content: displayContent,
+        format: "docx",
+        title: projectTitle || "文章",
+      });
+      const blob = new Blob([resp.data], {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${projectTitle || "article"}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus(""), 2000);
+    } catch {
+      setSaveStatus("error");
+      setTimeout(() => setSaveStatus(""), 2000);
+    }
+  }
+
+  async function handleDownloadPdf() {
+    if (!displayContent) return;
+    setSaveStatus("saving");
+    try {
+      const resp = await formatApi.exportMarkdown({
+        content: displayContent,
+        format: "pdf",
+        title: projectTitle || "文章",
+      });
+      const blob = new Blob([resp.data], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${projectTitle || "article"}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus(""), 2000);
+    } catch {
+      setSaveStatus("error");
+      setTimeout(() => setSaveStatus(""), 2000);
+    }
+  }
+
   async function handleLoadFromLocal() {
     setSaveStatus("loading");
     try {
@@ -516,7 +566,7 @@ export default function FormatPage() {
 
   return (
     <div className="min-h-screen bg-surface-200/30 flex flex-col">
-      <header className="bg-surface-100 border-b border-surface-300 sticky top-0 z-30">
+      <header className="bg-surface-50/70 backdrop-blur-[3px] border-b border-surface-300 sticky top-0 z-30">
         <StepPageFrame
           wide
           title="格式处理"
@@ -670,6 +720,25 @@ export default function FormatPage() {
                 )}
                 {copying ? "处理中..." : copySuccess ? "已复制" : "复制微信"}
               </button>
+              <div className="w-px h-5 bg-gray-200 shrink-0 hidden sm:block" />
+              <button
+                type="button"
+                onClick={handleDownloadDocx}
+                disabled={!displayContent}
+                className="wen-btn text-xs inline-flex items-center gap-1 disabled:opacity-50"
+              >
+                <Download size={14} />
+                DOCX
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={!displayContent}
+                className="wen-btn text-xs inline-flex items-center gap-1 disabled:opacity-50"
+              >
+                <Download size={14} />
+                PDF
+              </button>
             </>
           }
         >
@@ -677,7 +746,7 @@ export default function FormatPage() {
         </StepPageFrame>
 
         {showStyleBar && (
-          <div className="border-t border-surface-200 bg-surface-100 px-4 py-2.5">
+          <div className="border-t border-surface-200 bg-surface-50/70 backdrop-blur-[3px] px-4 py-2.5">
             <div className="flex items-start gap-4">
               <div className="flex flex-col gap-1.5 shrink-0">
                 <div className="flex flex-wrap gap-1">
@@ -695,7 +764,7 @@ export default function FormatPage() {
                       className={clsx(
                         "px-2 py-0.5 text-xs rounded transition-colors",
                         activeTarget === t.key
-                          ? "bg-primary-500 text-white"
+                          ? "wen-chip-active"
                           : "bg-surface-200/50 text-ink-600 hover:bg-gray-200",
                       )}
                     >
@@ -854,7 +923,7 @@ export default function FormatPage() {
                     />
                     <button
                       onClick={handleSaveStyle}
-                      className="px-1.5 py-0.5 text-xs bg-primary-500 text-white rounded"
+                      className="px-1.5 py-0.5 text-xs wen-btn-seal"
                     >
                       存
                     </button>
@@ -903,7 +972,7 @@ export default function FormatPage() {
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="w-full h-full p-4 font-mono text-sm leading-relaxed resize-none outline-none bg-surface-100 focus:bg-surface-200/30 transition-colors"
+              className="w-full h-full p-4 font-mono text-sm leading-relaxed resize-none outline-none bg-surface-50/70 backdrop-blur-[3px] focus:bg-surface-200/30 transition-colors"
               placeholder="输入或粘贴 Markdown 内容..."
             />
           </div>
@@ -917,7 +986,7 @@ export default function FormatPage() {
           </div>
           <div className="flex-1 overflow-auto p-6 flex justify-center items-start">
             <div
-              className="bg-surface-100 overflow-hidden"
+              className="bg-surface-50/70 backdrop-blur-[3px] overflow-hidden"
               style={{ width: `${PHONE_WIDTH}px`, minHeight: "300px" }}
             >
               {displayContent ? (

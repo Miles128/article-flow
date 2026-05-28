@@ -2,24 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 方案 C · 文房纸墨 */
+/* 方案 C · 文房纸墨 · 牛皮纸暖调 */
 :root {
-  --paper: #f5f4ed;
-  --paper-line: #e8e6dc;
-  --ink-muted: #87867f;
-  --ink-body: #30302e;
-  --ink-deep: #141413;
+  --paper: #f4ead8;
+  --paper-warm: #f0e2cc;
+  --paper-line: #e0d0b4;
+  --ink-muted: #8a7f6e;
+  --ink-body: #3a342c;
+  --ink-deep: #1a1612;
   --seal: #c96442;
   --wen-body-size: 15px;
   --wen-title-size: calc(var(--wen-body-size) + 2pt);
-  --foreground-rgb: 20, 20, 19;
+  --foreground-rgb: 26, 22, 18;
+}
+
+html {
+  min-height: 100%;
+  background-color: #dfc59a;
 }
 
 body {
+  position: relative;
+  min-height: 100%;
   color: var(--ink-deep);
-  background: var(--paper);
+  background: transparent;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: #ead4b4;
+  background-image:
+    radial-gradient(ellipse 95% 75% at 12% 8%, #faf3e8 0%, transparent 58%),
+    radial-gradient(ellipse 85% 65% at 88% 12%, #f5e6cc 0%, transparent 52%),
+    radial-gradient(ellipse 110% 85% at 50% 105%, #d4b88a 0%, transparent 68%),
+    radial-gradient(ellipse 75% 55% at 0% 85%, #c9a876 0%, transparent 58%),
+    radial-gradient(ellipse 60% 45% at 100% 70%, #ddb888 0%, transparent 50%),
+    linear-gradient(155deg, #f2e4cc 0%, #f8eed8 32%, #ecd9b8 68%, #dfc59a 100%);
 }
 
 .font-kaiti {
@@ -47,11 +71,22 @@ body {
   }
 
   .wen-panel {
-    @apply bg-surface-100 border border-surface-300;
+    @apply bg-surface-50/75 backdrop-blur-[3px] border border-surface-300;
   }
 
   .wen-toolbar {
-    @apply flex items-center justify-between border-b border-surface-300 bg-surface-100 px-3 py-2;
+    @apply relative z-30 overflow-visible flex items-center justify-between border-b border-surface-300 bg-surface-50/80 backdrop-blur-[3px] px-3 py-2;
+  }
+
+  .wen-toolbar-seamless {
+    @apply relative z-30 overflow-visible flex items-center justify-between border-b-0 bg-surface-50/80 backdrop-blur-[3px] px-3 py-2;
+  }
+
+  .wen-toolbar .wen-btn,
+  .wen-toolbar .wen-btn-seal,
+  .wen-toolbar-seamless .wen-btn,
+  .wen-toolbar-seamless .wen-btn-seal {
+    @apply shrink-0 whitespace-nowrap;
   }
 
   .wen-btn {
@@ -59,7 +94,19 @@ body {
   }
 
   .wen-btn-seal {
-    @apply wen-btn text-primary-600 border-primary-400 hover:bg-primary-50 hover:border-primary-500;
+    @apply wen-btn text-primary-600 border-primary-400 hover:bg-primary-50/70 hover:border-primary-500;
+  }
+
+  .wen-btn-action {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm text-ink-800 border border-surface-300 bg-surface-50/70 backdrop-blur-[3px] hover:bg-surface-50/85 hover:border-ink-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .wen-btn-action-accent {
+    @apply wen-btn-action text-primary-700 border-primary-400 bg-primary-50/70 hover:bg-primary-100/80 hover:border-primary-500;
+  }
+
+  .wen-chip-active {
+    @apply bg-primary-50/70 backdrop-blur-[2px] text-primary-700 border border-primary-400 font-medium;
   }
 
   .wen-btn-active {
@@ -67,7 +114,7 @@ body {
   }
 
   .wen-input {
-    @apply w-full px-3 py-2 border border-surface-300 bg-surface-100 text-[13px] text-ink-800 outline-none focus:border-ink-400 placeholder:text-ink-300;
+    @apply w-full px-3 py-2 border border-surface-300 bg-surface-50/70 backdrop-blur-[3px] text-[13px] text-ink-800 outline-none focus:border-ink-400 placeholder:text-ink-300;
   }
 
   .wen-list-row {
@@ -110,6 +157,14 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+
+  .wen-glass {
+    @apply bg-surface-50/70 backdrop-blur-[3px];
+  }
+
+  .wen-glass-heavy {
+    @apply bg-surface-50/82 backdrop-blur-[5px];
+  }
 }
 
 .w-md-editor {
@@ -123,7 +178,7 @@ body {
 }
 
 ::selection {
-  background: #f0cfc0;
+  background: #e8c9a8;
 }
 
 ::-webkit-scrollbar {
@@ -136,12 +191,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d1cfc5;
+  background: #d4c4a8;
   border-radius: 0;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #b0aea5;
+  background: #bfa888;
 }
 
 @keyframes slide-in {

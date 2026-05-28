@@ -216,7 +216,7 @@ export default function StyleExtractPage() {
       >
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="space-y-4">
-            <div className="bg-surface-0 border border-surface-200 p-4">
+            <div className="bg-surface-50/65 backdrop-blur-[3px] border border-surface-200 p-4">
               <h3 className="wen-title text-ink-600 mb-3">
                 添加文本
               </h3>
@@ -224,7 +224,7 @@ export default function StyleExtractPage() {
                 value={newText}
                 onChange={(e) => setNewText(e.target.value)}
                 placeholder="粘贴文章内容到这里，然后点击添加..."
-                className="w-full h-32 px-3 py-2 border border-surface-200 text-sm focus:ring-1 focus:ring-primary-500 outline-none resize-none bg-surface-50"
+                className="w-full h-32 px-3 py-2 border border-surface-200 text-sm focus:ring-1 focus:ring-primary-500 outline-none resize-none bg-surface-50/60 backdrop-blur-[2px]"
               />
               <div className="flex justify-between items-center mt-2">
                 <span className="text-[10px] text-ink-300">
@@ -238,14 +238,14 @@ export default function StyleExtractPage() {
                         if (t) setNewText(t);
                       } catch {}
                     }}
-                    className="inline-flex items-center gap-1 px-2 py-1 text-[11px] text-ink-400 hover:bg-surface-100 rounded"
+                    className="inline-flex items-center gap-1 px-2 py-1 text-[11px] text-ink-400 hover:bg-surface-50/75 rounded"
                   >
                     <Clipboard size={11} /> 粘贴
                   </button>
                   <button
                     onClick={handlePasteText}
                     disabled={!newText.trim()}
-                    className="inline-flex items-center gap-1 px-2 py-1 text-[11px] bg-primary-500 text-white rounded hover:bg-primary-600 disabled:opacity-40"
+                    className="inline-flex items-center gap-1 px-2 py-1 text-[11px] wen-btn-seal disabled:opacity-40"
                   >
                     <Plus size={11} /> 添加
                   </button>
@@ -253,7 +253,7 @@ export default function StyleExtractPage() {
               </div>
             </div>
 
-            <div className="bg-surface-0 border border-surface-200 p-4">
+            <div className="bg-surface-50/65 backdrop-blur-[3px] border border-surface-200 p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="wen-title text-ink-600">
                   已添加文本 ({texts.length})
@@ -276,7 +276,7 @@ export default function StyleExtractPage() {
                   {texts.map((text, i) => (
                     <div
                       key={i}
-                      className="flex items-start gap-2 p-2 bg-surface-50 rounded border border-surface-200"
+                      className="flex items-start gap-2 p-2 bg-surface-50/60 backdrop-blur-[2px] rounded border border-surface-200"
                     >
                       <FileText
                         size={12}
@@ -319,7 +319,7 @@ export default function StyleExtractPage() {
             </div>
 
             {showProfiles && (
-              <div className="bg-surface-0 border border-surface-200 p-4">
+              <div className="bg-surface-50/65 backdrop-blur-[3px] border border-surface-200 p-4">
                 <h3 className="wen-title text-ink-600 mb-3">
                   已保存的风格档案
                 </h3>
@@ -339,7 +339,7 @@ export default function StyleExtractPage() {
                     {profiles.map((p) => (
                       <div
                         key={p._id}
-                        className="flex items-center gap-2 p-2 bg-surface-50 rounded border border-surface-200"
+                        className="flex items-center gap-2 p-2 bg-surface-50/60 backdrop-blur-[2px] rounded border border-surface-200"
                       >
                         <Palette
                           size={12}
@@ -377,10 +377,10 @@ export default function StyleExtractPage() {
           <div className="space-y-4">
             {styleData ? (
               <>
-                <div className="bg-surface-0 border border-surface-200 overflow-hidden">
+                <div className="bg-surface-50/65 backdrop-blur-[3px] border border-surface-200 overflow-hidden">
                   <button
                     onClick={() => toggleSection("paragraph")}
-                    className="w-full flex items-center justify-between p-3 hover:bg-surface-50"
+                    className="w-full flex items-center justify-between p-3 hover:bg-surface-50/70"
                   >
                     <div className="flex items-center gap-2">
                       <AlignLeft size={14} className="text-primary-500" />
@@ -400,28 +400,28 @@ export default function StyleExtractPage() {
                   {expandedSection === "paragraph" && (
                     <div className="px-3 pb-3 space-y-2">
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="p-2 bg-surface-50 rounded">
+                        <div className="p-2 bg-surface-50/60 backdrop-blur-[2px] rounded">
                           <span className="text-ink-400">平均长度</span>
                           <br />
                           <span className="text-ink-800 font-medium">
                             {styleData.paragraph.avgLength} 字
                           </span>
                         </div>
-                        <div className="p-2 bg-surface-50 rounded">
+                        <div className="p-2 bg-surface-50/60 backdrop-blur-[2px] rounded">
                           <span className="text-ink-400">中位数</span>
                           <br />
                           <span className="text-ink-800 font-medium">
                             {styleData.paragraph.medianLength} 字
                           </span>
                         </div>
-                        <div className="p-2 bg-surface-50 rounded">
+                        <div className="p-2 bg-surface-50/60 backdrop-blur-[2px] rounded">
                           <span className="text-ink-400">最短</span>
                           <br />
                           <span className="text-ink-800 font-medium">
                             {styleData.paragraph.minLength} 字
                           </span>
                         </div>
-                        <div className="p-2 bg-surface-50 rounded">
+                        <div className="p-2 bg-surface-50/60 backdrop-blur-[2px] rounded">
                           <span className="text-ink-400">最长</span>
                           <br />
                           <span className="text-ink-800 font-medium">
@@ -450,10 +450,10 @@ export default function StyleExtractPage() {
                   )}
                 </div>
 
-                <div className="bg-surface-0 border border-surface-200 overflow-hidden">
+                <div className="bg-surface-50/65 backdrop-blur-[3px] border border-surface-200 overflow-hidden">
                   <button
                     onClick={() => toggleSection("sentence")}
-                    className="w-full flex items-center justify-between p-3 hover:bg-surface-50"
+                    className="w-full flex items-center justify-between p-3 hover:bg-surface-50/70"
                   >
                     <div className="flex items-center gap-2">
                       <Type size={14} className="text-primary-500" />
@@ -473,14 +473,14 @@ export default function StyleExtractPage() {
                   {expandedSection === "sentence" && (
                     <div className="px-3 pb-3 space-y-2">
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="p-2 bg-surface-50 rounded">
+                        <div className="p-2 bg-surface-50/60 backdrop-blur-[2px] rounded">
                           <span className="text-ink-400">平均长度</span>
                           <br />
                           <span className="text-ink-800 font-medium">
                             {styleData.sentence.avgLength} 字
                           </span>
                         </div>
-                        <div className="p-2 bg-surface-50 rounded">
+                        <div className="p-2 bg-surface-50/60 backdrop-blur-[2px] rounded">
                           <span className="text-ink-400">中位数</span>
                           <br />
                           <span className="text-ink-800 font-medium">
@@ -509,10 +509,10 @@ export default function StyleExtractPage() {
                   )}
                 </div>
 
-                <div className="bg-surface-0 border border-surface-200 overflow-hidden">
+                <div className="bg-surface-50/65 backdrop-blur-[3px] border border-surface-200 overflow-hidden">
                   <button
                     onClick={() => toggleSection("other")}
-                    className="w-full flex items-center justify-between p-3 hover:bg-surface-50"
+                    className="w-full flex items-center justify-between p-3 hover:bg-surface-50/70"
                   >
                     <div className="flex items-center gap-2">
                       <Hash size={14} className="text-primary-500" />
@@ -532,22 +532,22 @@ export default function StyleExtractPage() {
                         <p className="text-ink-400 mb-1">排版习惯</p>
                         <div className="flex flex-wrap gap-1.5">
                           {styleData.formatting.usesHeaders && (
-                            <span className="px-2 py-0.5 bg-surface-100 rounded text-ink-600">
+                            <span className="px-2 py-0.5 bg-surface-50/70 backdrop-blur-[3px] rounded text-ink-600">
                               标题分段
                             </span>
                           )}
                           {styleData.formatting.usesLists && (
-                            <span className="px-2 py-0.5 bg-surface-100 rounded text-ink-600">
+                            <span className="px-2 py-0.5 bg-surface-50/70 backdrop-blur-[3px] rounded text-ink-600">
                               列表罗列
                             </span>
                           )}
                           {styleData.formatting.usesQuotes && (
-                            <span className="px-2 py-0.5 bg-surface-100 rounded text-ink-600">
+                            <span className="px-2 py-0.5 bg-surface-50/70 backdrop-blur-[3px] rounded text-ink-600">
                               引用块
                             </span>
                           )}
                           {styleData.formatting.usesBold && (
-                            <span className="px-2 py-0.5 bg-surface-100 rounded text-ink-600">
+                            <span className="px-2 py-0.5 bg-surface-50/70 backdrop-blur-[3px] rounded text-ink-600">
                               加粗强调
                             </span>
                           )}
@@ -590,7 +590,7 @@ export default function StyleExtractPage() {
                             {styleData.sentenceStarters.map((s, i) => (
                               <span
                                 key={i}
-                                className="px-2 py-0.5 bg-surface-100 text-ink-600 rounded"
+                                className="px-2 py-0.5 bg-surface-50/70 backdrop-blur-[3px] text-ink-600 rounded"
                               >
                                 {s.text}({s.count})
                               </span>
@@ -602,14 +602,14 @@ export default function StyleExtractPage() {
                   )}
                 </div>
 
-                <div className="bg-surface-0 border border-surface-200 p-4">
+                <div className="bg-surface-50/65 backdrop-blur-[3px] border border-surface-200 p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="wen-title text-ink-600">
                       风格提示词
                     </h3>
                     <button
                       onClick={handleCopyPrompt}
-                      className="inline-flex items-center gap-1 px-2 py-1 text-[11px] text-ink-400 hover:bg-surface-100 rounded"
+                      className="inline-flex items-center gap-1 px-2 py-1 text-[11px] text-ink-400 hover:bg-surface-50/75 rounded"
                     >
                       {copied ? (
                         <Check size={11} className="text-green-500" />
@@ -619,12 +619,12 @@ export default function StyleExtractPage() {
                       {copied ? "已复制" : "复制"}
                     </button>
                   </div>
-                  <pre className="text-xs text-ink-600 whitespace-pre-wrap bg-surface-50 p-3 max-h-48 overflow-y-auto font-sans leading-relaxed">
+                  <pre className="text-xs text-ink-600 whitespace-pre-wrap bg-surface-50/60 backdrop-blur-[2px] p-3 max-h-48 overflow-y-auto font-sans leading-relaxed">
                     {stylePrompt}
                   </pre>
                 </div>
 
-                <div className="bg-surface-0 border border-surface-200 p-4">
+                <div className="bg-surface-50/65 backdrop-blur-[3px] border border-surface-200 p-4">
                   <h3 className="wen-title text-ink-600 mb-2">
                     保存为风格档案
                   </h3>
@@ -651,7 +651,7 @@ export default function StyleExtractPage() {
                 </div>
               </>
             ) : (
-              <div className="bg-surface-0 border border-surface-200 p-12 text-center">
+              <div className="bg-surface-50/65 backdrop-blur-[3px] border border-surface-200 p-12 text-center">
                 <Palette size={32} className="text-ink-200 mx-auto mb-3" />
                 <h3 className="wen-title mb-2">添加文章后开始分析</h3>
                 <p className="text-xs text-ink-300">

@@ -10,12 +10,14 @@ from .config import Config
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+def _default_data_dir() -> str:
+    env = os.environ.get('ARTICLE_FLOW_DATA_DIR', '').strip()
+    if env:
+        return os.path.abspath(env)
+    return os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 
-# 读写锁：允许多个并发读，写操作独占
-_read_lock = threading.Lock()   # 读锁
-_write_lock = threading.Lock()  # 写锁
-_readers = 0                    # 当前读者数量
+
+DATA_DIR = _default_data_dir()
 
 
 class _RWLock:
@@ -221,7 +223,7 @@ def create_app(config_class=Config):
         format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
     )
 
-    from .routes import projects, topics, research, outline, writing, review, format, ai, hotnews, workspace, style, content
+    from .routes import projects, topics, research, outline, writing, review, format, ai, hotnews, workspace, style, content, illustration
     app.register_blueprint(projects.bp, url_prefix='/api/projects')
     app.register_blueprint(topics.bp, url_prefix='/api/topics')
     app.register_blueprint(research.bp, url_prefix='/api/research')
@@ -234,19 +236,16 @@ def create_app(config_class=Config):
     app.register_blueprint(workspace.bp, url_prefix='/api/workspace')
     app.register_blueprint(style.bp, url_prefix='/api/style')
     app.register_blueprint(content.bp, url_prefix='/api/content')
+    app.register_blueprint(illustration.bp, url_prefix='/api/illustration')
 
     @app.route('/api/health')
     def health_check():
         llm_key = os.getenv('LLM_API_KEY', '').strip()
-        base_url = os.getenv('LLM_BASE_URL', '')
-        model = os.getenv('LLM_MODEL_NAME', '')
         placeholder = llm_key in ('', 'sk-your-api-key-here', 'sk-your-deepseek-key')
         return {
             'status': 'ok',
             'message': 'Article Flow API is running',
             'llm_configured': bool(llm_key) and not placeholder,
-            'llm_model': model or None,
-            'llm_base_url': base_url or None,
         }
 
     @app.before_request

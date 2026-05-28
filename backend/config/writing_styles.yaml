@@ -1,0 +1,46 @@
+# 成稿目标风格（API / 按大纲写稿 / 风格转换 共用）
+# style_intensity：0–100，表示该文体倾向的浓度，不是全文幽默占比
+default: professional
+
+intensity:
+  default: 45
+  min: 15
+  max: 85
+
+styles:
+  professional:
+    label: 正式
+    description: 商务、报告、专业文章
+    default_intensity: 55
+    max_intensity: 75
+    prompt: 正式专业：书面语、克制、逻辑清晰
+  casual:
+    label: 轻松
+    description: 博客、社交媒体
+    default_intensity: 45
+    max_intensity: 70
+    prompt: 轻松随意：口语化、短句，可适度语气词
+  conversational:
+    label: 对话
+    description: 像和朋友聊天
+    default_intensity: 40
+    max_intensity: 65
+    prompt: 对话式：第二人称、提问与回应感，像聊天
+  academic:
+    label: 学术
+    description: 论文、研究报告
+    default_intensity: 50
+    max_intensity: 80
+    prompt: 学术严谨：术语准确、论证严密、客观中立
+  poetic:
+    label: 诗意
+    description: 散文、文学表达
+    default_intensity: 35
+    max_intensity: 60
+    prompt: 诗意优美：意象与节奏，避免公文腔
+  humorous:
+    label: 幽默
+    description: 轻松活泼、有梗
+    default_intensity: 28
+    max_intensity: 50
+    prompt: 幽默风趣：轻松活泼，可适度调侃，不歪曲事实

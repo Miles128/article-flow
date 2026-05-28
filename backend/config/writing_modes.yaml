@@ -48,12 +48,4 @@ modes:
     bestFor: 项目报告、开题报告、标书、专利申请
     workflow: 读取项目大纲→解析结构→逐章生成→一致性检查
 
-# 风格白名单（防止 Prompt Injection）
-styles:
-  formal: 正式专业风格，适合商务和专业文章
-  casual: 轻松随意风格，适合博客和社交媒体
-  conversational: 对话式风格，像和朋友聊天一样
-  academic: 学术严谨风格，适合论文和研究报告
-  poetic: 诗意优美风格，富有文学性
-  humorous: 幽默风趣风格，轻松活泼
-  professional: 正式专业，适合商务和专业文章
+# 目标风格见 config/writing_styles.yaml

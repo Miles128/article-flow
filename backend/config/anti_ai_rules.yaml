@@ -1,6 +1,22 @@
 # 去 AI 味规则引擎（合并 去AI味写作指南 + review_passes ai_cliche_db）
 target_score: 30
 
+# 文风硬指标（扫描 + 写作 prompt 共用）
+style_limits:
+  em_dash_max_per_500: 1
+  long_sentence_chars: 30
+  long_sentence_max_ratio: 0.10
+
+# 成稿节奏（写作 prompt 与扫描共用）
+writing_rhythm:
+  max_sentence_chars: 28
+  max_paragraph_chars: 140
+  max_sentences_per_paragraph: 3
+  parallel_tricolon_max_per_1000: 1
+  semantic_similarity_threshold: 0.52
+  semantic_similar_max_per_1000: 1
+  semantic_compare_window: 6
+
 banned_phrases:
   - pattern: "你需要先理解一个根本性的矛盾"
     suggestion: "直接陈述矛盾"

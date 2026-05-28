@@ -234,7 +234,7 @@ export default function PublishPage() {
                 "flex items-start gap-3 p-4 border",
                 c.done
                   ? "bg-green-50 border-green-200"
-                  : "bg-surface-100 border-surface-300",
+                  : "bg-surface-50/70 backdrop-blur-[3px] border-surface-300",
               )}
             >
               {c.done ? (
@@ -283,7 +283,7 @@ export default function PublishPage() {
         <button
           onClick={() => downloadStandardExport(false)}
           disabled={exporting}
-          className="px-4 py-2 bg-primary-500 text-white text-sm flex items-center gap-2 disabled:opacity-60"
+          className="wen-btn-action-accent text-sm flex items-center gap-2 disabled:opacity-60"
         >
           {exporting ? (
             <Loader2 size={16} className="animate-spin" />
@@ -326,7 +326,7 @@ export default function PublishPage() {
       {variants && (
         <div className="space-y-4 mb-6">
           {Object.entries(variants).map(([key, body]) => (
-            <details key={key} className="border p-3 bg-surface-100">
+            <details key={key} className="border p-3 bg-surface-50/70 backdrop-blur-[3px]">
               <summary className="font-medium cursor-pointer">
                 {VARIANT_LABELS[key] || key}
               </summary>

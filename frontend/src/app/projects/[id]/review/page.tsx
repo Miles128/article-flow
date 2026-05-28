@@ -359,7 +359,7 @@ export default function ReviewPage() {
                   ? "border-green-300 bg-green-50"
                   : isActive
                     ? "border-primary-400 bg-primary-50"
-                    : "border-surface-300 hover:border-surface-300 bg-surface-100",
+                    : "border-surface-300 hover:border-surface-300 bg-surface-50/70 backdrop-blur-[3px]",
               )}
             >
               <div className="flex items-center gap-3 mb-3">
@@ -439,7 +439,7 @@ export default function ReviewPage() {
         <button
           onClick={checkAuthenticity}
           disabled={isCheckingAuth || !content.trim()}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-50"
+          className="wen-btn-action-accent disabled:opacity-50"
         >
           {isCheckingAuth ? (
             <Loader2 className="animate-spin" size={16} />
@@ -498,7 +498,7 @@ export default function ReviewPage() {
             <div
               className={clsx(
                 " border-2 p-6",
-                passColors[activePass] || "border-surface-300 bg-surface-100",
+                passColors[activePass] || "border-surface-300 bg-surface-50/70 backdrop-blur-[3px]",
               )}
             >
               <div className="flex items-center justify-between mb-4">
@@ -561,7 +561,7 @@ export default function ReviewPage() {
                       发现问题 ({passResults[activePass].issues!.length})
                     </h4>
                     {passResults[activePass].issues!.map((issue, idx) => (
-                      <div key={idx} className="bg-surface-100 p-3 border">
+                      <div key={idx} className="bg-surface-50/70 backdrop-blur-[3px] p-3 border">
                         <div className="flex items-center gap-2 mb-2">
                           <span
                             className={clsx(
@@ -696,7 +696,7 @@ export default function ReviewPage() {
                           [{issue.issueType}]
                         </span>
                         <span className="text-ink-600 line-through">
-                          "{issue.original}"
+                          &ldquo;{issue.original}&rdquo;
                         </span>
                         <span className="text-green-600 ml-2">
                           → {issue.suggestion}
@@ -861,7 +861,7 @@ export default function ReviewPage() {
 
       {showAddComment && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-100 max-w-lg w-full p-6">
+          <div className="bg-surface-50/70 backdrop-blur-[3px] max-w-lg w-full p-6">
             <h2 className="wen-title text-ink-900 mb-4">添加评论</h2>
             <textarea
               value={newComment}

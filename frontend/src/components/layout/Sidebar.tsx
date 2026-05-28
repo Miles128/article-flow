@@ -200,7 +200,7 @@ export function Sidebar() {
 
       <aside
         className={clsx(
-          "fixed left-0 top-0 h-full w-40 bg-surface-100 border-r border-surface-300 z-40 transition-transform duration-200 flex flex-col",
+          "fixed left-0 top-0 h-full w-40 bg-surface-50/70 backdrop-blur-[4px] border-r border-surface-300 z-40 transition-transform duration-200 flex flex-col",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
           sidebarCollapsed ? "md:-translate-x-full" : "md:translate-x-0",
         )}
@@ -319,7 +319,7 @@ export function Sidebar() {
 
       {showFilePicker && (
         <div className="fixed inset-0 bg-black/15 flex items-center justify-center z-[60] p-4">
-          <div className="bg-surface-100 max-w-md w-full max-h-[80vh] overflow-hidden border border-surface-300">
+          <div className="bg-surface-50/70 backdrop-blur-[3px] max-w-md w-full max-h-[80vh] overflow-hidden border border-surface-300">
             <div className="flex items-center justify-between px-4 py-3 border-b border-surface-300">
               <h3 className="wen-title">选择文件</h3>
               <button

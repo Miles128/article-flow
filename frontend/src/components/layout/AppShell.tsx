@@ -7,13 +7,14 @@ import { clsx } from 'clsx';
 interface AppShellProps {
  children: React.ReactNode;
  header?: React.ReactNode;
+ headerBorderless?: boolean;
 }
 
-export function AppShell({ children, header }: AppShellProps) {
+export function AppShell({ children, header, headerBorderless }: AppShellProps) {
  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
 
  return (
- <div className="h-screen bg-surface-100 flex overflow-hidden">
+ <div className="h-screen flex overflow-hidden">
  <Sidebar />
  <div
  className={clsx(
@@ -22,9 +23,16 @@ export function AppShell({ children, header }: AppShellProps) {
  )}
  >
  {header && (
- <div className="flex-shrink-0 border-b border-surface-300 bg-surface-100">{header}</div>
+ <div
+ className={clsx(
+ 'flex-shrink-0 bg-surface-50/75 backdrop-blur-[3px]',
+ !headerBorderless && 'border-b border-surface-300',
  )}
- <main className="flex-1 overflow-y-auto relative z-0 bg-surface-100">{children}</main>
+ >
+ {header}
+ </div>
+ )}
+ <main className="flex-1 overflow-y-auto relative z-0 bg-transparent">{children}</main>
  </div>
  </div>
  );

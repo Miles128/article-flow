@@ -21,6 +21,7 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { clsx } from "clsx";
+import { showToast } from "@/components/ui/Toast";
 
 function OutlineNodeItem({
   node,
@@ -49,7 +50,7 @@ function OutlineNodeItem({
     <div className="select-none">
       <div
         className={clsx(
-          "group flex items-center gap-2 py-2 px-3 hover:bg-surface-50 transition-colors",
+          "group flex items-center gap-2 py-2 px-3 hover:bg-surface-50/70 transition-colors",
           { "ml-6": level > 0 },
         )}
       >
@@ -61,7 +62,7 @@ function OutlineNodeItem({
         {hasChildren ? (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1 text-ink-300 hover:text-ink-500 hover:bg-surface-100 rounded"
+            className="p-1 text-ink-300 hover:text-ink-500 hover:bg-surface-50/75 rounded"
           >
             {isExpanded ? (
               <ChevronDown size={14} />
@@ -278,6 +279,11 @@ export default function OutlinePage() {
         };
         newOutline.nodes = addToParent(newOutline.nodes || []);
       } else {
+        const topCount = (newOutline.nodes || []).length;
+        if (topCount >= 12) {
+          showToast("error", "二级章节（顶层）最多 12 个，请合并章节或改为子要点");
+          return;
+        }
         newOutline.nodes = [...(newOutline.nodes || []), newNode];
       }
     } else {
@@ -431,7 +437,7 @@ export default function OutlinePage() {
     >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2">
-          <div className="bg-surface-0 border border-surface-200 p-5">
+          <div className="bg-surface-50/65 backdrop-blur-[3px] border border-surface-200 p-5">
             {!outline || !outline.nodes || outline.nodes.length === 0 ? (
               <div className="text-center py-16">
                 <ListOrdered className="w-12 h-12 text-ink-200 mx-auto mb-3" />
@@ -443,7 +449,7 @@ export default function OutlinePage() {
                 </p>
                 <button
                   onClick={() => addNode()}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-ink-700 text-white hover:bg-ink-700 transition-colors font-medium"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 wen-btn-seal font-medium"
                 >
                   <Plus size={14} />
                   创建第一个节点
@@ -451,10 +457,13 @@ export default function OutlinePage() {
               </div>
             ) : (
               <div className="space-y-1">
-                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-surface-200">
+                <div className="mb-3 pb-2 border-b border-surface-200">
                   <h3 className="wen-title text-ink-800 ">
                     {outline.title || "文章大纲"}
                   </h3>
+                  <p className="text-xs text-ink-400 mt-1">
+                    顶层章节（二级）最多 12 个；子要点请放在节点下。写稿时章节标题会内化进正文，不使用 ##。
+                  </p>
                 </div>
                 {outline.nodes?.map((node: OutlineNode) => (
                   <OutlineNodeItem
@@ -474,7 +483,7 @@ export default function OutlinePage() {
 
         <div className="space-y-5">
           {frameworks.length > 0 && (
-            <div className="bg-surface-0 border border-surface-200 p-5">
+            <div className="bg-surface-50/65 backdrop-blur-[3px] border border-surface-200 p-5">
               <h3 className="wen-title text-ink-800 mb-3 ">
                 写作框架
               </h3>
@@ -494,7 +503,7 @@ export default function OutlinePage() {
               </div>
             </div>
           )}
-          <div className="bg-surface-0 border border-surface-200 p-5">
+          <div className="bg-surface-50/65 backdrop-blur-[3px] border border-surface-200 p-5">
             <h3 className="wen-title text-ink-800 mb-3 flex items-center gap-1.5 ">
               <Sparkles size={16} className="text-primary-500" />
               AI 生成大纲
@@ -505,12 +514,12 @@ export default function OutlinePage() {
                 onChange={(e) => setGenerateTopic(e.target.value)}
                 placeholder="输入文章主题，让 AI 帮你生成大纲..."
                 rows={4}
-                className="w-full px-3 py-2 border border-surface-200 focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none resize-none bg-surface-0"
+                className="w-full px-3 py-2 border border-surface-200 focus:ring-2 focus:ring-primary-200 focus:border-primary-400 outline-none resize-none bg-surface-50/65 backdrop-blur-[3px]"
               />
               <button
                 onClick={generateOutline}
                 disabled={isGenerating || !generateTopic.trim()}
-                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-ink-700 text-white hover:bg-ink-700 transition-colors disabled:opacity-40 font-medium"
+                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 wen-btn-seal disabled:opacity-40 font-medium"
               >
                 {isGenerating ? (
                   <Loader2 className="animate-spin" size={14} />
@@ -526,7 +535,7 @@ export default function OutlinePage() {
           </div>
 
           {showTemplates && (
-            <div className="bg-surface-0 border border-surface-200 p-5">
+            <div className="bg-surface-50/65 backdrop-blur-[3px] border border-surface-200 p-5">
               <h3 className="wen-title text-ink-800 mb-3 ">
                 大纲模板
               </h3>
@@ -557,7 +566,7 @@ export default function OutlinePage() {
             </div>
           )}
 
-          <div className="bg-surface-0 border border-surface-200 p-5">
+          <div className="bg-surface-50/65 backdrop-blur-[3px] border border-surface-200 p-5">
             <h3 className="wen-title text-ink-800 mb-3 ">
               操作提示
             </h3>

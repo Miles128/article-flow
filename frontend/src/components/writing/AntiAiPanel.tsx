@@ -23,6 +23,8 @@ interface LlmIssue {
 
 interface AntiAiPanelProps {
   content: string;
+  /** 有选中时仅检测/改写选中片段 */
+  selectionText?: string;
   onApplyFix?: (fixed: string) => void;
   styleProfileId?: string;
   /** 面板打开时自动检测全文 */
@@ -31,10 +33,12 @@ interface AntiAiPanelProps {
 
 export function AntiAiPanel({
   content,
+  selectionText,
   onApplyFix,
   styleProfileId,
   active = true,
 }: AntiAiPanelProps) {
+  const workContent = selectionText?.trim() || content;
   const [ruleScan, setRuleScan] = useState<AntiAiScanResult | null>(null);
   const [llmScore, setLlmScore] = useState<number | null>(null);
   const [llmIssues, setLlmIssues] = useState<LlmIssue[]>([]);
@@ -45,14 +49,14 @@ export function AntiAiPanel({
   const [lastFixSummary, setLastFixSummary] = useState<string | null>(null);
 
   const runAnalysis = useCallback(async () => {
-    if (!content.trim()) {
-      showToast("error", "请先输入文章内容");
+    if (!workContent.trim()) {
+      showToast("error", "请先输入或选中要检测的内容");
       return;
     }
     setLoading(true);
     setLastFixSummary(null);
     try {
-      const resp = await writingApi.analyzeAITaste(content);
+      const resp = await writingApi.analyzeAITaste(workContent);
       const data = resp.data as {
         score?: number;
         issues?: LlmIssue[];
@@ -85,10 +89,10 @@ export function AntiAiPanel({
     } finally {
       setLoading(false);
     }
-  }, [content]);
+  }, [workContent]);
 
   useEffect(() => {
-    if (active && content.trim()) {
+    if (active && workContent.trim()) {
       runAnalysis();
     }
     // 仅在面板打开时自动检测，避免每次输入都触发
@@ -96,18 +100,18 @@ export function AntiAiPanel({
   }, [active]);
 
   async function handleFix(useLlm: boolean) {
-    if (!content.trim()) return;
+    if (!workContent.trim()) return;
     setFixing(true);
     setLastFixSummary(null);
     try {
-      const resp = await writingApi.fixAiRules(content, {
+      const resp = await writingApi.fixAiRules(workContent, {
         useLlmPolish: useLlm,
         styleProfileId,
       });
       const fixed = resp.data.fixedContent;
       const before = resp.data.beforeScore;
       const after = resp.data.afterScore;
-      if (fixed === content) {
+      if (fixed === workContent) {
         showToast("warning", "未发现可自动替换的规则项，可尝试「AI 去味改写」");
       } else {
         onApplyFix?.(fixed);
@@ -123,13 +127,13 @@ export function AntiAiPanel({
   }
 
   async function handleHumanize() {
-    if (!content.trim()) return;
+    if (!workContent.trim()) return;
     setHumanizing(true);
     setLastFixSummary(null);
     try {
-      const resp = await writingApi.humanize({ content });
+      const resp = await writingApi.humanize({ content: workContent });
       const fixed = resp.data.content;
-      if (fixed === content) {
+      if (fixed === workContent) {
         showToast("warning", "改写结果与原文相同");
       } else {
         onApplyFix?.(fixed);
@@ -158,6 +162,23 @@ export function AntiAiPanel({
 
   const displayScore = ruleScan?.score ?? llmScore;
   const target = ruleScan?.targetScore ?? 30;
+  const dims = ruleScan?.dimensions;
+  const phraseMatches =
+    ruleScan?.matches.filter(
+      (m) =>
+        !["long_sentence", "semantic_similarity", "parallel_tricolon"].includes(
+          m.category,
+        ),
+    ) ?? [];
+  const structureMatches =
+    ruleScan?.matches.filter((m) =>
+      ["long_sentence", "semantic_similarity", "parallel_tricolon"].includes(
+        m.category,
+      ),
+    ) ?? [];
+
+  const metricTone = (ok: boolean) =>
+    ok ? "text-green-700 bg-green-50" : "text-amber-700 bg-amber-50";
 
   return (
     <div className=" border border-purple-200 bg-purple-50/50 p-4">
@@ -169,7 +190,7 @@ export function AntiAiPanel({
         <button
           type="button"
           onClick={runAnalysis}
-          disabled={loading || !content.trim()}
+          disabled={loading || !workContent.trim()}
           className="text-xs text-purple-600 hover:underline disabled:opacity-50"
         >
           {loading ? (
@@ -226,8 +247,47 @@ export function AntiAiPanel({
             )}
           </div>
 
+          {dims && (
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              <span
+                className={clsx(
+                  "text-xs px-2 py-1",
+                  metricTone((dims.long_sentence_ratio ?? 0) <= 10),
+                )}
+              >
+                长句 {(dims.long_sentence_ratio ?? 0).toFixed(0)}% / ≤10%
+              </span>
+              <span
+                className={clsx(
+                  "text-xs px-2 py-1",
+                  metricTone((dims.semantic_similar_excess ?? 0) === 0),
+                )}
+              >
+                语义重复 {dims.semantic_similar_pair_count ?? 0} 组 / ≤
+                {dims.semantic_similar_allowed ?? 1}
+              </span>
+              <span
+                className={clsx(
+                  "text-xs px-2 py-1",
+                  metricTone((dims.em_dash_excess ?? 0) === 0),
+                )}
+              >
+                破折号 {dims.em_dash_count ?? 0} / {dims.em_dash_allowed ?? 1}
+              </span>
+              <span
+                className={clsx(
+                  "text-xs px-2 py-1",
+                  metricTone((dims.parallel_tricolon_excess ?? 0) === 0),
+                )}
+              >
+                三连排比 {dims.parallel_tricolon_count ?? 0} /{" "}
+                {dims.parallel_tricolon_allowed ?? 1}
+              </span>
+            </div>
+          )}
+
           {llmSuggestions.length > 0 && (
-            <div className="mb-3 bg-surface-100 border border-purple-100 p-3">
+            <div className="mb-3 bg-surface-50/70 backdrop-blur-[3px] border border-purple-100 p-3">
               <p className="text-xs font-semibold text-ink-700 mb-1">
                 整体建议
               </p>
@@ -248,7 +308,7 @@ export function AntiAiPanel({
                 {llmIssues.map((issue, i) => (
                   <li
                     key={i}
-                    className="text-xs bg-surface-100 p-2 border border-purple-100"
+                    className="text-xs bg-surface-50/70 backdrop-blur-[3px] p-2 border border-purple-100"
                   >
                     <p className="text-red-600 font-medium">「{issue.text}」</p>
                     <p className="text-ink-400 mt-0.5">{issue.type}</p>
@@ -259,16 +319,38 @@ export function AntiAiPanel({
             </div>
           )}
 
-          {ruleScan && ruleScan.matches.length > 0 && (
+          {ruleScan && structureMatches.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs font-semibold text-ink-700 mb-1">
+                结构规则（长句 / 语义重复 / 排比）
+              </p>
+              <ul className="max-h-40 overflow-y-auto space-y-2">
+                {structureMatches.slice(0, 12).map((m, i) => (
+                  <li
+                    key={i}
+                    className="text-xs bg-surface-50/70 backdrop-blur-[3px] p-2 border border-purple-100"
+                  >
+                    <p className="text-red-500 font-medium">「{m.text}」</p>
+                    <p className="text-ink-400">{m.category}</p>
+                    {m.suggestion && (
+                      <p className="text-green-700 mt-1">→ {m.suggestion}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {ruleScan && phraseMatches.length > 0 && (
             <div className="mb-3">
               <p className="text-xs font-semibold text-ink-700 mb-1">
                 规则命中（套话 / 书面语）
               </p>
               <ul className="max-h-40 overflow-y-auto space-y-2">
-                {ruleScan.matches.slice(0, 20).map((m, i) => (
+                {phraseMatches.slice(0, 20).map((m, i) => (
                   <li
                     key={i}
-                    className="text-xs bg-surface-100 p-2 border border-purple-100"
+                    className="text-xs bg-surface-50/70 backdrop-blur-[3px] p-2 border border-purple-100"
                   >
                     <p className="text-red-500 font-medium">「{m.text}」</p>
                     <p className="text-ink-400">{m.category}</p>
@@ -299,7 +381,7 @@ export function AntiAiPanel({
                 type="button"
                 onClick={() => handleFix(false)}
                 disabled={fixing || humanizing || loading}
-                className="flex-1 text-xs py-2 bg-surface-100 border border-purple-200 hover:bg-purple-50 disabled:opacity-50"
+                className="flex-1 text-xs py-2 bg-surface-50/70 backdrop-blur-[3px] border border-purple-200 hover:bg-purple-50 disabled:opacity-50"
               >
                 {fixing ? (
                   <Loader2 className="inline animate-spin" size={12} />
@@ -311,7 +393,7 @@ export function AntiAiPanel({
                 type="button"
                 onClick={() => handleFix(true)}
                 disabled={fixing || humanizing || loading}
-                className="flex-1 text-xs py-2 bg-purple-600 text-white hover:bg-purple-700 flex items-center justify-center gap-1 disabled:opacity-50"
+                className="flex-1 text-xs py-2 wen-btn-action-accent flex items-center justify-center gap-1 disabled:opacity-50"
               >
                 {fixing ? (
                   <Loader2 className="animate-spin" size={12} />
@@ -325,7 +407,7 @@ export function AntiAiPanel({
               type="button"
               onClick={handleHumanize}
               disabled={fixing || humanizing || loading}
-              className="w-full text-xs py-2 bg-accent-600 text-white hover:bg-accent-700 flex items-center justify-center gap-1 disabled:opacity-50"
+              className="w-full text-xs py-2 wen-btn-action-accent flex items-center justify-center gap-1 disabled:opacity-50"
             >
               {humanizing ? (
                 <Loader2 className="animate-spin" size={12} />

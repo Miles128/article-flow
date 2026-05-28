@@ -47,7 +47,7 @@ export function WorkspaceModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-      <div className="bg-surface-100 max-w-md w-full p-6">
+      <div className="bg-surface-50/70 backdrop-blur-[3px] max-w-md w-full p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <FolderOpen size={20} className="text-primary-500" />

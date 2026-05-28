@@ -65,7 +65,7 @@ export function PlaybookPanel({ refreshKey = 0 }: { refreshKey?: number }) {
           {learnings.slice(0, 8).map((entry) => (
             <li
               key={entry.id}
-              className="text-xs bg-surface-100 p-2 border border-amber-100"
+              className="text-xs bg-surface-50/70 backdrop-blur-[3px] p-2 border border-amber-100"
             >
               <p className="text-ink-700">{entry.note}</p>
               {entry.removedPhrases?.length > 0 && (

@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import tempfile
 from datetime import datetime, timezone
 
 from .. import db_data as db
@@ -25,8 +26,16 @@ def _load_learnings() -> list[dict]:
 
 def _save_learnings(items: list[dict]) -> None:
     os.makedirs(os.path.dirname(PLAYBOOK_PATH), exist_ok=True)
-    with open(PLAYBOOK_PATH, 'w', encoding='utf-8') as f:
-        json.dump(items, f, ensure_ascii=False, indent=2)
+    dir_name = os.path.dirname(PLAYBOOK_PATH)
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.json')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            json.dump(items, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, PLAYBOOK_PATH)
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
 
 
 def learn_from_edit(

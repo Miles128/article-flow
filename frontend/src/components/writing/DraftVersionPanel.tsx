@@ -124,7 +124,7 @@ export function DraftVersionPanel({
         aria-label="关闭版本历史"
         onClick={onClose}
       />
-      <aside className="relative w-full max-w-md h-full bg-surface-100 border-l border-surface-300 flex flex-col shadow-xl">
+      <aside className="relative w-full max-w-md h-full bg-surface-50/70 backdrop-blur-[3px] border-l border-surface-300 flex flex-col shadow-xl">
         <div className="flex items-center justify-between px-4 py-3 border-b border-surface-300">
           <div className="flex items-center gap-2">
             <History size={18} className="text-primary-500" />

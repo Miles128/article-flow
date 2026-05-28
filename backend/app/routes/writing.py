@@ -1,13 +1,25 @@
 """写作路由 - 使用 @with_llm 装饰器 + 配置外部化"""
-from flask import Blueprint, request, jsonify
+import json as json_module
+from flask import Blueprint, request, jsonify, Response, stream_with_context
 from ..decorators import with_llm
-from ..config_loader import get_writing_modes, get_anti_ai_rules
+from ..config_loader import get_writing_modes, get_anti_ai_rules, get_writing_styles_api_payload
 from ..utils import parse_json_from_llm, translate_error, extract_llm_config, get_field
+from ..article_format import ensure_article_title, get_article_format_prompt
 from ..services.llm_service import get_llm_service
 from ..services.anti_ai_service import scan_content, apply_rule_fixes
 from ..services.style_context import merge_writing_context, enrich_writing_context_from_project, get_style_prompt
-from ..models import VersionHistory, Outline, ProjectContent
-from ..utils_outline import flatten_outline_nodes, outline_nodes_to_markdown, verify_draft_covers_outline
+from ..models import VersionHistory, Outline, ProjectContent, Project
+from ..utils_outline import (
+    MAX_OUTLINE_H2_SECTIONS,
+    outline_nodes_to_markdown,
+    outline_sections_for_writing,
+    verify_draft_covers_outline,
+)
+from ..utils_writing_sanitize import polish_generated_draft
+from ..utils_markdown import transform_preserving_title
+from ..services.writing_word_budget import DEFAULT_ARTICLE_WORDS, allocate_section_word_budgets
+from ..services.writing_agents import WritingOrchestrator, format_prior_context
+from ..services.writing_ai_stream import iter_writing_ai_events, SUPPORTED_ACTIONS
 from ..services.derive_service import derive_variants
 from ..services.humanize_service import humanize_content
 from ..services.draft_version_service import (
@@ -22,10 +34,48 @@ import json
 bp = Blueprint('writing', __name__)
 
 
+def _resolve_target_word_count(project_id: str | None, data: dict) -> int:
+    raw = get_field(data, 'target_word_count', 'targetWordCount')
+    if raw is not None:
+        return max(500, min(int(raw), 50000))
+    if project_id:
+        project = Project.get_by_id(project_id)
+        if project and project.get('target_word_count'):
+            return int(project['target_word_count'])
+    return DEFAULT_ARTICLE_WORDS
+
+
+def _target_words_for_section(
+    project_id: str | None,
+    section_title: str,
+    data: dict,
+) -> int:
+    explicit = get_field(data, 'target_word_count', 'targetWordCount')
+    if explicit is not None:
+        return max(120, int(explicit))
+    if project_id:
+        outline = Outline.get_by_project(project_id)
+        nodes = outline.get('nodes', []) if outline else []
+        total = _resolve_target_word_count(project_id, data)
+        sections = outline_sections_for_writing(nodes, total_words=total)
+        if sections:
+            budgets = allocate_section_word_budgets(sections, total)
+            for i, sec in enumerate(sections):
+                if (sec.get('title') or '').strip() == section_title.strip():
+                    return budgets[i]
+            return budgets[-1]
+    return 400
+
+
 @bp.route('/modes', methods=['GET'])
 def get_writing_modes_api():
     modes = get_writing_modes()
     return jsonify({'modes': list(modes.values())})
+
+
+@bp.route('/styles', methods=['GET'])
+def get_writing_styles_api():
+    return jsonify(get_writing_styles_api_payload())
 
 
 @bp.route('/anti-ai-rules', methods=['GET'])
@@ -58,9 +108,14 @@ def fix_ai_rules():
                 temperature=cfg['temperature'],
             )
             style_prompt = get_style_prompt(get_field(data, 'style_profile_id'))
-            polished = llm.apply_anti_ai_polish(result['fixed_content'], style_prompt)
-            result['fixed_content'] = polished
-            after = scan_content(polished)
+            result['fixed_content'] = transform_preserving_title(
+                data['content'],
+                lambda body: llm.apply_anti_ai_polish(
+                    apply_rule_fixes(body)['fixed_content'],
+                    style_prompt,
+                ),
+            )
+            after = scan_content(result['fixed_content'])
             result['after_score'] = after['score']
             result['improved'] = after['score'] < result['before_score']
         except Exception as e:
@@ -119,26 +174,80 @@ def framework_mode_generate(llm, data):
     if not outline:
         return jsonify({'error': '请先在「生成大纲」步骤保存大纲'}), 400
 
-    context = merge_writing_context({**data, 'anti_ai_rules': True, 'full_outline': outline})
+    total_words = _resolve_target_word_count(project_id, data)
+    context = merge_writing_context({
+        **data,
+        'anti_ai_rules': True,
+        'full_outline': outline,
+        'target_word_count': total_words,
+    })
     if project_id:
         context = enrich_writing_context_from_project(project_id, context)
     result = llm.framework_mode_generate(outline, context)
     fixed = apply_rule_fixes(result)
-    flat = flatten_outline_nodes(nodes) if nodes else []
-    missing = verify_draft_covers_outline(fixed['fixed_content'], flat) if flat else []
+    article_title = ''
+    if project_id:
+        o = Outline.get_by_project(project_id)
+        if o and o.get('title'):
+            article_title = o['title']
+    content = ensure_article_title(fixed['fixed_content'], article_title)
+    flat = outline_sections_for_writing(nodes, total_words=total_words) if nodes else []
+    missing = verify_draft_covers_outline(content, flat) if flat else []
+    content = polish_generated_draft(content)
     return {
-        'content': fixed['fixed_content'],
+        'content': content,
         'missing_sections': missing,
         'outline_following': len(missing) == 0,
     }
 
 
 def _post_process_text(text: str, llm=None, style_prompt: str = '') -> str:
-    """规则去 AI 味；有风格画像时再走 LLM 润色去味"""
-    text = apply_rule_fixes(text)['fixed_content']
-    if llm and style_prompt:
-        text = llm.apply_anti_ai_polish(text, style_prompt)
-    return text
+    """规则去 AI 味；有风格画像时再走 LLM 润色去味（不改动文章标题）"""
+
+    def transform(body: str) -> str:
+        processed = apply_rule_fixes(body)['fixed_content']
+        if llm and style_prompt:
+            processed = llm.apply_anti_ai_polish(processed, style_prompt)
+        return processed
+
+    return transform_preserving_title(text, transform)
+
+
+@bp.route('/ai-stream', methods=['POST'])
+def writing_ai_stream():
+    """统一 SSE：continue / polish / rewrite / expand / shorten / apply_prompt / framework_generate / generate_section"""
+    data = request.json or {}
+    action = (data.get('action') or '').strip()
+    if action not in SUPPORTED_ACTIONS:
+        return jsonify({'error': f'不支持的 action，可选: {", ".join(sorted(SUPPORTED_ACTIONS))}'}), 400
+    if action in ('polish', 'rewrite', 'expand', 'shorten', 'apply_prompt', 'continue'):
+        if not (data.get('content') or '').strip():
+            return jsonify({'error': 'content is required'}), 400
+    if action == 'rewrite' and 'style' not in data:
+        return jsonify({'error': 'style is required'}), 400
+    if action == 'apply_prompt' and not get_field(data, 'instruction', 'prompt'):
+        return jsonify({'error': 'instruction is required'}), 400
+
+    try:
+        cfg = extract_llm_config(data)
+        llm = get_llm_service(
+            provider='custom',
+            model_name=cfg['model_name'],
+            api_key=cfg['api_key'],
+            base_url=cfg['base_url'],
+            temperature=cfg['temperature'],
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+
+    def generate():
+        yield from iter_writing_ai_events(llm, data)
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
 
 
 @bp.route('/continue', methods=['POST'])
@@ -153,9 +262,15 @@ def continue_writing(llm, data):
 @bp.route('/polish', methods=['POST'])
 @with_llm
 def polish_content(llm, data):
+    from ..prompts.writing_style_intensity import parse_style_intensity_from_data
+
     style = data.get('style', 'professional')
+    intensity = parse_style_intensity_from_data(data)
     style_prompt = get_style_prompt(data.get('style_profile_id'))
-    text = llm.polish_content(data['content'], style)
+    text = transform_preserving_title(
+        data['content'],
+        lambda body: llm.polish_content(body, style, intensity=intensity),
+    )
     return {'polished_content': _post_process_text(text, llm, style_prompt)}
 
 
@@ -163,10 +278,16 @@ def polish_content(llm, data):
 @with_llm
 def rewrite_content(llm, data):
     if 'style' not in data:
-        return jsonify({'error': 'style is required'}), 400
+        raise ValueError('style is required')
+    from ..prompts.writing_style_intensity import parse_style_intensity_from_data
+
     style = data['style']
+    intensity = parse_style_intensity_from_data(data)
     style_prompt = get_style_prompt(data.get('style_profile_id'))
-    result = llm.rewrite_content(data['content'], style)
+    result = transform_preserving_title(
+        data['content'],
+        lambda body: llm.rewrite_content(body, style, intensity=intensity),
+    )
     return {'rewritten_content': _post_process_text(result, llm, style_prompt)}
 
 
@@ -177,10 +298,23 @@ def expand_content(llm, data):
     ctx = merge_writing_context(data)
     style_note = ctx.get('style', '')
     style_prompt = get_style_prompt(data.get('style_profile_id'))
-    result = llm.chat([
-        {'role': 'system', 'content': '你是一位专业的内容扩展专家，善于丰富文章内容。'},
-        {'role': 'user', 'content': f'请扩展以下内容，目标字数约{target_length}字：\n\n原文：\n{data["content"]}\n\n风格：{style_note}\n\n要求：\n1. 保持原意不变\n2. 增加细节、例子或解释\n3. 保持逻辑连贯\n4. 不要重复内容\n5. 避免AI套话\n\n请直接输出扩展后的内容。'}
-    ])
+
+    def expand_body(body: str) -> str:
+        return llm.chat([
+            {'role': 'system', 'content': '你是一位专业的内容扩展专家，善于丰富文章内容。'},
+            {
+                'role': 'user',
+                'content': (
+                    f'请扩展以下正文，目标字数约{target_length}字：\n\n原文：\n{body}\n\n'
+                    f'风格：{style_note}\n\n要求：\n1. 保持原意不变\n2. 增加细节、例子或解释\n'
+                    '3. 保持逻辑连贯\n4. 不要重复内容\n5. 避免AI套话\n'
+                    '6. 不要添加或修改文章标题，只输出正文\n'
+                    f'{get_article_format_prompt()}\n\n请直接输出扩展后的正文。'
+                ),
+            },
+        ])
+
+    result = transform_preserving_title(data['content'], expand_body)
     return {'expanded_content': _post_process_text(result, llm, style_prompt)}
 
 
@@ -200,21 +334,29 @@ def shorten_content(llm, data):
 
     style_prompt = get_style_prompt(get_field(data, 'style_profile_id', 'styleProfileId'))
     style_note = f'\n风格参考：{style_prompt}' if style_prompt else ''
-    result = llm.chat([
-        {
-            'role': 'system',
-            'content': '你是一位专业的内容压缩专家，善于在指定字数内保留核心信息。',
-        },
-        {
-            'role': 'user',
-            'content': (
-                f'请将以下文章压缩到约 {target} 字（允许 ±10%），保留所有关键信息与逻辑顺序，'
-                f'删除重复、啰嗦和空泛表达，避免 AI 套话。{style_note}\n\n原文：\n{content}\n\n'
-                '请直接输出压缩后的完整正文。'
-            ),
-        },
-    ])
-    shortened = _post_process_text(result, llm, style_prompt)
+
+    def shorten_body(body: str) -> str:
+        return llm.chat([
+            {
+                'role': 'system',
+                'content': '你是一位专业的内容压缩专家，善于在指定字数内保留核心信息。',
+            },
+            {
+                'role': 'user',
+                'content': (
+                    f'请将以下正文压缩到约 {target} 字（允许 ±10%），保留所有关键信息与逻辑顺序，'
+                    f'删除重复、啰嗦和空泛表达，避免 AI 套话。{style_note}\n\n原文：\n{body}\n\n'
+                    '不要添加或修改文章标题，只输出压缩后的正文。\n'
+                    f'{get_article_format_prompt()}'
+                ),
+            },
+        ])
+
+    shortened = _post_process_text(
+        transform_preserving_title(content, shorten_body),
+        llm,
+        style_prompt,
+    )
     return {
         'shortened_content': shortened,
         'source_word_count': int(source_count) if source_count is not None else None,
@@ -229,10 +371,13 @@ def apply_writing_prompt(llm, data):
     if not instruction or not str(instruction).strip():
         return jsonify({'error': 'instruction is required'}), 400
     style_prompt = get_style_prompt(get_field(data, 'style_profile_id', 'styleProfileId'))
-    result = llm.apply_writing_instruction(
+    result = transform_preserving_title(
         data['content'],
-        str(instruction).strip(),
-        style_prompt,
+        lambda body: llm.apply_writing_instruction(
+            body,
+            str(instruction).strip(),
+            style_prompt,
+        ),
     )
     return {'content': _post_process_text(result, llm, style_prompt)}
 
@@ -303,6 +448,10 @@ def generate_section(llm, data):
     )
     if project_id:
         ctx = enrich_writing_context_from_project(project_id, ctx)
+    prior_raw = ctx.get('prior_sections') or ''
+    if prior_raw and '已完成章节' not in prior_raw:
+        ctx['prior_sections'] = format_prior_context(prior_raw, [])
+    ctx['target_word_count'] = _target_words_for_section(project_id, title, data)
     content = llm.generate_section(title, section_type, ctx)
     fixed = apply_rule_fixes(content)
     return {
@@ -374,8 +523,11 @@ def get_section_draft_state():
         return jsonify({'error': 'project_id is required'}), 400
     outline = Outline.get_by_project(project_id)
     nodes = outline.get('nodes', []) if outline else []
+    tw = _resolve_target_word_count(project_id, {})
+    writing_sections = outline_sections_for_writing(nodes, total_words=tw)
     return jsonify({
-        'sections': flatten_outline_nodes(nodes),
+        'sections': writing_sections,
+        'section_count': len(writing_sections),
         'outline_title': outline.get('title', '') if outline else '',
     })
 
@@ -393,43 +545,156 @@ def fast_draft_from_outline(llm, data):
         if o and o.get('title') and not outline_text:
             outline_text = o['title']
 
-    sections = flatten_outline_nodes(nodes)
+    total_words = _resolve_target_word_count(project_id, data)
+    sections = outline_sections_for_writing(nodes, total_words=total_words)
     if not sections:
         return jsonify({'error': '请先在「生成大纲」步骤创建并保存大纲，再按大纲写稿'}), 400
+    if len(sections) > MAX_OUTLINE_H2_SECTIONS:
+        return jsonify({
+            'error': f'大纲二级章节不能超过 {MAX_OUTLINE_H2_SECTIONS} 个，请合并或删减顶层章节',
+        }), 400
 
     outline_md = outline_nodes_to_markdown(nodes) if nodes else outline_text
     ctx_base = merge_writing_context({**data, 'anti_ai_rules': True, 'full_outline': outline_md})
     if project_id:
         ctx_base = enrich_writing_context_from_project(project_id, ctx_base)
 
-    parts: list[str] = []
-    prior = ''
+    article_title = ''
+    if project_id:
+        o = Outline.get_by_project(project_id)
+        if o and o.get('title'):
+            article_title = o['title']
+        elif ctx_base.get('outline_title'):
+            article_title = str(ctx_base['outline_title'])
 
-    for i, sec in enumerate(sections):
-        ctx = {
-            **ctx_base,
-            'prior_sections': prior,
-            'section_brief': sec.get('content', ''),
-            'section_index': i + 1,
-            'section_total': len(sections),
-        }
-        block = llm.generate_section(
-            sec['title'],
-            sec.get('section_type', 'info'),
-            ctx,
+    parallel = bool(data.get('parallel', False))
+    orchestrator = WritingOrchestrator(llm)
+    return orchestrator.run_fast_draft(
+        sections,
+        ctx_base,
+        total_words=total_words,
+        article_title=article_title,
+        outline_md=outline_md,
+        parallel=parallel,
+    )
+
+
+@bp.route('/fast-draft-stream', methods=['POST'])
+def fast_draft_stream():
+    """快速模式 SSE 流式：边生成边推送到前端"""
+    data = request.json or {}
+    project_id = data.get('project_id') or data.get('projectId')
+    outline_text = data.get('outline', '')
+    nodes = data.get('nodes', [])
+    if not nodes and project_id:
+        o = Outline.get_by_project(project_id)
+        nodes = o.get('nodes', []) if o else []
+        if o and o.get('title') and not outline_text:
+            outline_text = o['title']
+
+    total_words = _resolve_target_word_count(project_id, data)
+    sections = outline_sections_for_writing(nodes, total_words=total_words)
+    if not sections:
+        return jsonify({'error': '请先在「生成大纲」步骤创建并保存大纲，再按大纲写稿'}), 400
+    if len(sections) > MAX_OUTLINE_H2_SECTIONS:
+        return jsonify({
+            'error': f'大纲二级章节不能超过 {MAX_OUTLINE_H2_SECTIONS} 个，请合并或删减顶层章节',
+        }), 400
+
+    outline_md = outline_nodes_to_markdown(nodes) if nodes else outline_text
+    ctx_base = merge_writing_context({**data, 'anti_ai_rules': True, 'full_outline': outline_md})
+    if project_id:
+        ctx_base = enrich_writing_context_from_project(project_id, ctx_base)
+
+    article_title = ''
+    if project_id:
+        o = Outline.get_by_project(project_id)
+        if o and o.get('title'):
+            article_title = o['title']
+        elif ctx_base.get('outline_title'):
+            article_title = str(ctx_base['outline_title'])
+
+    # 手动创建 LLM（不走 with_llm 装饰器，因为要流式返回）
+    try:
+        from ..utils import extract_llm_config
+        from ..services.llm_service import get_llm_service
+        cfg = extract_llm_config(data)
+        llm = get_llm_service(
+            provider='custom',
+            model_name=cfg['model_name'],
+            api_key=cfg['api_key'],
+            base_url=cfg['base_url'],
+            temperature=cfg['temperature'],
         )
-        fixed = apply_rule_fixes(block)['fixed_content']
-        parts.append(fixed)
-        prior += '\n\n' + fixed
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
 
-    full = '\n\n'.join(parts)
-    missing = verify_draft_covers_outline(full, sections)
-    return {
-        'content': full,
-        'section_count': len(sections),
-        'missing_sections': missing,
-        'outline_following': len(missing) == 0,
-    }
+    orchestrator = WritingOrchestrator(llm)
+
+    import queue as _queue
+
+    def generate():
+        """SSE 流式生成器"""
+        event_queue: _queue.Queue[str] = _queue.Queue()
+
+        # 发送初始事件
+        event_queue.put(f"data: {json_module.dumps({'type': 'start', 'total': len(sections)})}\n\n")
+
+        def on_section_start(idx: int, title: str):
+            event_queue.put(
+                f"data: {json_module.dumps({'type': 'section_start', 'index': idx, 'title': title}, ensure_ascii=False)}\n\n"
+            )
+
+        def on_section(idx: int, title: str, block: str):
+            event_queue.put(f"data: {json_module.dumps({'type': 'section', 'index': idx, 'title': title, 'content': block}, ensure_ascii=False)}\n\n")
+
+        # 在后台线程运行编排器（它会回调 on_section）
+        import threading
+        result_container: list[dict] = []
+        error_container: list[str] = []
+
+        def _run():
+            try:
+                r = orchestrator.run_fast_draft_stream(
+                    sections,
+                    ctx_base,
+                    total_words=total_words,
+                    article_title=article_title,
+                    outline_md=outline_md,
+                    on_section=on_section,
+                    on_section_start=on_section_start,
+                    parallel=bool(data.get('parallel', False)),
+                )
+                result_container.append(r)
+            except Exception as e:
+                error_container.append(str(e))
+            finally:
+                event_queue.put(None)  # sentinel
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+
+        # 主循环：从队列读事件并 yield
+        while True:
+            item = event_queue.get()
+            if item is None:
+                break
+            yield item
+
+        if error_container:
+            yield f"data: {json_module.dumps({'type': 'error', 'message': error_container[0]})}\n\n"
+        elif result_container:
+            r = result_container[0]
+            yield f"data: {json_module.dumps({'type': 'done', 'content': r.get('content', ''), 'section_count': r.get('section_count', 0), 'total_word_count': r.get('total_word_count', 0), 'missing_sections': r.get('missing_sections', [])}, ensure_ascii=False)}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+        },
+    )
 
 
 def _latest_draft(project_id: str) -> str:

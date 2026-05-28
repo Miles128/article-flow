@@ -8,6 +8,7 @@ import { projectsApi } from "@/lib/api/client";
 import type { Project } from "@/types";
 import { ArrowLeft, Loader2, Pencil } from "lucide-react";
 import Link from "next/link";
+import { ProjectHeaderWritingExtras } from "@/components/layout/ProjectHeaderWritingExtras";
 
 export default function ProjectLayout({
   children,
@@ -34,6 +35,7 @@ export default function ProjectLayout({
 
     return () => {
       setCurrentProject(null);
+      useAppStore.getState().setDraftStatusText(null);
     };
   }, [projectId]);
 
@@ -103,37 +105,49 @@ export default function ProjectLayout({
 
   return (
     <AppShell
+      headerBorderless={isWritingPage}
       header={
-        <div className={isWritingPage ? "w-full flex items-center gap-2 px-3 py-4" : "max-w-4xl mx-auto flex items-center gap-2 px-6 py-4"}>
-          {editingTitle ? (
-            <input
-              ref={titleInputRef}
-              value={titleValue}
-              onChange={(e) => setTitleValue(e.target.value)}
-              onBlur={handleTitleSave}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleTitleSave();
-                if (e.key === "Escape") setEditingTitle(false);
-              }}
-              className="wen-title border-b border-primary-500 outline-none bg-transparent flex-1 max-w-md"
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setTitleValue(currentProject.title);
-                setEditingTitle(true);
-              }}
-              className="wen-title hover:text-primary-600 transition-colors flex items-center gap-1.5 group"
-            >
-              {currentProject.title}
-              <Pencil
-                size={13}
-                strokeWidth={1.5}
-                className="text-ink-300 group-hover:text-primary-400 transition-colors"
+        <div
+          className={
+            isWritingPage
+              ? "w-full flex items-center justify-between gap-4 px-3 py-2 min-w-0"
+              : "max-w-4xl mx-auto flex items-center gap-2 px-6 py-4"
+          }
+        >
+          <div className="min-w-0 shrink">
+            {editingTitle ? (
+              <input
+                ref={titleInputRef}
+                value={titleValue}
+                onChange={(e) => setTitleValue(e.target.value)}
+                onBlur={handleTitleSave}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleTitleSave();
+                  if (e.key === "Escape") setEditingTitle(false);
+                }}
+                className="wen-title border-b border-primary-500 outline-none bg-transparent max-w-md w-full"
               />
-            </button>
-          )}
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setTitleValue(currentProject.title);
+                  setEditingTitle(true);
+                }}
+                className="wen-title hover:text-primary-600 transition-colors flex items-center gap-1.5 group text-left truncate max-w-full"
+              >
+                <span className="truncate">{currentProject.title}</span>
+                <Pencil
+                  size={13}
+                  strokeWidth={1.5}
+                  className="text-ink-300 group-hover:text-primary-400 transition-colors shrink-0"
+                />
+              </button>
+            )}
+          </div>
+          {isWritingPage ? (
+            <ProjectHeaderWritingExtras />
+          ) : null}
         </div>
       }
     >

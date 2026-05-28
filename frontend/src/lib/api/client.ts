@@ -27,7 +27,7 @@ function convertKeysSnakeToCamel(obj: any): any {
   return obj;
 }
 
-function convertKeysCamelToSnake(obj: any): any {
+export function convertKeysCamelToSnake(obj: any): any {
   if (Array.isArray(obj)) {
     return obj.map(convertKeysCamelToSnake);
   }
@@ -51,6 +51,23 @@ function resolveApiBaseUrl(): string {
     return `${window.location.origin}/api`;
   }
   return 'http://127.0.0.1:5001/api';
+}
+
+/** SSE 必须直连 Flask；经 Next 代理会被缓冲成一次性响应 */
+export function resolveStreamingApiBaseUrl(): string {
+  const base = resolveApiBaseUrl();
+  if (typeof window === 'undefined') {
+    return base;
+  }
+  try {
+    const resolved = new URL(base, window.location.origin);
+    if (resolved.origin === window.location.origin) {
+      return 'http://127.0.0.1:5001/api';
+    }
+  } catch {
+    /* keep base */
+  }
+  return base;
 }
 
 const api = axios.create({
@@ -114,7 +131,7 @@ api.interceptors.response.use(
     } else if (lower.includes('unsupported_country') || lower.includes('llm_base_url') || lower.includes('proxy')) {
       friendly = msgStr;
     } else if (error?.code === 'ECONNABORTED' || lower.includes('timeout')) {
-      friendly = '请求超时，AI 生成需要 30–90 秒，请稍后重试';
+      friendly = '请求超时，按大纲写稿可能需要数分钟，请稍后重试';
     } else if (!error?.response && (error?.message?.toLowerCase().includes('network error') || error?.code === 'ERR_NETWORK')) {
       friendly = '无法连接后端，请确认已运行 ./start.sh 或 start-tauri.sh';
     } else if (error?.response?.status === 404) {
@@ -214,6 +231,18 @@ export const outlineApi = {
 
 export const writingApi = {
   getModes: () => api.get('/writing/modes'),
+  getStyles: () =>
+    api.get<{
+      default: string;
+      intensity?: { default: number; min: number; max: number };
+      styles: Array<{
+        id: string;
+        label: string;
+        description?: string;
+        default_intensity?: number;
+        max_intensity?: number;
+      }>;
+    }>('/writing/styles'),
   scanAiRules: (content: string) => api.post<AntiAiScanResult>('/writing/scan-ai-rules', { content }),
   fixAiRules: (content: string, opts?: { useLlmPolish?: boolean; styleProfileId?: string }) =>
     api.post<{ fixedContent: string; beforeScore: number; afterScore: number; improved: boolean }>('/writing/fix-ai-rules', {
@@ -241,14 +270,26 @@ export const writingApi = {
       },
       { timeout: 600000 },
     ),
-  fastDraft: (data: { projectId: string; nodes?: unknown[]; outline?: string; styleProfileId?: string }) =>
-    api.post<{ content: string; sectionCount: number; missingSections?: string[]; outlineFollowing?: boolean }>(
+  fastDraft: (data: { projectId: string; nodes?: unknown[]; outline?: string; style?: string; styleProfileId?: string; targetWordCount?: number }) =>
+    api.post<{
+      content: string;
+      sectionCount: number;
+      missingSections?: string[];
+      outlineFollowing?: boolean;
+      totalWordCount?: number;
+      targetTotalWords?: number;
+      sectionWordTargets?: Array<{ title: string; targetWordCount: number; actualWordCount: number }>;
+      agentsUsed?: string[];
+    }>(
       '/writing/fast-draft',
       data,
       { timeout: 600000 },
     ),
   getSectionDraft: (projectId: string) =>
-    api.get<{ sections: Array<{ id: string | number; title: string; sectionType: string; level: number }> }>('/writing/section-draft', { params: { projectId } }),
+    api.get<{
+      sections: Array<{ id: string | number; title: string; sectionType: string; level: number }>;
+      section_count?: number;
+    }>('/writing/section-draft', { params: { projectId } }),
   generateSection: (data: {
     sectionTitle: string;
     sectionType?: string;
@@ -272,8 +313,12 @@ export const writingApi = {
     api.post<{ continuation: string }>('/writing/continue', { content, context, styleProfileId, antiAiRules: true }, { timeout: 120000 }),
   polish: (content: string, style?: string, styleProfileId?: string) =>
     api.post<{ polishedContent: string }>('/writing/polish', { content, style, styleProfileId, antiAiRules: true }, { timeout: 120000 }),
-  rewrite: (content: string, style: string) =>
-    api.post<{ rewrittenContent: string }>('/writing/rewrite', { content, style, antiAiRules: true }, { timeout: 120000 }),
+  rewrite: (content: string, style: string, styleProfileId?: string) =>
+    api.post<{ rewrittenContent: string }>(
+      '/writing/rewrite',
+      { content, style, styleProfileId, antiAiRules: true },
+      { timeout: 120000 },
+    ),
   expand: (content: string, targetLength?: number, styleProfileId?: string) =>
     api.post<{ expandedContent: string }>('/writing/expand', { content, targetLength, styleProfileId, antiAiRules: true }, { timeout: 120000 }),
   shorten: (content: string, opts?: { targetRatio?: number; targetWordCount?: number; sourceWordCount?: number; styleProfileId?: string }) =>
@@ -381,6 +426,57 @@ export const styleApi = {
   create: (name: string, texts: string[]) => api.post('/style/', { name, texts }),
   delete: (id: string) => api.delete(`/style/${id}`),
   getPrompt: (id: string) => api.get(`/style/${id}/prompt`),
+};
+
+export const statsApi = {
+  getProjectStats: (projectId: string) => api.get(`/projects/${projectId}/stats`),
+};
+
+export const writingStreamApi = {
+  /** 统一写作 AI 流式（续写/润色/风格转换/扩写/缩写/智能改写/按大纲生成等） */
+  aiStream: (body: Record<string, unknown>) => {
+    const apiBase = resolveStreamingApiBaseUrl();
+    return fetch(`${apiBase}/writing/ai-stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      },
+      body: JSON.stringify(convertKeysCamelToSnake(body)),
+    });
+  },
+  /** SSE 流式快写：返回 ReadableStream，用 fetch + getReader 消费 */
+  fastDraftStream: (data: {
+    projectId: string;
+    style?: string;
+    styleIntensity?: number;
+    styleProfileId?: string;
+    targetWordCount?: number;
+  }): Promise<Response> => {
+    const apiBase = resolveStreamingApiBaseUrl();
+    const url = `${apiBase}/writing/fast-draft-stream`;
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify(convertKeysCamelToSnake(data)),
+    }).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+        throw new Error(
+          `无法连接写作服务（${url}）。请确认已运行 ./start.sh 并重启后端。`,
+        );
+      }
+      throw err;
+    });
+  },
+};
+
+export const formatApi = {
+  getPlatforms: () => api.get('/format/platforms'),
+  exportMarkdown: (data: { content: string; format: string; title?: string }) =>
+    api.post('/format/export', data, { responseType: 'blob' }),
+  exportJson: (data: { content: string; format: string; title?: string }) =>
+    api.post('/format/export', data),
 };
 
 export default api;

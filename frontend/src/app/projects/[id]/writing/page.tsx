@@ -3,36 +3,51 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useAppStore } from "@/lib/store";
-import {
-  writingApi,
-  projectsApi,
-  styleApi,
-  contentApi,
-} from "@/lib/api/client";
+import { writingApi, projectsApi, contentApi, writingStreamApi } from "@/lib/api/client";
+import { useProjectStyleProfile } from "@/lib/hooks/useProjectStyleProfile";
 import { showToast } from "@/components/ui/Toast";
 import { AntiAiPanel } from "@/components/writing/AntiAiPanel";
 import {
   GlobalPromptModal,
   ShortenModal,
+  ExpandModal,
 } from "@/components/writing/WritingAssistModals";
+import { WritingStyleToolbar } from "@/components/writing/WritingStyleToolbar";
+import {
+  defaultIntensityForStyle,
+  writingTargetStyleLabel,
+} from "@/lib/writingStyles";
+import { useWritingStyles } from "@/lib/hooks/useWritingStyles";
 import { PlaybookPanel } from "@/components/writing/PlaybookPanel";
+import { SectionWriterPanel } from "@/components/writing/SectionWriterPanel";
 import { DraftVersionPanel } from "@/components/writing/DraftVersionPanel";
 import {
   MarkdownEditor,
   type MarkdownEditorHandle,
 } from "@/components/ui/MarkdownEditor";
 import { isTauri, saveFile, writeToWorkspace, openFile } from "@/lib/platform";
-import { importContentFromFile, saveDraftContent, loadDraftForStep, getDraftContent, getProjectOutlineMarkdown } from "@/lib/contentFlow";
+import {
+  importContentFromFile,
+  saveDraftContent,
+  loadDraftForStep,
+  getDraftContent,
+  getProjectOutlineMarkdown,
+  countFastDraftSections,
+} from "@/lib/contentFlow";
 import { useStepFromRoute } from "@/lib/hooks/useStepFromRoute";
 import { useProjectDraft } from "@/lib/hooks/useProjectDraft";
 import { getApiError } from "@/lib/apiError";
-import { countArticleWords } from "@/lib/textUtils";
+import { streamWritingAi } from "@/lib/writingStream";
+import {
+  countArticleWords,
+  mergePreservedTitle,
+  replaceTextInDocument,
+} from "@/lib/textUtils";
 import { StepPageFrame } from "@/components/layout/StepPageFrame";
 import {
   Sparkles,
   Loader2,
   MessageSquare,
-  Wand2,
   RefreshCw,
   ChevronDown,
   Copy,
@@ -55,6 +70,7 @@ import {
   ArrowDownWideNarrow,
   RotateCcw,
   History,
+  PenLine,
 } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -78,18 +94,15 @@ const modeIcons: Record<string, React.ReactNode> = {
   LayoutTemplate: <LayoutTemplate size={28} />,
 };
 
-const writingStyles = [
-  { id: "professional", label: "正式专业", description: "适合商务和专业文章" },
-  { id: "casual", label: "轻松随意", description: "适合博客和社交媒体" },
-  { id: "conversational", label: "对话式", description: "像和朋友聊天一样" },
-  { id: "academic", label: "学术严谨", description: "适合论文和研究报告" },
-  { id: "poetic", label: "诗意优美", description: "富有文学性" },
-  { id: "humorous", label: "幽默风趣", description: "轻松活泼" },
-];
-
 export default function WritingPage() {
   const params = useParams();
-  const { currentProject, workspace } = useAppStore();
+  const { currentProject, workspace, setDraftStatusText } = useAppStore();
+  const { styleProfileId } = useProjectStyleProfile();
+  const {
+    styles: writingStyles,
+    defaultStyle: defaultWritingStyle,
+    intensityRange,
+  } = useWritingStyles();
   const { stepId } = useStepFromRoute();
   const lastSavedContentRef = useRef<string>("");
   const lastSnapshotAtRef = useRef<number>(0);
@@ -126,8 +139,26 @@ export default function WritingPage() {
   const [modes, setModes] = useState<WritingMode[]>([]);
   const [selectedMode, setSelectedMode] = useState<string>("");
 
-  const [selectedStyle, setSelectedStyle] = useState("professional");
-  const [showStyleDropdown, setShowStyleDropdown] = useState(false);
+  const [writingTargetStyle, setWritingTargetStyle] = useState(
+    defaultWritingStyle,
+  );
+  const [writingStyleIntensity, setWritingStyleIntensity] = useState(() =>
+    defaultIntensityForStyle(defaultWritingStyle, writingStyles, intensityRange),
+  );
+
+  useEffect(() => {
+    setWritingTargetStyle((prev) =>
+      writingStyles.some((s) => s.id === prev) ? prev : defaultWritingStyle,
+    );
+  }, [defaultWritingStyle, writingStyles]);
+
+  function handleWritingStyleChange(id: string) {
+    setWritingTargetStyle(id);
+    setWritingStyleIntensity(
+      defaultIntensityForStyle(id, writingStyles, intensityRange),
+    );
+  }
+  const [rewriteLoading, setRewriteLoading] = useState(false);
 
   const [aiResult, setAiResult] = useState<{
     action: string;
@@ -149,10 +180,6 @@ export default function WritingPage() {
   const [frameworkOutlineLoaded, setFrameworkOutlineLoaded] = useState(false);
   const [frameworkOutlineLoading, setFrameworkOutlineLoading] = useState(false);
   const [showFrameworkInput, setShowFrameworkInput] = useState(false);
-  const [styleProfiles, setStyleProfiles] = useState<
-    Array<{ _id: string; name: string }>
-  >([]);
-  const [styleProfileId, setStyleProfileId] = useState<string>("");
   const [playbookRefreshKey, setPlaybookRefreshKey] = useState(0);
   const [rightPanel, setRightPanel] = useState<"playbook" | "antiAi" | null>(
     null,
@@ -160,8 +187,29 @@ export default function WritingPage() {
   const [aiBusyAction, setAiBusyAction] = useState<string | null>(null);
   const [showGlobalPrompt, setShowGlobalPrompt] = useState(false);
   const [showShortenModal, setShowShortenModal] = useState(false);
+  const [showExpandModal, setShowExpandModal] = useState(false);
+  const rewriteScopeRef = useRef<{ text: string; isSelection: boolean }>({
+    text: "",
+    isSelection: false,
+  });
+  const [modalScopeText, setModalScopeText] = useState("");
+  const [editorSelection, setEditorSelection] = useState<{
+    start: number;
+    end: number;
+    text: string;
+  } | null>(null);
+  const aiScopeRef = useRef<{ text: string; isSelection: boolean }>({
+    text: "",
+    isSelection: false,
+  });
+  const toolbarSelectionRef = useRef<{
+    start: number;
+    end: number;
+    text: string;
+  } | null>(null);
   const [globalPromptLoading, setGlobalPromptLoading] = useState(false);
   const [shortenLoading, setShortenLoading] = useState(false);
+  const [expandLoading, setExpandLoading] = useState(false);
   const [showVersionPanel, setShowVersionPanel] = useState(false);
   const [serverDraftPreview, setServerDraftPreview] = useState<string | null>(null);
   const [versionCount, setVersionCount] = useState(0);
@@ -254,22 +302,22 @@ export default function WritingPage() {
 
   useEffect(() => {
     loadModes();
-    styleApi
-      .list()
-      .then((r) => setStyleProfiles(r.data || []))
-      .catch(() => {});
-    if (currentProject?.styleProfileId)
-      setStyleProfileId(currentProject.styleProfileId);
   }, [params.id]);
 
-  async function saveStyleProfile(id: string) {
-    setStyleProfileId(id);
-    if (currentProject) {
-      await projectsApi.update(currentProject._id, {
-        styleProfileId: id || null,
+  useEffect(() => {
+    const parts: string[] = [];
+    if (contentSource === "previous") parts.push("已顺移");
+    if (lastSaved) {
+      const t = lastSaved.toLocaleTimeString("zh-CN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
       });
+      parts.push(`已保存 ${t}`);
     }
-  }
+    setDraftStatusText(parts.length > 0 ? parts.join(" · ") : null);
+    return () => setDraftStatusText(null);
+  }, [contentSource, lastSaved, setDraftStatusText]);
 
   async function handleFastDraft() {
     if (!params.id || !projectId) return;
@@ -277,7 +325,13 @@ export default function WritingPage() {
     let sectionCount = 0;
     try {
       const outlineState = await writingApi.getSectionDraft(projectId);
-      sectionCount = outlineState.data.sections?.length ?? 0;
+      const draftMeta = outlineState.data as {
+        sections?: Array<{ level?: number }>;
+        section_count?: number;
+      };
+      sectionCount =
+        draftMeta.section_count ??
+        countFastDraftSections(draftMeta.sections);
       if (sectionCount === 0) {
         showToast("error", "请先在「生成大纲」步骤保存大纲，再按大纲写稿");
         return;
@@ -298,29 +352,162 @@ export default function WritingPage() {
     }
 
     setIsAIAction(true);
+    const startTime = Date.now();
+    let sectionParts: string[] = [];
+    let receivedCount = 0;
+    let streamSectionTotal = sectionCount;
+    let latestContentId = contentId;  // 闭包快照，每次存盘后同步更新
+
+    const effectiveTarget = currentProject?.targetWordCount ?? 2000;
+
     try {
-      const resp = await writingApi.fastDraft({
+      const perSection = Math.max(
+        50,
+        Math.floor(effectiveTarget / Math.max(sectionCount, 1)),
+      );
+      showToast(
+        "info",
+        `开始流式生成（${writingTargetStyleLabel(writingTargetStyle, writingStyles)} ${writingStyleIntensity}%），共 ${sectionCount} 节，目标 ${effectiveTarget} 字...`,
+      );
+
+      const response = await writingStreamApi.fastDraftStream({
         projectId: params.id as string,
+        style: writingTargetStyle,
+        styleIntensity: writingStyleIntensity,
         styleProfileId: styleProfileId || undefined,
+        targetWordCount: effectiveTarget,
       });
-      setContent(resp.data.content);
-      lastSavedContentRef.current = resp.data.content;
-      prevEditorContentRef.current = resp.data.content;
-      setShowModeSelector(false);
-      const missing = resp.data.missingSections ?? [];
-      if (missing.length > 0) {
-        showToast(
-          "error",
-          `已生成，但有 ${missing.length} 个章节标题未出现在正文中，请检查或逐节重写`,
-        );
-      } else {
-        showToast(
-          "success",
-          `已按大纲生成 ${resp.data.sectionCount} 节，约 ${countArticleWords(resp.data.content)} 字`,
-        );
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error((errData as any).error || `HTTP ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("浏览器不支持流式读取");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      const handleStreamEvent = (event: {
+        type: string;
+        index?: number;
+        title?: string;
+        content?: string;
+        message?: string;
+        total?: number;
+        section_count?: number;
+        total_word_count?: number;
+        missing_sections?: string[];
+      }) => {
+        if (event.type === "start") {
+          if (typeof event.total === "number" && event.total > 0) {
+            streamSectionTotal = event.total;
+          }
+          return;
+        }
+        if (event.type === "section_start") {
+          showToast(
+            "info",
+            `正在写第 ${(event.index ?? 0) + 1}/${streamSectionTotal} 节：${event.title ?? ""}`,
+          );
+          return;
+        }
+        if (event.type === "section") {
+          const idx = event.index ?? receivedCount;
+          sectionParts[idx] = event.content ?? "";
+          receivedCount++;
+          const partial = sectionParts.filter(Boolean).join("\n\n");
+          setContent(partial);
+          lastSavedContentRef.current = partial;
+          prevEditorContentRef.current = partial;
+          saveDraftContent(params.id as string, partial, latestContentId)
+            .then((cid) => {
+              if (cid) {
+                latestContentId = cid;
+                setContentId(cid);
+              }
+            })
+            .catch(() => {});
+          showToast("info", `已生成 ${receivedCount}/${streamSectionTotal} 节：${event.title}`);
+          return;
+        }
+        if (event.type === "done") {
+          void (async () => {
+            const finalContent =
+              event.content || sectionParts.filter(Boolean).join("\n\n");
+            setContent(finalContent);
+            lastSavedContentRef.current = finalContent;
+            prevEditorContentRef.current = finalContent;
+            setShowModeSelector(false);
+            requestAnimationFrame(() => editorRef.current?.scrollToTop());
+
+            const cid = await saveDraftContent(
+              params.id as string,
+              finalContent,
+              latestContentId,
+            ).catch(() => null);
+            if (cid) {
+              latestContentId = cid;
+              setContentId(cid);
+            }
+
+            const missing = event.missing_sections ?? [];
+            if (missing.length > 0) {
+              showToast(
+                "error",
+                `已生成，但有 ${missing.length} 个章节标题未出现在正文中`,
+              );
+            } else {
+              const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+              showToast(
+                "success",
+                `全部完成！${event.section_count} 节 / ${event.total_word_count} 字，耗时 ${elapsed}s。旧版已自动备份到版本历史。`,
+              );
+            }
+          })();
+          return;
+        }
+        if (event.type === "error") {
+          showToast("error", event.message || "生成出错");
+        }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const chunks = buffer.split("\n\n");
+        buffer = chunks.pop() || "";
+
+        for (const chunk of chunks) {
+          const dataLine = chunk
+            .split("\n")
+            .find((line) => line.startsWith("data: "));
+          if (!dataLine) continue;
+          try {
+            handleStreamEvent(JSON.parse(dataLine.slice(6)));
+          } catch {
+            // skip malformed JSON
+          }
+        }
+      }
+      if (buffer.trim()) {
+        const dataLine = buffer
+          .split("\n")
+          .find((line) => line.startsWith("data: "));
+        if (dataLine) {
+          try {
+            handleStreamEvent(JSON.parse(dataLine.slice(6)));
+          } catch {
+            /* ignore */
+          }
+        }
       }
     } catch (error: unknown) {
-      showToast("error", getApiError(error, "按大纲生成失败"));
+      const msg = getApiError(error, "按大纲生成失败");
+      showToast("error", msg);
     } finally {
       setIsAIAction(false);
     }
@@ -598,27 +785,29 @@ export default function WritingPage() {
 
     setIsAIAction(true);
     try {
-      const response = await writingApi.frameworkGenerate({
-        projectId,
-        outline: frameworkOutline.trim() || undefined,
-        styleProfileId: styleProfileId || undefined,
-      });
-      setContent(response.data.content);
-      lastSavedContentRef.current = response.data.content;
-      prevEditorContentRef.current = response.data.content;
-      setShowFrameworkInput(false);
-      const missing = response.data.missingSections ?? [];
-      if (missing.length > 0) {
-        showToast(
-          "error",
-          `已生成，但有 ${missing.length} 个章节未出现在正文中，请检查`,
-        );
-      } else {
-        showToast(
-          "success",
-          `已按项目大纲生成，约 ${countArticleWords(response.data.content)} 字`,
-        );
-      }
+      const finalText = await streamWritingAi(
+        {
+          action: "framework_generate",
+          projectId,
+          outline: frameworkOutline.trim() || undefined,
+          style: writingTargetStyle,
+          styleIntensity: writingStyleIntensity,
+          styleProfileId: styleProfileId || undefined,
+        },
+        {
+          onStreamStart: () => setShowFrameworkInput(false),
+          onDelta: (streamed) => {
+            setContent(streamed);
+            lastSavedContentRef.current = streamed;
+            prevEditorContentRef.current = streamed;
+          },
+        },
+      );
+      requestAnimationFrame(() => editorRef.current?.scrollToTop());
+      showToast(
+        "success",
+        `已按项目大纲生成，约 ${countArticleWords(finalText)} 字`,
+      );
     } catch (error: unknown) {
       showToast("error", getApiError(error, "按大纲生成失败"));
     } finally {
@@ -626,105 +815,177 @@ export default function WritingPage() {
     }
   }
 
-  async function handleAIAction(action: string, selection?: string) {
-    if (action === "shorten" && !selection?.trim()) {
-      setShowShortenModal(true);
+  function getDraftText(): string {
+    return (contentRef.current || content).trim();
+  }
+
+  function snapshotToolbarSelection() {
+    toolbarSelectionRef.current = editorSelection;
+  }
+
+  function getAiScope() {
+    const snapped = toolbarSelectionRef.current?.text?.trim();
+    if (snapped) return { text: snapped, isSelection: true };
+    const sel = editorSelection?.text?.trim();
+    if (sel) return { text: sel, isSelection: true };
+    const full = contentRef.current || content;
+    return { text: full, isSelection: false };
+  }
+
+  function applyStreamedContent(
+    streamed: string,
+    scope: { text: string; isSelection: boolean },
+  ) {
+    if (scope.isSelection) {
+      const next = replaceTextInDocument(
+        contentRef.current,
+        scope.text,
+        streamed,
+      );
+      setContent(next);
+      lastSavedContentRef.current = next;
+      prevEditorContentRef.current = next;
+    } else {
+      setContent(streamed);
+      lastSavedContentRef.current = streamed;
+      prevEditorContentRef.current = streamed;
+    }
+  }
+
+  function applyAiResultToDocument(
+    resultText: string,
+    scope: { text: string; isSelection: boolean },
+  ) {
+    applyStreamedContent(resultText, scope);
+  }
+
+  function openShortenModal() {
+    const scope = getAiScope();
+    if (!scope.text.trim()) {
+      showToast("error", "请先输入或选中要缩写的内容");
       return;
     }
-    const useCompare = Boolean(selection?.trim());
-    const originalText = selection?.trim() || "";
-    const currentContent = contentRef.current;
+    aiScopeRef.current = scope;
+    setModalScopeText(scope.text);
+    setShowShortenModal(true);
+  }
+
+  function openExpandModal() {
+    const scope = getAiScope();
+    if (!scope.text.trim()) {
+      showToast("error", "请先输入或选中要扩写的内容");
+      return;
+    }
+    aiScopeRef.current = scope;
+    setModalScopeText(scope.text);
+    setShowExpandModal(true);
+  }
+
+  async function handleStyleConvert() {
+    const scope = getAiScope();
+    if (!scope.text.trim()) {
+      showToast("error", "请先在编辑器输入正文，或选中一段文字");
+      return;
+    }
+    rewriteScopeRef.current = scope;
+    setRewriteLoading(true);
+    setAiBusyAction("rewrite");
+    try {
+      const resultText = await streamWritingAi(
+        {
+          action: "rewrite",
+          content: scope.text,
+          style: writingTargetStyle,
+          styleIntensity: writingStyleIntensity,
+          styleProfileId: styleProfileId || undefined,
+        },
+        {
+          onDelta: (streamed) => applyStreamedContent(streamed, scope),
+        },
+      );
+      if (!resultText.trim()) {
+        showToast("error", "风格转换结果为空，请重试");
+        return;
+      }
+      const label = writingTargetStyleLabel(writingTargetStyle, writingStyles);
+      showToast(
+        "success",
+        scope.isSelection
+          ? `选中片段已转换为「${label}」${writingStyleIntensity}%`
+          : `全文已转换为「${label}」${writingStyleIntensity}%`,
+      );
+    } catch (error: unknown) {
+      showToast("error", getApiError(error, "风格转换失败"));
+    } finally {
+      setRewriteLoading(false);
+      setAiBusyAction(null);
+      toolbarSelectionRef.current = null;
+    }
+  }
+
+  async function handleAIAction(action: string, selection?: string) {
+    if (action === "shorten") {
+      openShortenModal();
+      return;
+    }
+    if (action === "expand") {
+      openExpandModal();
+      return;
+    }
+    if (action === "rewrite") {
+      void handleStyleConvert();
+      return;
+    }
+    const currentContent = contentRef.current || content;
     setAiBusyAction(action);
-    setIsAIAction(true);
     try {
       const textToProcess = selection?.trim() || currentContent;
       if (!textToProcess.trim()) {
         showToast("error", "请先输入或选中要处理的内容");
         return;
       }
+      const resultScope = selection?.trim()
+        ? { text: selection.trim(), isSelection: true }
+        : { text: currentContent, isSelection: false };
 
       switch (action) {
         case "continue": {
-          const resp = await writingApi.continue(
-            currentContent,
-            undefined,
-            styleProfileId || undefined,
+          const full = await streamWritingAi(
+            {
+              action: "continue",
+              content: currentContent,
+              styleProfileId: styleProfileId || undefined,
+            },
+            {
+              onDelta: (streamed) => {
+                setContent(streamed);
+                lastSavedContentRef.current = streamed;
+                prevEditorContentRef.current = streamed;
+              },
+            },
           );
-          const addition = resp.data.continuation?.trim();
-          if (!addition) {
+          if (!full.trim() || full.length <= currentContent.length) {
             showToast("error", "续写结果为空，请重试");
             return;
           }
-          setContent((prev) => prev + addition);
           showToast("success", "续写完成");
           break;
         }
         case "polish": {
-          const resp = await writingApi.polish(
-            textToProcess,
-            selectedStyle,
-            styleProfileId || undefined,
+          const resultText = await streamWritingAi(
+            {
+              action: "polish",
+              content: textToProcess,
+              style: "professional",
+              styleProfileId: styleProfileId || undefined,
+            },
+            { onDelta: (streamed) => applyStreamedContent(streamed, resultScope) },
           );
-          const resultText = resp.data.polishedContent?.trim();
-          if (!resultText) {
+          if (!resultText.trim()) {
             showToast("error", "润色结果为空，请重试");
             return;
           }
-          if (useCompare) {
-            setAiResult({
-              action,
-              original: originalText,
-              result: resultText,
-              showCompare: true,
-            });
-          } else {
-            setContent(resultText);
-            showToast("success", "润色完成（已自动去 AI 味）");
-          }
-          break;
-        }
-        case "expand": {
-          const resp = await writingApi.expand(
-            textToProcess,
-            500,
-            styleProfileId || undefined,
-          );
-          const resultText = resp.data.expandedContent?.trim();
-          if (!resultText) {
-            showToast("error", "扩写结果为空，请重试");
-            return;
-          }
-          if (useCompare) {
-            setAiResult({
-              action,
-              original: originalText,
-              result: resultText,
-              showCompare: true,
-            });
-          } else {
-            setContent(resultText);
-            showToast("success", "扩写完成（已自动去 AI 味）");
-          }
-          break;
-        }
-        case "rewrite": {
-          const resp = await writingApi.rewrite(textToProcess, selectedStyle);
-          const resultText = resp.data.rewrittenContent?.trim();
-          if (!resultText) {
-            showToast("error", "风格转换结果为空，请重试");
-            return;
-          }
-          if (useCompare) {
-            setAiResult({
-              action,
-              original: originalText,
-              result: resultText,
-              showCompare: true,
-            });
-          } else {
-            setContent(resultText);
-            showToast("success", "风格转换完成（已自动去 AI 味）");
-          }
+          showToast("success", "润色完成：已优化表达，文体未改");
           break;
         }
       }
@@ -735,7 +996,6 @@ export default function WritingPage() {
       );
       console.error("AI action failed:", error);
     } finally {
-      setIsAIAction(false);
       setAiBusyAction(null);
     }
   }
@@ -747,63 +1007,105 @@ export default function WritingPage() {
   }
 
   async function handleApplyGlobalPrompt(instruction: string) {
-    if (!content.trim()) {
-      showToast("error", "请先输入文章内容");
+    const scope = getAiScope();
+    if (!scope.text.trim()) {
+      showToast("error", "请先输入或选中要改写的内容");
       return;
     }
     setGlobalPromptLoading(true);
-    setIsAIAction(true);
     try {
-      const resp = await writingApi.applyPrompt(
-        content,
-        instruction,
-        styleProfileId || undefined,
+      const resultText = await streamWritingAi(
+        {
+          action: "apply_prompt",
+          content: scope.text,
+          instruction,
+          styleProfileId: styleProfileId || undefined,
+        },
+        {
+          onStreamStart: () => setShowGlobalPrompt(false),
+          onDelta: (streamed) => applyStreamedContent(streamed, scope),
+        },
       );
-      const resultText = resp.data.content?.trim();
-      if (!resultText) {
+      if (!resultText.trim()) {
         showToast("error", "改稿结果为空，请重试");
         return;
       }
-      setContent(resultText);
-      setShowGlobalPrompt(false);
-      showToast("success", "已按整体提示词改稿");
+      showToast(
+        "success",
+        scope.isSelection ? "已改写选中片段" : "已智能改写全文",
+      );
     } catch (error: unknown) {
       showToast("error", getApiError(error, "整体改稿失败"));
     } finally {
       setGlobalPromptLoading(false);
-      setIsAIAction(false);
     }
   }
 
   async function handleShortenApply(targetWordCount: number) {
-    const currentContent = contentRef.current;
-    if (!currentContent.trim()) {
-      showToast("error", "请先输入文章内容");
+    const scope = aiScopeRef.current;
+    if (!scope.text.trim()) {
+      showToast("error", "请先输入或选中要缩写的内容");
       return;
     }
     setShortenLoading(true);
-    setIsAIAction(true);
     setAiBusyAction("shorten");
     try {
-      const resp = await writingApi.shorten(currentContent, {
-        targetWordCount,
-        sourceWordCount: countArticleWords(currentContent),
-        styleProfileId: styleProfileId || undefined,
-      });
-      const resultText = resp.data.shortenedContent?.trim();
-      if (!resultText) {
+      const resultText = await streamWritingAi(
+        {
+          action: "shorten",
+          content: scope.text,
+          targetWordCount,
+          sourceWordCount: countArticleWords(scope.text),
+          styleProfileId: styleProfileId || undefined,
+        },
+        {
+          onStreamStart: () => setShowShortenModal(false),
+          onDelta: (streamed) => applyStreamedContent(streamed, scope),
+        },
+      );
+      if (!resultText.trim()) {
         showToast("error", "缩写结果为空，请重试");
         return;
       }
-      setContent(resultText);
-      setShowShortenModal(false);
-      const target = resp.data.targetWordCount ?? targetWordCount;
-      showToast("success", `缩写完成，目标约 ${target} 字`);
+      showToast("success", `缩写完成，目标约 ${targetWordCount} 字`);
     } catch (error: unknown) {
       showToast("error", getApiError(error, "缩写失败"));
     } finally {
       setShortenLoading(false);
-      setIsAIAction(false);
+      setAiBusyAction(null);
+    }
+  }
+
+  async function handleExpandApply(targetWordCount: number) {
+    const scope = aiScopeRef.current;
+    if (!scope.text.trim()) {
+      showToast("error", "请先输入或选中要扩写的内容");
+      return;
+    }
+    setExpandLoading(true);
+    setAiBusyAction("expand");
+    try {
+      const resultText = await streamWritingAi(
+        {
+          action: "expand",
+          content: scope.text,
+          targetLength: targetWordCount,
+          styleProfileId: styleProfileId || undefined,
+        },
+        {
+          onStreamStart: () => setShowExpandModal(false),
+          onDelta: (streamed) => applyStreamedContent(streamed, scope),
+        },
+      );
+      if (!resultText.trim()) {
+        showToast("error", "扩写结果为空，请重试");
+        return;
+      }
+      showToast("success", `扩写完成，目标约 ${targetWordCount} 字`);
+    } catch (error: unknown) {
+      showToast("error", getApiError(error, "扩写失败"));
+    } finally {
+      setExpandLoading(false);
       setAiBusyAction(null);
     }
   }
@@ -815,192 +1117,208 @@ export default function WritingPage() {
         "wen-btn-active border-primary-400 text-primary-700",
     );
 
-  const subtitleParts: string[] = [];
-  if (contentSource === "previous") subtitleParts.push("已顺移");
-  if (lastSaved)
-    subtitleParts.push(`已保存 ${lastSaved.toLocaleTimeString("zh-CN")}`);
-  const frameSubtitle =
-    subtitleParts.length > 0 ? subtitleParts.join(" · ") : undefined;
+  const selectionSnippet = editorSelection?.text?.trim();
+  const hasDraftText = Boolean(getDraftText());
+  const aiTargetReady = Boolean(selectionSnippet || hasDraftText);
+  const aiToolbarBusy = Boolean(isAIAction || aiBusyAction || rewriteLoading);
+
+  function runScopedAiAction(
+    action: string,
+    opts?: { openModal?: boolean },
+  ) {
+    if (opts?.openModal) {
+      if (action === "shorten") openShortenModal();
+      else if (action === "expand") openExpandModal();
+      return;
+    }
+    const scope = getAiScope();
+    if (!scope.text.trim()) {
+      showToast("error", "请先在编辑器输入正文，或选中一段文字");
+      return;
+    }
+    void handleAIAction(
+      action,
+      scope.isSelection ? scope.text : undefined,
+    ).finally(() => {
+      toolbarSelectionRef.current = null;
+    });
+  }
 
   return (
     <StepPageFrame
-      title="写出草稿"
-      subtitle={frameSubtitle}
+      title={showModeSelector ? "写出草稿" : undefined}
       stepId={stepId}
       fullWidth
+      toolbarOnly={!showModeSelector}
       actions={
         <>
-          <button
-            type="button"
-            onClick={async () => {
-              const imported = await importContentFromFile();
-              if (imported) {
-                setContent(imported);
-                setContentSource("saved");
-                setShowImportHint(false);
-              }
-            }}
-            className="wen-btn"
-          >
-            <FolderOpen size={12} strokeWidth={1.5} className="text-ink-400" />
-            导入
-          </button>
-          <button
-            type="button"
-            onClick={handlePasteFromClipboard}
-            className="wen-btn"
-          >
-            <Clipboard size={12} strokeWidth={1.5} className="text-ink-400" />
-            粘贴
-          </button>
-          <div className="relative">
+          <WritingStyleToolbar
+            value={writingTargetStyle}
+            intensity={writingStyleIntensity}
+            styles={writingStyles}
+            defaultStyle={defaultWritingStyle}
+            intensityRange={intensityRange}
+            onChange={handleWritingStyleChange}
+            onIntensityChange={setWritingStyleIntensity}
+            onConvert={() => void handleStyleConvert()}
+            convertDisabled={!aiTargetReady || aiToolbarBusy}
+            convertLoading={rewriteLoading || aiBusyAction === "rewrite"}
+            showConvertButton={!showModeSelector}
+          />
+          {!showModeSelector ? (
+          <>
             <button
               type="button"
-              onClick={() => setShowStyleDropdown(!showStyleDropdown)}
+              onClick={handleFastDraft}
+              disabled={isAIAction}
+              className="wen-btn-seal disabled:opacity-50"
+            >
+              {isAIAction ? (
+                <Loader2 className="animate-spin" size={12} />
+              ) : (
+                <LayoutTemplate size={12} className="text-primary-500" />
+              )}
+              按大纲写稿
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSave(true)}
+              disabled={isSaving || !content.trim()}
+              className="wen-btn-seal"
+            >
+              {isSaving ? <Loader2 className="animate-spin" size={12} /> : null}
+              {isSaving ? "保存中" : "保存"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleAIAction("continue")}
+              disabled={!content.trim() || !!aiBusyAction}
+              className={aiBtnClass("continue")}
+            >
+              {aiBusyAction === "continue" ? (
+                <Loader2 className="animate-spin" size={12} />
+              ) : (
+                <PenLine size={12} className="text-primary-500" />
+              )}
+              续写
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowVersionPanel(true)}
               className="wen-btn"
             >
-              <Wand2 size={12} strokeWidth={1.5} className="text-ink-400" />
-              {writingStyles.find((s) => s.id === selectedStyle)?.label}
-              <ChevronDown size={12} className="text-ink-300" />
+              <History size={12} strokeWidth={1.5} className="text-ink-400" />
+              版本
             </button>
-            {showStyleDropdown && (
-              <div className="absolute right-0 top-full mt-1 w-52 bg-surface-100 border border-surface-300 py-1 z-10">
-                {writingStyles.map((style) => (
-                  <button
-                    key={style.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedStyle(style.id);
-                      setShowStyleDropdown(false);
-                    }}
-                    className={clsx(
-                      "w-full text-left px-3 py-1.5 text-xs hover:bg-surface-200/60",
-                      selectedStyle === style.id &&
-                        "text-primary-600 font-kaiti",
-                    )}
-                  >
-                    <p>{style.label}</p>
-                    <p className="text-[10px] text-ink-400">
-                      {style.description}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowGlobalPrompt(true)}
-            disabled={!content.trim() || globalPromptLoading || !!aiBusyAction}
-            className="wen-btn"
-          >
-            {globalPromptLoading ? (
-              <Loader2 className="animate-spin" size={12} />
-            ) : (
-              <MessageSquare size={12} className="text-ink-400" />
-            )}
-            整体提示词
-          </button>
-          <button
-            type="button"
-            onClick={() => toggleRightPanel("playbook")}
-            className={clsx(
-              "wen-btn",
-              rightPanel === "playbook" && "wen-btn-active",
-            )}
-          >
-            <BookOpen size={12} strokeWidth={1.5} />
-            Playbook
-          </button>
-          <button
-            type="button"
-            onClick={() => toggleRightPanel("antiAi")}
-            className={clsx(
-              "wen-btn",
-              rightPanel === "antiAi" && "wen-btn-active",
-            )}
-          >
-            <Scan size={12} strokeWidth={1.5} />
-            去AI味
-          </button>
-          <button
-            type="button"
-            onClick={() => handleAIAction("continue")}
-            disabled={!content.trim() || !!aiBusyAction}
-            className={aiBtnClass("continue")}
-          >
-            {aiBusyAction === "continue" ? (
-              <Loader2 className="animate-spin" size={12} />
-            ) : (
-              <Sparkles size={12} className="text-primary-500" />
-            )}
-            续写
-          </button>
-          <button
-            type="button"
-            onClick={() => handleAIAction("polish")}
-            disabled={!content.trim() || !!aiBusyAction}
-            className={aiBtnClass("polish")}
-          >
-            {aiBusyAction === "polish" ? (
-              <Loader2 className="animate-spin" size={12} />
-            ) : (
-              <Sparkles size={12} className="text-purple-500" />
-            )}
-            润色
-          </button>
-          <button
-            type="button"
-            onClick={() => handleAIAction("expand")}
-            disabled={!content.trim() || !!aiBusyAction}
-            className={aiBtnClass("expand")}
-          >
-            {aiBusyAction === "expand" ? (
-              <Loader2 className="animate-spin" size={12} />
-            ) : (
-              <RefreshCw size={12} className="text-green-500" />
-            )}
-            扩写
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowShortenModal(true)}
-            disabled={!content.trim() || shortenLoading || !!aiBusyAction}
-            className={aiBtnClass("shorten")}
-          >
-            {shortenLoading || aiBusyAction === "shorten" ? (
-              <Loader2 className="animate-spin" size={12} />
-            ) : (
-              <ArrowDownWideNarrow size={12} className="text-accent-600" />
-            )}
-            缩写
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowVersionPanel(true)}
-            className="wen-btn"
-          >
-            <History size={12} strokeWidth={1.5} className="text-ink-400" />
-            版本
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSave(true)}
-            disabled={isSaving || !content.trim()}
-            className="wen-btn-seal"
-          >
-            {isSaving ? <Loader2 className="animate-spin" size={12} /> : null}
-            {isSaving ? "保存中" : "保存"}
-          </button>
-          <button
-            type="button"
-            onClick={handleSaveAs}
-            disabled={isSaving || !content.trim()}
-            className="wen-btn"
-          >
-            <Download size={12} strokeWidth={1.5} className="text-ink-400" />
-            另存
-          </button>
+            <button
+              type="button"
+              onMouseDown={snapshotToolbarSelection}
+              onClick={() => setShowGlobalPrompt(true)}
+              disabled={!aiTargetReady || globalPromptLoading || aiToolbarBusy}
+              title={
+                !aiTargetReady
+                  ? "请先在正文输入内容，或选中一段文字"
+                  : aiToolbarBusy
+                    ? "AI 处理中，请稍候"
+                    : undefined
+              }
+              className={aiBtnClass("smartRewrite")}
+            >
+              {globalPromptLoading ? (
+                <Loader2 className="animate-spin" size={12} />
+              ) : (
+                <MessageSquare size={12} className="text-ink-400" />
+              )}
+              智能改写
+            </button>
+            <button
+              type="button"
+              onMouseDown={snapshotToolbarSelection}
+              onClick={() => runScopedAiAction("expand", { openModal: true })}
+              disabled={!aiTargetReady || expandLoading || aiToolbarBusy}
+              title={
+                !aiTargetReady
+                  ? "请先在正文输入内容，或选中一段文字"
+                  : aiToolbarBusy
+                    ? "AI 处理中，请稍候"
+                    : undefined
+              }
+              className={aiBtnClass("expand")}
+            >
+              {expandLoading || aiBusyAction === "expand" ? (
+                <Loader2 className="animate-spin" size={12} />
+              ) : (
+                <RefreshCw size={12} className="text-green-500" />
+              )}
+              扩写
+            </button>
+            <button
+              type="button"
+              onMouseDown={snapshotToolbarSelection}
+              onClick={() => runScopedAiAction("shorten", { openModal: true })}
+              disabled={!aiTargetReady || shortenLoading || aiToolbarBusy}
+              title={
+                !aiTargetReady
+                  ? "请先在正文输入内容，或选中一段文字"
+                  : aiToolbarBusy
+                    ? "AI 处理中，请稍候"
+                    : undefined
+              }
+              className={aiBtnClass("shorten")}
+            >
+              {shortenLoading || aiBusyAction === "shorten" ? (
+                <Loader2 className="animate-spin" size={12} />
+              ) : (
+                <ArrowDownWideNarrow size={12} className="text-accent-600" />
+              )}
+              缩写
+            </button>
+            <button
+              type="button"
+              onMouseDown={snapshotToolbarSelection}
+              onClick={() => runScopedAiAction("polish")}
+              disabled={!aiTargetReady || aiToolbarBusy}
+              title={
+                !aiTargetReady
+                  ? "请先在正文输入内容，或选中一段文字"
+                  : aiToolbarBusy
+                    ? "AI 处理中，请稍候"
+                    : undefined
+              }
+              className={aiBtnClass("polish")}
+            >
+              {aiBusyAction === "polish" ? (
+                <Loader2 className="animate-spin" size={12} />
+              ) : (
+                <Sparkles size={12} className="text-purple-500" />
+              )}
+              润色
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleRightPanel("antiAi")}
+              className={clsx(
+                "wen-btn shrink-0",
+                rightPanel === "antiAi" && "wen-btn-active",
+              )}
+            >
+              <Scan size={12} strokeWidth={1.5} />
+              去AI味
+            </button>
+            <div className="w-2 shrink-0" />
+            <button
+              type="button"
+              onClick={() => toggleRightPanel("playbook")}
+              className={clsx(
+                "wen-btn",
+                rightPanel === "playbook" && "wen-btn-active",
+              )}
+            >
+              <BookOpen size={12} strokeWidth={1.5} />
+              Playbook
+            </button>
+          </>
+          ) : null}
         </>
       }
     >
@@ -1010,7 +1328,12 @@ export default function WritingPage() {
             <h2 className="wen-title text-ink-900 mb-2">
               选择写作模式
             </h2>
-            <p className="text-ink-500">根据文章类型选择最适合的AI辅助模式</p>
+            <p className="text-ink-500 mb-3">
+              根据文章类型选择最适合的AI辅助模式
+            </p>
+            <p className="text-xs text-ink-400">
+              按大纲写稿将使用顶部「风格 + 浓度%」（幽默等默认偏克制）
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1086,76 +1409,18 @@ export default function WritingPage() {
         </div>
       )}
 
-      {!showModeSelector && selectedMode && (
-        <div className="wen-panel-padded p-3 mb-4 flex items-center gap-2 text-sm">
-          <span className="text-ink-500">当前模式：</span>
-          <span
-            className={clsx(
-              "inline-flex items-center gap-1.5 px-2.5 py-1 font-medium",
-              selectedMode === "coach"
-                ? "bg-purple-100 text-purple-700"
-                : selectedMode === "fast"
-                  ? "bg-blue-100 text-blue-700"
-                  : selectedMode === "mixed"
-                    ? "bg-green-100 text-green-700"
-                    : "bg-accent-100 text-accent-700",
-            )}
-          >
-            {modes.find((m) => m.id === selectedMode)?.name || selectedMode}
-          </span>
-          <button
-            onClick={() => setShowModeSelector(true)}
-            className="text-primary-500 hover:underline ml-auto"
-          >
-            切换模式
-          </button>
-        </div>
-      )}
-
-      {!showModeSelector && selectedMode === "fast" && (
-        <div className="mb-4">
-          <button
-            onClick={handleFastDraft}
-            disabled={isAIAction}
-            className="w-full py-2 bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50"
-          >
-            按大纲快速生成全文初稿
-          </button>
-        </div>
-      )}
-
-      {!showModeSelector &&
-        (selectedMode === "mixed" || selectedMode === "fast") &&
-        params.id && (
+      {!showModeSelector && selectedMode === "mixed" && params.id && (
           <div className="mb-4">
             <SectionWriterPanel
               projectId={params.id as string}
               draftContent={content}
               styleProfileId={styleProfileId || undefined}
-              onAppend={(text) =>
+              onAppend={(text: string) =>
                 setContent((prev) => (prev ? prev + "\n\n" : "") + text)
               }
             />
           </div>
         )}
-
-      {!showModeSelector && (
-        <div className="mb-4 flex items-center gap-2">
-          <label className="text-xs text-ink-500">风格画像:</label>
-          <select
-            value={styleProfileId}
-            onChange={(e) => saveStyleProfile(e.target.value)}
-            className="text-xs border px-2 py-1 flex-1 max-w-xs"
-          >
-            <option value="">无（默认）</option>
-            {styleProfiles.map((p) => (
-              <option key={p._id} value={p._id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {frameworkOutlineLoading && selectedMode === "framework" && (
         <div className="wen-panel-padded p-6 mb-6 flex items-center gap-2 text-sm text-ink-500">
@@ -1193,7 +1458,7 @@ export default function WritingPage() {
               type="button"
               onClick={handleFrameworkGenerate}
               disabled={!frameworkOutline.trim() || isAIAction}
-              className="px-4 py-2 bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-50"
+              className="wen-btn-action-accent disabled:opacity-50"
             >
               {isAIAction ? (
                 <Loader2 className="animate-spin inline" size={16} />
@@ -1228,7 +1493,7 @@ export default function WritingPage() {
                       prev ? { ...prev, phase: "writing" } : null,
                     )
                   }
-                  className="px-4 py-2 bg-purple-500 text-white hover:bg-purple-600"
+                  className="wen-btn-action-accent"
                 >
                   开始写作 <ArrowRight size={16} className="inline ml-1" />
                 </button>
@@ -1262,7 +1527,7 @@ export default function WritingPage() {
                 <button
                   onClick={handleCoachSubmitWriting}
                   disabled={!coachSection.userInput.trim() || isCoachLoading}
-                  className="px-4 py-2 bg-purple-500 text-white hover:bg-purple-600 disabled:opacity-50"
+                  className="wen-btn-action-accent disabled:opacity-50"
                 >
                   {isCoachLoading ? (
                     <Loader2 className="animate-spin inline" size={16} />
@@ -1291,7 +1556,7 @@ export default function WritingPage() {
                 </button>
                 <button
                   onClick={handleCoachAcceptAndContinue}
-                  className="px-4 py-2 bg-green-500 text-white hover:bg-green-600"
+                  className="wen-btn-action text-green-700 border-green-300 bg-green-50 hover:bg-green-100"
                 >
                   <Check size={16} className="inline mr-1" />
                   接受并继续下一段
@@ -1323,7 +1588,7 @@ export default function WritingPage() {
                 <button
                   type="button"
                   onClick={handleRecoverSavedDraft}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white hover:bg-primary-700 text-sm"
+                  className="inline-flex items-center gap-2 wen-btn-action-accent text-sm"
                 >
                   <RotateCcw size={16} />
                   恢复已保存草稿
@@ -1333,7 +1598,7 @@ export default function WritingPage() {
                 <button
                   type="button"
                   onClick={() => setShowVersionPanel(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white hover:bg-primary-700 text-sm"
+                  className="inline-flex items-center gap-2 wen-btn-action-accent text-sm"
                 >
                   <History size={16} />
                   打开版本历史
@@ -1388,10 +1653,8 @@ export default function WritingPage() {
               ref={editorRef}
               value={content}
               onChange={setContent}
-              onSave={handleSave}
-              isSaving={isSaving}
-              onAIAction={handleAIAction}
-              aiBusyAction={aiBusyAction}
+              onSelectionChange={setEditorSelection}
+              seamlessToolbar={!showModeSelector}
               minHeight={rightPanel ? "calc(100vh - 12rem)" : "calc(100vh - 10rem)"}
               placeholder="开始撰写您的文章..."
             />
@@ -1404,7 +1667,11 @@ export default function WritingPage() {
               {rightPanel === "antiAi" && (
                 <AntiAiPanel
                   content={content}
-                  onApplyFix={(fixed) => setContent(fixed)}
+                  selectionText={editorSelection?.text}
+                  onApplyFix={(fixed) => {
+                    const scope = getAiScope();
+                    applyAiResultToDocument(fixed, scope);
+                  }}
                   styleProfileId={styleProfileId || undefined}
                   active={rightPanel === "antiAi"}
                 />
@@ -1414,11 +1681,9 @@ export default function WritingPage() {
         </div>
 
         {isAIAction && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-surface-100 p-8 text-center">
-              <Loader2 className="animate-spin h-12 w-12 text-primary-500 mx-auto mb-4" />
-              <p className="text-ink-700 font-medium">AI 正在处理...</p>
-            </div>
+          <div className="fixed top-0 left-0 right-0 z-50 bg-primary-500 text-white text-xs text-center py-1.5 font-medium flex items-center justify-center gap-2">
+            <Loader2 className="animate-spin" size={14} />
+            正在按大纲生成全文，请稍候…
           </div>
         )}
 
@@ -1465,35 +1730,6 @@ export default function WritingPage() {
         )}
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-3">
-        <button
-          type="button"
-          onClick={() => handleAIAction("rewrite")}
-          disabled={!content.trim() || !!aiBusyAction}
-          className="inline-flex items-center gap-2 px-4 py-2 border border-surface-300 text-sm hover:bg-surface-200/30 disabled:opacity-50"
-        >
-          {aiBusyAction === "rewrite" ? (
-            <Loader2 className="animate-spin" size={16} />
-          ) : (
-            <Wand2 size={16} className="text-accent-500" />
-          )}
-          风格转换
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowShortenModal(true)}
-          disabled={!content.trim() || shortenLoading || !!aiBusyAction}
-          className="inline-flex items-center gap-2 px-4 py-2 border border-surface-300 text-sm hover:bg-surface-200/30 disabled:opacity-50"
-        >
-          {shortenLoading || aiBusyAction === "shorten" ? (
-            <Loader2 className="animate-spin" size={16} />
-          ) : (
-            <ArrowDownWideNarrow size={16} className="text-accent-600" />
-          )}
-          缩写
-        </button>
-      </div>
-
       <DraftVersionPanel
         projectId={projectId || ""}
         currentContent={content}
@@ -1511,15 +1747,23 @@ export default function WritingPage() {
       <GlobalPromptModal
         open={showGlobalPrompt}
         loading={globalPromptLoading}
+        hasSelection={Boolean(editorSelection?.text?.trim())}
         onClose={() => !globalPromptLoading && setShowGlobalPrompt(false)}
         onApply={handleApplyGlobalPrompt}
       />
       <ShortenModal
         open={showShortenModal}
         loading={shortenLoading}
-        content={contentRef.current || content}
+        content={modalScopeText}
         onClose={() => !shortenLoading && setShowShortenModal(false)}
         onApply={handleShortenApply}
+      />
+      <ExpandModal
+        open={showExpandModal}
+        loading={expandLoading}
+        content={modalScopeText}
+        onClose={() => !expandLoading && setShowExpandModal(false)}
+        onApply={handleExpandApply}
       />
     </StepPageFrame>
   );

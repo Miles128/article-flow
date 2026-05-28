@@ -20,7 +20,16 @@ checks:
     rule: 每500字至少1个数字或专有名词
   - id: punctuation
     name: 标点多样性
-    rule: 破折号≥1、问号≥2、括号≥1
+    rule: 破折号不超过每500字1个；少用括号
+  - id: long_sentence
+    name: 长句比例
+    rule: 超过30字的句子占比不超过10%
+  - id: parallel_tricolon
+    name: 三连排比
+    rule: 三个并列词/短语的排比，每1000字最多1处
+  - id: semantic_similarity
+    name: 语义重复
+    rule: 相近语义的句子每1000字最多1组；删冗余复述、换说法重复
   - id: imperfection
     name: 结构不完美
     rule: 允许短段、自嘲、反悔句

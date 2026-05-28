@@ -5,6 +5,8 @@ import { useStepFromRoute } from "@/lib/hooks/useStepFromRoute";
 import { useProjectDraft } from "@/lib/hooks/useProjectDraft";
 import { importContentFromFile } from "@/lib/contentFlow";
 import { StepPageFrame } from "@/components/layout/StepPageFrame";
+import { useAppStore } from "@/lib/store";
+import api from "@/lib/api/client";
 import {
   Image,
   Palette,
@@ -18,6 +20,8 @@ import {
   Scissors,
   FolderOpen,
   Clipboard,
+  Bot,
+  Globe,
 } from "lucide-react";
 
 const PHONE_WIDTH = 375;
@@ -284,6 +288,83 @@ Active Theory: 暗底+青色强调`);
   const previewRef = useRef<HTMLIFrameElement>(null);
   const [copied, setCopied] = useState(false);
 
+  // ─── AI 配图状态 ───
+  const [aiMode, setAiMode] = useState<"manual" | "ai-html" | "ai-image">(
+    "manual",
+  );
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiSvg, setAiSvg] = useState("");
+  const [aiImageUrl, setAiImageUrl] = useState("");
+  const [aiImagePrompt, setAiImagePrompt] = useState("");
+  const [aiError, setAiError] = useState("");
+  const [aiTopic, setAiTopic] = useState("");
+  const [aiQuote, setAiQuote] = useState("");
+  const [imageApiKey, setImageApiKey] = useState("");
+  const [imageProvider, setImageProvider] = useState("openai");
+  const [imageBaseUrl, setImageBaseUrl] = useState("");
+  const [imageModel, setImageModel] = useState("dall-e-3");
+  const { currentProject } = useAppStore();
+
+  async function handleGenerateHtmlIllustration() {
+    if (!aiTopic.trim() && !aiQuote.trim()) return;
+    setAiGenerating(true);
+    setAiError("");
+    setAiSvg("");
+    try {
+      const resp = await api.post("/illustration/generate-html", {
+        topic: aiTopic,
+        quote: aiQuote,
+        style: "modern",
+        color_scheme: getColors(),
+      });
+      setAiSvg(resp.data.svg);
+    } catch (err: any) {
+      setAiError(
+        err.friendlyMessage ||
+          err.response?.data?.error ||
+          "AI 生成失败，请重试",
+      );
+    } finally {
+      setAiGenerating(false);
+    }
+  }
+
+  async function handleGenerateApiImage() {
+    if (!aiTopic.trim() && !aiQuote.trim()) return;
+    if (!imageApiKey.trim()) {
+      setAiError("请先配置图片生成 API Key");
+      return;
+    }
+    setAiGenerating(true);
+    setAiError("");
+    setAiImageUrl("");
+    setAiImagePrompt("");
+    try {
+      const resp = await api.post("/illustration/generate-image", {
+        topic: aiTopic,
+        quote: aiQuote,
+        style: "modern editorial",
+        provider: imageProvider,
+        image_api_key: imageApiKey,
+        image_base_url: imageBaseUrl,
+        image_model: imageModel,
+      });
+      setAiImageUrl(resp.data.image_url);
+      setAiImagePrompt(resp.data.prompt_used);
+    } catch (err: any) {
+      setAiError(
+        err.friendlyMessage ||
+          err.response?.data?.error ||
+          "图片生成失败，请重试",
+      );
+      if (err.response?.data?.prompt_used) {
+        setAiImagePrompt(err.response.data.prompt_used);
+      }
+    } finally {
+      setAiGenerating(false);
+    }
+  }
+
   useEffect(() => {
     if (content) {
       setPages(autoCompress ? compressText(content, maxChars) : [content]);
@@ -341,7 +422,7 @@ Active Theory: 暗底+青色强调`);
 
   if (loading)
     return (
-      <div className="h-full flex items-center justify-center bg-surface-50">
+      <div className="h-full flex items-center justify-center bg-surface-50/60 backdrop-blur-[2px]">
         <Loader2 size={28} className="animate-spin text-ink-400" />
       </div>
     );
@@ -439,6 +520,143 @@ Active Theory: 暗底+青色强调`);
         {null}
       </StepPageFrame>
 
+      {/* ─── AI 配图模式切换 ─── */}
+      <div className="px-6 py-2 border-b border-surface-200 bg-surface-50/50 flex items-center gap-3 flex-wrap">
+        <span className="text-xs text-ink-400 font-medium shrink-0">
+          配图模式：
+        </span>
+        {[
+          { id: "manual" as const, label: "手动配色", icon: Palette },
+          { id: "ai-html" as const, label: "AI HTML 配图", icon: Bot },
+          { id: "ai-image" as const, label: "AI API 生图", icon: Globe },
+        ].map((m) => {
+          const Icon = m.icon;
+          const active = aiMode === m.id;
+          return (
+            <button
+              key={m.id}
+              onClick={() => {
+                setAiMode(m.id);
+                setAiError("");
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border transition-colors ${
+                active
+                  ? "border-primary-500 bg-primary-50 text-primary-700"
+                  : "border-surface-300 text-ink-600 hover:border-surface-400"
+              }`}
+            >
+              <Icon size={13} />
+              {m.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ─── AI 配图输入区 ─── */}
+      {aiMode !== "manual" && (
+        <div className="px-6 py-3 border-b border-surface-200 bg-surface-50/30">
+          <div className="flex flex-wrap items-start gap-3">
+            <input
+              type="text"
+              value={aiTopic}
+              onChange={(e) => setAiTopic(e.target.value)}
+              placeholder="文章主题（如：Claude Code vs Cursor 对比）"
+              className="flex-1 min-w-[200px] px-3 py-2 text-sm border border-surface-300 outline-none focus:ring-1 focus:ring-primary-400"
+            />
+            <input
+              type="text"
+              value={aiQuote}
+              onChange={(e) => setAiQuote(e.target.value)}
+              placeholder="引用金句（可选）"
+              className="flex-1 min-w-[200px] px-3 py-2 text-sm border border-surface-300 outline-none focus:ring-1 focus:ring-primary-400"
+            />
+            {aiMode === "ai-image" && (
+              <>
+                <select
+                  value={imageProvider}
+                  onChange={(e) => setImageProvider(e.target.value)}
+                  className="px-2 py-2 text-xs border border-surface-300 outline-none"
+                >
+                  <option value="openai">OpenAI DALL·E</option>
+                  <option value="siliconflow">硅基流动 Flux</option>
+                </select>
+                <input
+                  type="text"
+                  value={imageApiKey}
+                  onChange={(e) => setImageApiKey(e.target.value)}
+                  placeholder="图片 API Key"
+                  className="w-40 px-3 py-2 text-xs border border-surface-300 outline-none focus:ring-1 focus:ring-primary-400"
+                />
+              </>
+            )}
+            <button
+              onClick={
+                aiMode === "ai-html"
+                  ? handleGenerateHtmlIllustration
+                  : handleGenerateApiImage
+              }
+              disabled={aiGenerating || (!aiTopic.trim() && !aiQuote.trim())}
+              className="wen-btn-seal text-xs gap-1.5 disabled:opacity-50 py-2"
+            >
+              {aiGenerating ? (
+                <Loader2 className="animate-spin" size={14} />
+              ) : (
+                <Sparkles size={14} />
+              )}
+              {aiGenerating ? "生成中..." : "生成"}
+            </button>
+          </div>
+
+          {aiError && (
+            <p className="mt-2 text-xs text-red-600">{aiError}</p>
+          )}
+
+          {/* SVG 预览 */}
+          {aiSvg && (
+            <div className="mt-3 border border-surface-300 rounded overflow-hidden bg-white">
+              <div
+                className="flex justify-center p-4"
+                dangerouslySetInnerHTML={{ __html: aiSvg }}
+              />
+              <div className="flex justify-end gap-2 p-2 bg-surface-100 border-t border-surface-200">
+                <button
+                  onClick={() => {
+                    const blob = new Blob([aiSvg], {
+                      type: "image/svg+xml",
+                    });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "illustration.svg";
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="wen-btn text-xs"
+                >
+                  <Download size={12} /> SVG
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* API 图片预览 */}
+          {aiImageUrl && (
+            <div className="mt-3 border border-surface-300 rounded overflow-hidden bg-white p-4">
+              <img
+                src={aiImageUrl}
+                alt="AI 生成配图"
+                className="max-w-full rounded"
+              />
+              {aiImagePrompt && (
+                <p className="mt-2 text-xs text-ink-400">
+                  Prompt: {aiImagePrompt}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <main style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         <aside
           style={{
@@ -454,7 +672,7 @@ Active Theory: 暗底+青色强调`);
           }}
         >
           {/* 配色方案 */}
-          <div className="bg-surface-100 p-3 border border-surface-200">
+          <div className="bg-surface-50/70 backdrop-blur-[3px] p-3 border border-surface-200">
             <h3 className="wen-title text-ink-700 mb-2 flex items-center gap-1.5">
               <Palette size={13} />
               配色方案
@@ -483,8 +701,8 @@ Active Theory: 暗底+青色强调`);
                     <div className="flex-1 " style={{ background: s.accent }} />
                   </div>
                   {selectedScheme === i && !useCustomColors && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                      <Check size={10} className="text-white" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-surface-50/75">
+                      <Check size={10} className="text-primary-700" />
                     </div>
                   )}
                 </button>
@@ -529,7 +747,7 @@ Active Theory: 暗底+青色强调`);
           </div>
 
           {/* 比例选择 */}
-          <div className="bg-surface-100 p-3 border border-surface-200">
+          <div className="bg-surface-50/70 backdrop-blur-[3px] p-3 border border-surface-200">
             <h3 className="wen-title text-ink-700 mb-2 flex items-center gap-1.5">
               <Image size={13} />
               比例与分辨率
@@ -539,7 +757,7 @@ Active Theory: 暗底+青色强调`);
                 <button
                   key={i}
                   onClick={() => setSelectedRatio(i)}
-                  className={`px-2 py-1.5 border cursor-pointer text-center ${selectedRatio === i ? "bg-ink-700 border-ink-700 text-white font-medium" : "border-surface-200 text-ink-500 hover:border-primary-300"}`}
+                  className={`px-2 py-1.5 border cursor-pointer text-center ${selectedRatio === i ? "wen-chip-active" : "border-surface-200 text-ink-500 hover:border-primary-300"}`}
                 >
                   <div>{r.label}</div>
                   <div
@@ -558,10 +776,10 @@ Active Theory: 暗底+青色强调`);
           </div>
 
           {/* 提示词横条 */}
-          <div className="bg-surface-100 p-2.5 border border-surface-300">
+          <div className="bg-surface-50/70 backdrop-blur-[3px] p-2.5 border border-surface-300">
             <button
               onClick={() => setShowPromptPanel(!showPromptPanel)}
-              className={`w-full px-3 py-2 text-left border border-surface-300 flex items-center justify-between cursor-pointer ${showPromptPanel ? "bg-blue-50" : "bg-surface-100"}`}
+              className={`w-full px-3 py-2 text-left border border-surface-300 flex items-center justify-between cursor-pointer ${showPromptPanel ? "bg-blue-50" : "bg-surface-50/70 backdrop-blur-[3px]"}`}
             >
               <span className="flex items-center gap-1.5">
                 <Sparkles
@@ -577,7 +795,7 @@ Active Theory: 暗底+青色强调`);
           </div>
 
           {/* 文字控制 */}
-          <div className="bg-surface-100 p-3 border border-surface-300">
+          <div className="bg-surface-50/70 backdrop-blur-[3px] p-3 border border-surface-300">
             <h3 className="wen-title text-ink-700 mb-2 flex items-center gap-1.5">
               <Scissors size={13} />
               文字控制
@@ -612,7 +830,7 @@ Active Theory: 暗底+青色强调`);
                     <button
                       key={i}
                       onClick={() => setCurrentPage(i)}
-                      className={`flex-1 py-1.5 rounded cursor-pointer ${currentPage === i ? "bg-blue-500 text-white" : "bg-gray-200 text-ink-600"}`}
+                      className={`flex-1 py-1.5 rounded cursor-pointer ${currentPage === i ? "wen-chip-active" : "bg-gray-200 text-ink-600"}`}
                     >
                       {i + 1}
                     </button>
@@ -623,7 +841,7 @@ Active Theory: 暗底+青色强调`);
           </div>
 
           {/* 标题设置 */}
-          <div className="bg-surface-100 p-3 border border-surface-300">
+          <div className="bg-surface-50/70 backdrop-blur-[3px] p-3 border border-surface-300">
             <h3 className="wen-title text-ink-700 mb-2 flex items-center gap-1.5">
               <Type size={13} />
               标题设置
@@ -875,7 +1093,7 @@ Active Theory: 暗底+青色强调`);
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-[55%] max-w-[600px] h-full bg-surface-100 border-l border-surface-300 flex flex-col animate-slideIn"
+            className="w-[55%] max-w-[600px] h-full bg-surface-50/70 backdrop-blur-[3px] border-l border-surface-300 flex flex-col animate-slideIn"
           >
             <div className="px-4 py-3.5 border-b border-surface-300 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
@@ -913,7 +1131,7 @@ Active Theory: 暗底+青色强调`);
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="输入AI配图提示词..."
-                className="flex-1 w-full p-4 leading-relaxed outline-none resize-none text-ink-700 bg-surface-200/30 focus:bg-surface-100 border-none"
+                className="flex-1 w-full p-4 leading-relaxed outline-none resize-none text-ink-700 bg-surface-200/30 focus:bg-surface-50/75 border-none"
               />
             </div>
             <div className="px-4 py-3 border-t border-surface-300 flex justify-between items-center shrink-0 bg-surface-200/30">
@@ -929,7 +1147,7 @@ Active Theory: 暗底+青色强调`);
                 </button>
                 <button
                   onClick={() => setShowPromptPanel(false)}
-                  className="px-4 py-1.5 text-white bg-blue-500 border-0 cursor-pointer font-medium"
+                  className="px-4 py-1.5 wen-btn-action-accent cursor-pointer font-medium"
                 >
                   应用提示词
                 </button>

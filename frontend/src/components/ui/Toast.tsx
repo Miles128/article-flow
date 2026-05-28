@@ -65,13 +65,13 @@ export function ToastContainer() {
 	const getColors = (type: ToastType) => {
 		switch (type) {
 			case 'success':
-				return 'bg-surface-100 border-surface-300 text-ink-800';
+				return 'bg-surface-50/70 backdrop-blur-[3px] border-surface-300 text-ink-800';
 			case 'error':
 				return 'bg-red-50/50 border-red-200 text-red-800';
 			case 'warning':
 				return 'bg-primary-50/50 border-primary-300 text-primary-800';
 			case 'info':
-				return 'bg-surface-100 border-surface-300 text-ink-700';
+				return 'bg-surface-50/70 backdrop-blur-[3px] border-surface-300 text-ink-700';
 		}
 	};
 

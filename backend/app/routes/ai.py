@@ -11,8 +11,21 @@ logger = logging.getLogger(__name__)
 bp = Blueprint('ai', __name__)
 
 
+def _ai_proxy_allowed() -> bool:
+    return os.getenv('ARTICLE_FLOW_ALLOW_AI_PROXY', '').strip().lower() in (
+        '1',
+        'true',
+        'yes',
+    )
+
+
 @bp.route('/chat', methods=['POST'])
 def chat():
+    if not _ai_proxy_allowed():
+        return jsonify({
+            'error': '通用 AI 代理已关闭。如需启用请设置 ARTICLE_FLOW_ALLOW_AI_PROXY=1',
+        }), 403
+
     data = request.json
     if not data or 'messages' not in data:
         return jsonify({'error': 'messages are required'}), 400
@@ -77,23 +90,33 @@ def generate(llm, data):
 
 @bp.route('/config', methods=['GET'])
 def get_config():
+    llm_key = os.getenv('LLM_API_KEY', '').strip()
+    llm_ready = bool(llm_key) and llm_key not in (
+        'sk-your-api-key-here',
+        'sk-your-deepseek-key',
+    )
     config = {
-        'default_provider': os.getenv('DEFAULT_MODEL_PROVIDER', 'openai'),
-        'default_model': os.getenv('DEFAULT_MODEL_NAME', 'gpt-4o-mini'),
+        'default_provider': os.getenv('DEFAULT_MODEL_PROVIDER', 'custom'),
+        'default_model': os.getenv('LLM_MODEL_NAME', 'gpt-4o-mini'),
+        'llm_configured': llm_ready,
         'providers': {
+            'custom': {
+                'configured': llm_ready,
+                'name': '自定义（LLM_API_KEY）',
+            },
             'openai': {
                 'configured': bool(os.getenv('OPENAI_API_KEY')),
-                'name': 'OpenAI'
+                'name': 'OpenAI',
             },
             'anthropic': {
                 'configured': bool(os.getenv('ANTHROPIC_API_KEY')),
-                'name': 'Anthropic'
+                'name': 'Anthropic',
             },
             'zhipu': {
                 'configured': bool(os.getenv('ZHIPU_API_KEY')),
-                'name': '智谱AI'
-            }
-        }
+                'name': '智谱AI',
+            },
+        },
     }
 
     return jsonify(config)

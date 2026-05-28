@@ -164,3 +164,73 @@ def export_project(project_id):
         as_attachment=True,
         download_name=f'{safe_name}-article-flow-export.zip',
     )
+
+
+@bp.route('/<project_id>/stats', methods=['GET'])
+def get_project_stats(project_id):
+    """聚合项目统计数据"""
+    project = Project.get_by_id(project_id)
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    from ..services.draft_version_service import list_draft_versions
+    from ..services.anti_ai_service import scan_content
+
+    from ..utils_words import count_article_words
+
+    ARTICLE_WORKFLOW_STEPS = 10
+
+    # 步骤完成情况
+    steps_status: list[dict] = []
+    for step in range(1, ARTICLE_WORKFLOW_STEPS + 1):
+        items = list(ProjectContent.get_by_project_step(project_id, step))
+        has_content = any((i.get('content') or '').strip() for i in items)
+        steps_status.append({
+            'step': step,
+            'has_content': has_content,
+            'content_count': len(items),
+        })
+
+    # 字数统计
+    draft_items = list(ProjectContent.get_by_project_step(project_id, 5))
+    draft_text = ''
+    if draft_items:
+        latest = max(draft_items, key=lambda x: x.get('updated_at', x.get('created_at', '')))
+        draft_text = latest.get('content', '') or ''
+    char_count = count_article_words(draft_text)
+
+    # AI 味评分
+    ai_scan = scan_content(draft_text) if draft_text else None
+
+    # 版本历史
+    versions = list_draft_versions(project_id)
+    version_count = len(versions)
+
+    # 版本趋势：取最近 20 条版本记录
+    version_trend: list[dict] = []
+    for v in versions[-20:]:
+        vc = v.get('content', '') or ''
+        v_scan = scan_content(vc)
+        version_trend.append({
+            'version': v.get('version_number', 0),
+            'note': v.get('note', ''),
+            'created_at': v.get('created_at', ''),
+            'ai_score': v_scan.get('score', 0) if isinstance(v_scan, dict) else 0,
+            'word_count': count_article_words(vc),
+        })
+
+    return jsonify({
+        'project_title': project.get('title', ''),
+        'status': project.get('status', 'draft'),
+        'current_step': project.get('current_step', 1),
+        'target_word_count': project.get('target_word_count', 0),
+        'word_count': char_count,
+        'ai_taste_score': ai_scan.get('score', 0) if ai_scan else 0,
+        'ai_target_score': ai_scan.get('target_score', 30) if ai_scan else 30,
+        'ai_match_count': ai_scan.get('match_count', 0) if ai_scan else 0,
+        'version_count': version_count,
+        'steps_status': steps_status,
+        'version_trend': version_trend,
+        'created_at': project.get('created_at', ''),
+        'updated_at': project.get('updated_at', ''),
+    })

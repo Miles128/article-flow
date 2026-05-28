@@ -1,9 +1,10 @@
 """格式转换路由 - 使用配置外部化 + @with_llm 装饰器"""
-from flask import Blueprint, request, jsonify
+import io
+import re
+from flask import Blueprint, request, jsonify, send_file
 from ..decorators import with_llm
 from ..config_loader import get_platforms
 from ..utils import translate_error
-import re
 
 bp = Blueprint('format', __name__)
 
@@ -67,36 +68,41 @@ def export_content():
 
     content = data['content']
     export_format = data['format']
-    title = data.get('title', 'Untitled')
+    title = data.get('title', 'Untitled').replace('/', '-')[:60]
+    safe_filename = title if title else 'untitled'
 
     if export_format == 'html':
         html_content = markdown_to_html(content)
         return jsonify({
             'format': 'html',
             'content': html_content,
-            'filename': f"{title}.html"
+            'filename': f"{safe_filename}.html",
         })
 
     elif export_format == 'pdf':
-        return jsonify({
-            'format': 'pdf',
-            'message': 'PDF export requires server-side rendering',
-            'html_preview': markdown_to_html(content)
-        })
+        buf = markdown_to_pdf(content, title)
+        return send_file(
+            buf,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'{safe_filename}.pdf',
+        )
 
-    elif export_format == 'word':
-        return jsonify({
-            'format': 'word',
-            'message': 'Word export requires additional processing',
-            'html_content': markdown_to_html(content)
-        })
+    elif export_format == 'docx':
+        buf = markdown_to_docx(content)
+        return send_file(
+            buf,
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            as_attachment=True,
+            download_name=f'{safe_filename}.docx',
+        )
 
     elif export_format == 'plaintext':
         plain = markdown_to_plaintext(content)
         return jsonify({
             'format': 'plaintext',
             'content': plain,
-            'filename': f"{title}.txt"
+            'filename': f"{safe_filename}.txt",
         })
 
     return jsonify({'error': f'Unknown format: {export_format}'}), 400
@@ -155,3 +161,157 @@ def markdown_to_plaintext(md_content):
     text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
+
+
+# ─── Markdown → 块级结构解析 ───
+
+def _parse_md_blocks(md: str) -> list[dict]:
+    """将 Markdown 文本解析为块级结构列表。"""
+    blocks: list[dict] = []
+    lines = md.split('\n')
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        # 标题
+        m = re.match(r'^(#{1,6})\s+(.+)', line)
+        if m:
+            blocks.append({'kind': 'heading', 'level': len(m.group(1)), 'text': m.group(2).strip()})
+            i += 1
+            continue
+        # 无序列表
+        m = re.match(r'^(\s*)[-*+]\s+(.+)', line)
+        if m:
+            items = [m.group(2).strip()]
+            indent = len(m.group(1))
+            i += 1
+            while i < len(lines) and re.match(rf'^\s{{{indent + 2},}}[-*+]\s+', lines[i]):
+                items.append(re.sub(r'^\s+[-*+]\s+', '', lines[i]).strip())
+                i += 1
+            blocks.append({'kind': 'ul', 'items': items})
+            continue
+        # 有序列表
+        m = re.match(r'^(\s*)\d+\.\s+(.+)', line)
+        if m:
+            items = [m.group(2).strip()]
+            i += 1
+            while i < len(lines) and re.match(r'^\s*\d+\.\s+', lines[i]):
+                items.append(re.sub(r'^\s*\d+\.\s+', '', lines[i]).strip())
+                i += 1
+            blocks.append({'kind': 'ol', 'items': items})
+            continue
+        # 空行
+        if not line.strip():
+            i += 1
+            continue
+        # 普通段落
+        para_lines = [line]
+        i += 1
+        while i < len(lines) and lines[i].strip() and not re.match(r'^(#{1,6}\s|[-*+]\s|\d+\.\s)', lines[i]):
+            para_lines.append(lines[i])
+            i += 1
+        blocks.append({'kind': 'para', 'text': '\n'.join(para_lines).strip()})
+    return blocks
+
+
+def _strip_inline(text: str) -> str:
+    """去除行内 Markdown 标记，返回纯文本。"""
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    text = re.sub(r'\*(.+?)\*', r'\1', text)
+    text = re.sub(r'__(.+?)__', r'\1', text)
+    text = re.sub(r'_(.+?)_', r'\1', text)
+    text = re.sub(r'`([^`]+)`', r'\1', text)
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    text = re.sub(r'!\[.*?\]\([^)]+\)', '', text)
+    return text
+
+
+# ─── DOCX 导出 ───
+
+def markdown_to_docx(md_content: str) -> io.BytesIO:
+    """将 Markdown 内容转换为 DOCX 文件（python-docx）。"""
+    from docx import Document
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    doc = Document()
+    # 设置默认字体
+    style = doc.styles['Normal']
+    font = style.font
+    font.name = 'Arial'
+    font.size = Pt(11)
+
+    blocks = _parse_md_blocks(md_content)
+    for b in blocks:
+        kind = b['kind']
+        if kind == 'heading':
+            level = min(b['level'], 3)
+            p = doc.add_heading(_strip_inline(b['text']), level=level)
+        elif kind == 'para':
+            doc.add_paragraph(_strip_inline(b['text']))
+        elif kind in ('ul', 'ol'):
+            for item in b['items']:
+                p = doc.add_paragraph(_strip_inline(item), style='List Bullet')
+        else:
+            doc.add_paragraph(_strip_inline(b.get('text', '')))
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf
+
+
+# ─── PDF 导出 ───
+
+def markdown_to_pdf(md_content: str, title: str = '') -> io.BytesIO:
+    """将 Markdown 内容转换为 PDF 文件（fpdf2）。"""
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    # 注册中文字体（使用内置的 helvetica 作为后备；fpdf2 支持 Unicode）
+    # fpdf2 内置支持 CJK 需要用 add_font 注册支持 Unicode 的字体
+    # 使用 fpdf2 自带的 Unicode 字体机制
+    try:
+        pdf.add_font('NotoSansSC', '', '/System/Library/Fonts/Supplemental/Arial Unicode.ttf')
+        font_name = 'NotoSansSC'
+    except Exception:
+        # Fallback: use built-in (no CJK, but won't crash)
+        font_name = 'Helvetica'
+
+    pdf.set_font(font_name, '', 12)
+
+    if title:
+        pdf.set_font(font_name, '', 16)
+        pdf.multi_cell(0, 10, title, align='C')
+        pdf.ln(6)
+
+    blocks = _parse_md_blocks(md_content)
+    pdf.set_font(font_name, '', 11)
+
+    for b in blocks:
+        kind = b['kind']
+        if kind == 'heading':
+            size = {1: 16, 2: 14, 3: 12}.get(b['level'], 11)
+            pdf.set_font(font_name, '', size)
+            pdf.ln(4)
+            pdf.multi_cell(0, 8, _strip_inline(b['text']))
+            pdf.set_font(font_name, '', 11)
+            pdf.ln(2)
+        elif kind == 'para':
+            pdf.multi_cell(0, 6, _strip_inline(b['text']))
+            pdf.ln(2)
+        elif kind in ('ul', 'ol'):
+            for idx, item in enumerate(b['items']):
+                prefix = '• ' if kind == 'ul' else f'{idx + 1}. '
+                pdf.multi_cell(0, 6, prefix + _strip_inline(item))
+            pdf.ln(2)
+        else:
+            pdf.multi_cell(0, 6, _strip_inline(b.get('text', '')))
+            pdf.ln(2)
+
+    buf = io.BytesIO()
+    pdf.output(buf)
+    buf.seek(0)
+    return buf

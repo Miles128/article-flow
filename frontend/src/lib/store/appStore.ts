@@ -2,6 +2,14 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Project, WorkflowStep, EditorMode } from '@/types';
 
+// ─── Re-export sub-stores ───
+export { useProjectStore } from './projectStore';
+export { useEditorStore } from './editorStore';
+export { useWorkspaceStore } from './workspaceStore';
+export { useUIStore } from './uiStore';
+
+// ─── Aggregate store (backward compatible) ───
+
 interface WorkspaceConfig {
   path: string;
   type: string;
@@ -18,7 +26,9 @@ interface AppState {
   workspace: WorkspaceConfig;
   showWorkspacePicker: boolean;
   workspaceFiles: Array<{ name: string; path: string }>;
-  
+  draftStatusText: string | null;
+  writingStyleProfileId: string;
+
   setCurrentProject: (project: Project | null) => void;
   setCurrentStep: (step: number) => void;
   setEditorMode: (mode: EditorMode['mode']) => void;
@@ -29,6 +39,8 @@ interface AppState {
   setWorkspace: (workspace: WorkspaceConfig) => void;
   setShowWorkspacePicker: (show: boolean) => void;
   setWorkspaceFiles: (files: Array<{ name: string; path: string }>) => void;
+  setDraftStatusText: (text: string | null) => void;
+  setWritingStyleProfileId: (id: string) => void;
   reset: () => void;
 }
 
@@ -42,19 +54,18 @@ export const useAppStore = create<AppState>()(
       lastSavedAt: null,
       sidebarOpen: false,
       sidebarCollapsed: false,
-      workspace: {
-        path: '',
-        type: 'general',
-      },
+      workspace: { path: '', type: 'general' },
       showWorkspacePicker: false,
       workspaceFiles: [],
-      
+      draftStatusText: null,
+      writingStyleProfileId: '',
+
       setCurrentProject: (project) => set({ currentProject: project }),
       setCurrentStep: (step) => set({ currentStep: step }),
       setEditorMode: (mode) => set({ editorMode: mode }),
-      setIsSaving: (saving) => set({ 
-        isSaving: saving, 
-        lastSavedAt: saving ? undefined : new Date() 
+      setIsSaving: (saving) => set({
+        isSaving: saving,
+        lastSavedAt: saving ? undefined : new Date(),
       }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
@@ -62,12 +73,16 @@ export const useAppStore = create<AppState>()(
       setWorkspace: (workspace) => set({ workspace }),
       setShowWorkspacePicker: (show) => set({ showWorkspacePicker: show }),
       setWorkspaceFiles: (files) => set({ workspaceFiles: files }),
+      setDraftStatusText: (text) => set({ draftStatusText: text }),
+      setWritingStyleProfileId: (id) => set({ writingStyleProfileId: id }),
       reset: () => set({
         currentProject: null,
         currentStep: 1,
         editorMode: 'split',
         isSaving: false,
         lastSavedAt: null,
+        draftStatusText: null,
+        writingStyleProfileId: '',
       }),
     }),
     {
@@ -98,6 +113,8 @@ export const useAppStore = create<AppState>()(
   )
 );
 
+// ─── Workflow steps config ───
+
 export type ContentType = 'script' | 'article' | 'general';
 
 export const CONTENT_TYPE_CONFIG: Record<ContentType, { label: string; icon: string; description: string }> = {
@@ -124,13 +141,13 @@ export const CONTENT_TYPE_STEPS: Record<ContentType, WorkflowStep[]> = {
     { id: 6, name: '标题工坊', description: '爆款标题、副标题、封面文案', icon: 'Type', path: '/projects/[id]/titles', canSave: true, isBreakpoint: false },
     { id: 7, name: '修改审核', description: '内容→风格→细节 三轮审校流水线', icon: 'CheckSquare', path: '/projects/[id]/review', canSave: true, isBreakpoint: false },
     { id: 8, name: '格式处理', description: 'Markdown 规范化、多平台格式适配', icon: 'FileText', path: '/projects/[id]/format', canSave: true, isBreakpoint: false },
-    { id: 9, name: '生成配图', description: '多配色方案、HTML 配图输出', icon: 'Image', path: '/projects/[id]/illustration', canSave: true, isBreakpoint: false },
+    { id: 9, name: '生成配图', description: '多配色方案、AI配图生成', icon: 'Image', path: '/projects/[id]/illustration', canSave: true, isBreakpoint: false },
     { id: 10, name: '发布准备', description: '发布清单、导出包、最终检查', icon: 'Rocket', path: '/projects/[id]/publish', canSave: true, isBreakpoint: false },
   ],
   general: [
     { id: 1, name: '选题灵感', description: '多平台热搜聚合、爆款话题捕捉、灵感收集', icon: 'TrendingUp', path: '/projects/[id]/hotnews', canSave: true, isBreakpoint: false },
     { id: 2, name: '写草稿', description: '200-500字短内容、观点直给、金句驱动', icon: 'PenTool', path: '/projects/[id]/writing', canSave: true, isBreakpoint: true },
-    { id: 3, name: '卡片配图', description: '22色系可选、一键生成竖版卡片', icon: 'Image', path: '/projects/[id]/illustration', canSave: true, isBreakpoint: false },
+    { id: 3, name: '卡片配图', description: '22色系可选、AI配图生成', icon: 'Image', path: '/projects/[id]/illustration', canSave: true, isBreakpoint: false },
     { id: 4, name: '发布', description: '多平台格式适配、一键发布到小红书等', icon: 'Type', path: '/projects/[id]/format', canSave: true, isBreakpoint: false },
   ],
 };

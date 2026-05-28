@@ -509,7 +509,7 @@ export default function ResearchPage() {
               />
               <button
                 onClick={addClaim}
-                className="px-3 py-2 bg-amber-500 text-white text-sm"
+                className="px-3 py-2 wen-btn-action-accent text-sm"
               >
                 登记
               </button>
@@ -562,7 +562,7 @@ export default function ResearchPage() {
 
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-100 max-w-2xl w-full p-6">
+          <div className="bg-surface-50/70 backdrop-blur-[3px] max-w-2xl w-full p-6">
             <h2 className="wen-title text-ink-900 mb-6">添加资料</h2>
 
             <div className="space-y-4">

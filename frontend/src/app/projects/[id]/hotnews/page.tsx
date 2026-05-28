@@ -340,7 +340,7 @@ export default function HotnewsPage() {
                       className={clsx(
                         "w-7 h-7 flex items-center justify-center text-xs font-bold shrink-0",
                         i < 3
-                          ? "bg-primary-500 text-white"
+                          ? "wen-chip-active"
                           : "bg-surface-200/50 text-ink-600",
                       )}
                     >
@@ -446,7 +446,7 @@ function TopicCard({
             <span
               className={clsx(
                 "w-8 h-8 flex items-center justify-center text-sm font-bold shrink-0",
-                index < 3 ? "bg-primary-500 text-white" : "bg-surface-200/50",
+                index < 3 ? "wen-chip-active" : "bg-surface-200/50 text-ink-600",
               )}
             >
               {index + 1}

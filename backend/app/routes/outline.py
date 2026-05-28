@@ -7,11 +7,12 @@ from ..models import Outline
 from ..services.llm_service import get_llm_service
 from ..services.hotnews_service import HotNewsService
 from ..utils import parse_json_from_llm, translate_error, extract_llm_config
+from ..utils_outline import MAX_OUTLINE_H2_SECTIONS, count_top_level_outline_nodes
 
 bp = Blueprint('outline', __name__)
 logger = logging.getLogger(__name__)
 
-OUTLINE_SEARCH_TIMEOUT = 12
+OUTLINE_SEARCH_TIMEOUT = 5  # 搜索超时缩短，没 Key 时直接跳过
 
 
 @bp.route('', methods=['GET'])
@@ -33,6 +34,10 @@ def create_or_update_outline():
     project_id = data['project_id']
     title = data.get('title', '文章大纲')
     nodes = data.get('nodes', [])
+    if count_top_level_outline_nodes(nodes) > MAX_OUTLINE_H2_SECTIONS:
+        return jsonify({
+            'error': f'二级章节（顶层节点）不能超过 {MAX_OUTLINE_H2_SECTIONS} 个',
+        }), 400
 
     outline = Outline.create_or_update(project_id, {
         'title': title,
@@ -62,19 +67,21 @@ def generate_outline():
     try:
         search_context = ''
         search_results: list = []
-        try:
-            with ThreadPoolExecutor(max_workers=1) as pool:
-                fut = pool.submit(
-                    HotNewsService.search_with_fallback,
-                    topic,
-                    tavily_api_key,
-                    6,
-                )
-                search_results = fut.result(timeout=OUTLINE_SEARCH_TIMEOUT)
-        except FuturesTimeout:
-            logger.warning('Outline search timed out for topic: %s', topic)
-        except Exception as e:
-            logger.warning('Outline search failed: %s', e)
+        # 只有配置了 Tavily Key 才做联网搜索，否则跳过（避免 Google/DDG 超时拖慢生成）
+        if tavily_api_key:
+            try:
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    fut = pool.submit(
+                        HotNewsService.search_with_fallback,
+                        topic,
+                        tavily_api_key,
+                        6,
+                    )
+                    search_results = fut.result(timeout=OUTLINE_SEARCH_TIMEOUT)
+            except FuturesTimeout:
+                logger.warning('Outline search timed out for topic: %s', topic)
+            except Exception as e:
+                logger.warning('Outline search failed: %s', e)
 
         if search_results:
             snippets = []
@@ -111,9 +118,9 @@ def generate_outline():
 
 请生成包含以下要素的大纲：
 1. 吸引人的主标题
-2. 3-5个二级章节
-3. 每个章节包含2-4个三级要点
-4. 简短的开头和结尾
+2. 3-12 个二级章节（顶层 nodes，总数不得超过 {MAX_OUTLINE_H2_SECTIONS} 个）
+3. 每个章节下 2-4 个子要点（放 children，成稿用段落/列表展开，不要用 Markdown 标题）；每个要点说明不超过 80 字
+4. 简短开头与结尾；全书大纲说明性文字合计不超过 800 字（要点不是正文）
 
 请以JSON格式返回：
 {{
@@ -140,6 +147,9 @@ def generate_outline():
         ])
 
         outline_data = parse_json_from_llm(result)
+        nodes_out = outline_data.get('nodes') or []
+        if len(nodes_out) > MAX_OUTLINE_H2_SECTIONS:
+            outline_data['nodes'] = nodes_out[:MAX_OUTLINE_H2_SECTIONS]
         return jsonify(outline_data)
 
     except Exception as e:

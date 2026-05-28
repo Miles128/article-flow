@@ -327,7 +327,7 @@ export default function TopicsPage() {
 
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-100 max-w-md w-full p-6">
+          <div className="bg-surface-50/70 backdrop-blur-[3px] max-w-md w-full p-6">
             <h2 className="wen-title text-ink-900 mb-6">添加选题</h2>
 
             <div className="space-y-4">

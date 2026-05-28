@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { writingApi } from "@/lib/api/client";
+import { streamWritingAi } from "@/lib/writingStream";
+import { getApiError } from "@/lib/apiError";
+import { showToast } from "@/components/ui/Toast";
 import { Loader2, Play, RotateCcw, ChevronRight } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -48,15 +51,23 @@ export function SectionWriterPanel({
     setLoading(true);
     setJudgeResult(null);
     try {
-      const resp = await writingApi.generateSection({
-        sectionTitle: current.title,
-        sectionType: current.sectionType,
-        sectionBrief: current.content,
-        projectId,
-        styleProfileId,
-        context: { priorSections: draftContent },
-      });
-      setSectionContent(resp.data.content);
+      const text = await streamWritingAi(
+        {
+          action: "generate_section",
+          sectionTitle: current.title,
+          sectionType: current.sectionType,
+          sectionBrief: current.content,
+          projectId,
+          styleProfileId,
+          context: { priorSections: draftContent },
+        },
+        { onDelta: (streamed) => setSectionContent(streamed) },
+      );
+      if (!text.trim()) {
+        showToast("error", "本节生成结果为空");
+      }
+    } catch (error: unknown) {
+      showToast("error", getApiError(error, "生成本节失败"));
     } finally {
       setLoading(false);
     }
@@ -140,8 +151,8 @@ export function SectionWriterPanel({
             className={clsx(
               "text-xs px-2 py-1 rounded border",
               i === activeIdx
-                ? "bg-blue-600 text-white border-blue-600"
-                : "bg-surface-100 border-surface-300",
+                ? "bg-blue-50 text-blue-700 border-blue-400"
+                : "bg-surface-50/70 backdrop-blur-[3px] border-surface-300",
             )}
           >
             {s.sectionType === "experience" ? "✍️" : "🤖"} {s.title.slice(0, 8)}
@@ -172,7 +183,7 @@ export function SectionWriterPanel({
         <button
           onClick={generateCurrent}
           disabled={loading || current?.sectionType === "experience"}
-          className="text-xs px-3 py-1.5 bg-blue-600 text-white disabled:opacity-50 flex items-center gap-1"
+          className="text-xs px-3 py-1.5 wen-btn-action-accent disabled:opacity-50 flex items-center gap-1"
         >
           {loading ? (
             <Loader2 className="animate-spin" size={12} />
@@ -184,21 +195,21 @@ export function SectionWriterPanel({
         <button
           onClick={judgeCurrent}
           disabled={loading || !sectionContent.trim()}
-          className="text-xs px-3 py-1.5 border hover:bg-white"
+          className="text-xs px-3 py-1.5 border hover:bg-surface-50/70"
         >
           评分
         </button>
         <button
           onClick={reviseCurrent}
           disabled={loading || !sectionContent.trim()}
-          className="text-xs px-3 py-1.5 border hover:bg-surface-100 flex items-center gap-1"
+          className="text-xs px-3 py-1.5 border hover:bg-surface-50/75 flex items-center gap-1"
         >
           <RotateCcw size={12} /> 修订
         </button>
         <button
           onClick={appendToDraft}
           disabled={!sectionContent.trim()}
-          className="text-xs px-3 py-1.5 bg-green-600 text-white flex items-center gap-1 ml-auto"
+          className="text-xs px-3 py-1.5 wen-btn-action text-green-700 border-green-300 bg-green-50 hover:bg-green-100 flex items-center gap-1 ml-auto"
         >
           并入草稿 <ChevronRight size={12} />
         </button>

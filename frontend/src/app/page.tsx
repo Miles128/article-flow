@@ -227,7 +227,7 @@ export default function HomePage() {
                         <MoreVertical size={14} strokeWidth={1.5} />
                       </button>
                       {openMenuId === project._id && (
-                        <div className="absolute right-0 top-6 z-30 w-24 bg-surface-100 border border-surface-300 py-0.5">
+                        <div className="absolute right-0 top-6 z-30 w-24 bg-surface-50/70 backdrop-blur-[3px] border border-surface-300 py-0.5">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -252,7 +252,7 @@ export default function HomePage() {
 
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/15 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-100 max-w-md w-full p-6 border border-surface-300">
+          <div className="bg-surface-50/70 backdrop-blur-[3px] max-w-md w-full p-6 border border-surface-300">
             <h2 className="wen-title mb-5">创建新项目</h2>
 
             {createError && (
@@ -282,7 +282,7 @@ export default function HomePage() {
                       type="button"
                       onClick={() => setNewProject({ ...newProject, contentType: key })}
                       className={clsx(
-                        'p-2.5 text-center transition-colors bg-surface-100',
+                        'p-2.5 text-center transition-colors bg-surface-50/70 backdrop-blur-[3px]',
                         newProject.contentType === key
                           ? 'text-primary-600 bg-primary-50'
                           : 'text-ink-500 hover:text-ink-800'
@@ -329,7 +329,7 @@ export default function HomePage() {
 
       {deleteConfirmProject && (
         <div className="fixed inset-0 bg-black/15 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-100 max-w-sm w-full p-6 border border-surface-300">
+          <div className="bg-surface-50/70 backdrop-blur-[3px] max-w-sm w-full p-6 border border-surface-300">
             <h2 className="wen-title mb-3">删除项目</h2>
             <p className="text-ink-500 mb-4">
               确定要删除 <span className="font-kaiti text-ink-800">「{deleteConfirmProject.title}」</span> 吗？此操作无法撤销。

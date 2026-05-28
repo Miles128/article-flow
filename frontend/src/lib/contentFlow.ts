@@ -5,6 +5,15 @@ const DRAFT_STEP = 5;
 
 export { DRAFT_STEP };
 
+/** 按大纲写稿的节数 = 顶层章节数（不含子要点节点） */
+export function countFastDraftSections(
+  sections: Array<{ level?: number }> | undefined,
+): number {
+  const list = sections ?? [];
+  const topLevel = list.filter((s) => (s.level ?? 0) === 0);
+  return topLevel.length > 0 ? topLevel.length : list.length;
+}
+
 function outlineToMarkdown(nodes: { title?: string; content?: string; children?: unknown[] }[], level = 0): string {
   if (!nodes?.length) return '';
   const prefix = '#'.repeat(Math.min(level + 2, 6));
@@ -28,7 +37,8 @@ export async function getProjectOutlineMarkdown(projectId: string): Promise<stri
       return `# ${outline.title.trim()}\n\n${body}`.trim();
     }
     return body.trim();
-  } catch {
+  } catch (err) {
+    console.error('getProjectOutlineMarkdown failed:', err);
     return '';
   }
 }
@@ -46,8 +56,8 @@ async function loadSavedAtStep(projectId: string, step: number) {
         return { content: latest.content, contentId: latest._id as string };
       }
     }
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.error('loadSavedAtStep failed:', err);
   }
   return { content: '', contentId: null as string | null };
 }
