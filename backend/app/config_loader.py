@@ -66,6 +66,27 @@ def get_style_intensity_global() -> dict[str, int]:
     }
 
 
+def get_writing_intent_catalog() -> dict:
+    return load_config('writing_intents.yaml')
+
+
+def get_writing_intents_api_payload() -> dict:
+    catalog = get_writing_intent_catalog()
+    intents_raw = catalog.get('intents') or {}
+    intents: list[dict[str, str]] = []
+    for iid, meta in intents_raw.items():
+        if isinstance(meta, dict):
+            intents.append({
+                'id': iid,
+                'label': str(meta.get('label') or iid),
+                'description': str(meta.get('description') or ''),
+            })
+    default = str(catalog.get('default') or 'insight_commentary')
+    if default not in intents_raw:
+        default = intents[0]['id'] if intents else 'insight_commentary'
+    return {'default': default, 'intents': intents}
+
+
 def get_writing_styles_api_payload() -> dict:
     """GET /writing/styles 响应体。"""
     catalog = get_writing_style_catalog()

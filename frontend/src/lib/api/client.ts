@@ -218,6 +218,38 @@ export const researchApi = {
     api.post('/research/claims/verify', { projectId, content }),
   getResearchPackage: (projectId: string) =>
     api.get<{ materials: ResearchMaterial[]; claims: Claim[] }>(`/research/research-package`, { params: { projectId } }),
+  deepAnalysis: (data: {
+    projectId?: string;
+    topic: string;
+    description?: string;
+    useWebSearch?: boolean;
+    useMaterials?: boolean;
+    maxSearchResults?: number;
+    saveToProject?: boolean;
+  }) =>
+    api.post<DeepAnalysisResult>('/research/deep-analysis', data, { timeout: 180000 }),
+};
+
+export type DeepAnalysisSection = { title: string; content: string };
+
+export type DeepAnalysisResult = {
+  topic: string;
+  framework_id: string;
+  warnings: string[];
+  search_item_count: number;
+  material_count: number;
+  search_items: Array<{ title?: string; content?: string; url?: string; source?: string }>;
+  sections: DeepAnalysisSection[];
+  report_markdown: string;
+  suggested_claims: Array<{ text?: string; source_quote?: string }>;
+  writing_angles: string[];
+  outline_nodes: Array<{
+    id: number;
+    title: string;
+    content: string;
+    sectionType: string;
+    children: [];
+  }>;
 };
 
 export const outlineApi = {
@@ -243,6 +275,22 @@ export const writingApi = {
         max_intensity?: number;
       }>;
     }>('/writing/styles'),
+  getIntents: () =>
+    api.get<{
+      default: string;
+      intents: Array<{ id: string; label: string; description?: string }>;
+    }>('/writing/intents'),
+  getBrief: (projectId: string) =>
+    api.get<{ brief: Record<string, unknown> | null; brief_block: string }>(
+      '/writing/brief',
+      { params: { projectId } },
+    ),
+  generateBrief: (data: { projectId: string; writingIntent?: string }) =>
+    api.post<{ brief: Record<string, unknown>; brief_block: string }>(
+      '/writing/brief/generate',
+      data,
+      { timeout: 120000 },
+    ),
   scanAiRules: (content: string) => api.post<AntiAiScanResult>('/writing/scan-ai-rules', { content }),
   fixAiRules: (content: string, opts?: { useLlmPolish?: boolean; styleProfileId?: string }) =>
     api.post<{ fixedContent: string; beforeScore: number; afterScore: number; improved: boolean }>('/writing/fix-ai-rules', {
@@ -452,6 +500,9 @@ export const writingStreamApi = {
     styleIntensity?: number;
     styleProfileId?: string;
     targetWordCount?: number;
+    writingIntent?: string;
+    finishCoherence?: boolean;
+    insightPass?: boolean;
   }): Promise<Response> => {
     const apiBase = resolveStreamingApiBaseUrl();
     const url = `${apiBase}/writing/fast-draft-stream`;

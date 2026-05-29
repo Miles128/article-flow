@@ -35,10 +35,19 @@ def max_output_tokens_for_words(word_count: int) -> int:
 
 from ..config_loader import get_default_writing_style
 from ..prompts.writing_style import rewrite_style_messages
-from ..prompts.writing_style_intensity import format_style_prompt, parse_style_intensity_from_data
+from ..prompts.writing_style_intensity import (
+    format_style_prompt,
+    get_destylize_instruction,
+    parse_style_intensity_from_data,
+)
+from ..services.style_rewrite_service import (
+    rewrite_body_selective,
+    should_use_selective_rewrite,
+)
+from ..prompts.writing_intent import normalize_writing_intent
 from ..prompts.writing_quality import (
     get_section_length_instruction,
-    get_writing_quality_rules,
+    get_section_writing_rules,
 )
 from ..utils_writing_sanitize import polish_generated_draft
 
@@ -184,7 +193,6 @@ class LLMService:
         fallback = get_default_writing_style()
         style_key = style if format_style_prompt(style, intensity) else fallback
         style_desc = format_style_prompt(style_key, intensity)
-
         prompt = ChatPromptTemplate.from_messages([
             ('system', '你是一位资深的编辑和写作顾问，擅长润色文章，提升表达质量。'),
             ('user', f'请润色以下正文，要求风格：{style_desc}\n\n原文：\n{content}\n\n'
@@ -201,9 +209,28 @@ class LLMService:
         style: str,
         *,
         intensity: int | None = None,
+        restore_plain: bool = False,
+        writing_intent: str | None = None,
     ) -> str:
+        if should_use_selective_rewrite(
+            style,
+            intensity,
+            restore_plain=restore_plain,
+        ):
+            return rewrite_body_selective(
+                self.llm,
+                content,
+                style,
+                intensity=intensity,
+                writing_intent=writing_intent,
+            )
         prompt = ChatPromptTemplate.from_messages(
-            rewrite_style_messages(content, style, intensity=intensity),
+            rewrite_style_messages(
+                content,
+                style,
+                intensity=intensity,
+                restore_plain=restore_plain,
+            ),
         )
         chain = prompt | self.llm | StrOutputParser()
         return _invoke_with_retry(chain, input_vars={})
@@ -376,7 +403,7 @@ Brief: {brief}
 {anti}
 
 【强制要求】
-1. 大纲中的每个章节标题都必须出现在正文中（## 标题，逐字一致）
+1. 大纲中的每个章节标题都必须出现在正文中（**标题** 单独一行点题，逐字一致，禁止 ## / ### 行）
 2. 每个章节下的要点说明必须全部体现
 3. 不得跳过、合并或重排章节
 4. 保持全篇术语与数据口径一致
@@ -397,17 +424,40 @@ Brief: {brief}
 {"score": 0-100, "issues": [{"type": "事实/逻辑/结构", "position": "位置", "original": "原文", "suggestion": "建议", "severity": "high|medium|low"}], "overall": "总体评价", "corrected_content": "修正后全文"}'''
 
         elif pass_type == 'style':
-            system_msg = '''你是风格审校与降AI味专家。请审校以下文章，聚焦：
-1. 口语化改造 - 书面语转口语表达
-2. 增加具体细节 - 抽象描述转具体场景
-3. 加入个人观点 - 客观陈述转主观偏好
-4. 打破机械结构 - 对称列表转自然叙述
-5. 使用反差转折 - 单一调性转有起伏
+            intent = 'informational'
+            if context:
+                intent = normalize_writing_intent(
+                    context.get('writing_intent') or context.get('writingIntent'),
+                )
+            if intent == 'insight_commentary':
+                system_msg = '''你是风格审校专家（观点评论稿）。请审校以下文章，聚焦：
+1. 删除套话与空话，保留并强化判断句与论证链
+2. 抽象描述改为具体事实或可追溯推论；禁止一律改成口水口语
+3. 打破机械对称列表；允许克制书面语与适度长句
+4. 不得删减章节标题与核心论点
 
-AI套话库（必须消除）：在当今/随着/值得注意的是/综上所述/不仅...而且/显著提升/充分利用/有效改善/深入了解/经过深入分析
+套话（必须消除）：在当今/随着/值得注意的是/综上所述/显著提升/具有重要意义
 
 请以JSON格式返回：
-{"ai_taste_score": 0-100, "issues": [{"type": "套话/书面语/AI句式/抽象表达", "position": "位置", "original": "原文", "suggestion": "改写建议", "severity": "high|medium|low"}], "corrected_content": "去AI味后的全文", "before_after": {"before_score": 0-100, "after_score": 0-100, "improvement": "改善幅度描述"}}'''
+{"ai_taste_score": 0-100, "issues": [{"type": "套话/空话/机械结构", "position": "位置", "original": "原文", "suggestion": "改写建议", "severity": "high|medium|low"}], "corrected_content": "润色后的全文", "before_after": {"before_score": 0-100, "after_score": 0-100, "improvement": "改善幅度描述"}}'''
+            elif intent == 'literary_essay':
+                system_msg = '''你是风格审校专家（叙事随笔）。请审校以下文章，聚焦：
+1. 删除套话与堆砌比喻；保留有效意象与节奏
+2. 须有作者视角与判断，不能只有描写
+3. 不得为搞笑或口语化损害逻辑与信息
+
+请以JSON格式返回：
+{"ai_taste_score": 0-100, "issues": [{"type": "套话/堆砌修辞/缺判断", "position": "位置", "original": "原文", "suggestion": "改写建议", "severity": "high|medium|low"}], "corrected_content": "润色后的全文", "before_after": {"before_score": 0-100, "after_score": 0-100, "improvement": "改善幅度描述"}}'''
+            else:
+                system_msg = '''你是风格审校与降AI味专家。请审校以下文章，聚焦：
+1. 删除套话；用具体数字和场景替代空洞形容词
+2. 打破机械对称列表，改为自然叙述
+3. 信息科普稿可适度口语化，但禁止损害事实准确性
+
+AI套话库（必须消除）：在当今/随着/值得注意的是/综上所述/显著提升/充分利用
+
+请以JSON格式返回：
+{"ai_taste_score": 0-100, "issues": [{"type": "套话/书面语/AI句式", "position": "位置", "original": "原文", "suggestion": "改写建议", "severity": "high|medium|low"}], "corrected_content": "润色后的全文", "before_after": {"before_score": 0-100, "after_score": 0-100, "improvement": "改善幅度描述"}}'''
 
         elif pass_type == 'detail':
             system_msg = '''你是细节审校专家。请审校以下文章，聚焦：
@@ -585,6 +635,12 @@ AI味常见特征：
         prior = context.get('prior_sections', '')
         anti = context.get('anti_ai_rules', '')
         section_brief = (context.get('section_brief') or '').strip()
+        intent = normalize_writing_intent(context.get('writing_intent'))
+        brief_block = (context.get('writing_brief_block') or '').strip()
+        quality_rules = get_section_writing_rules(
+            intent,
+            writing_brief_block=brief_block,
+        )
         from ..utils_outline import truncate_text, writing_context_limits
 
         tw = int(context.get('target_word_count') or context.get('target_total_words') or 400)
@@ -611,7 +667,7 @@ AI味常见特征：
                 ('system',
                  '你是专业写作者。用第一人称"我"写个人经验，必须具体、有细节、有数据、有反思。'
                  '像真人博客，不要AI腔。\n'
-                 + get_writing_quality_rules()),
+                 + quality_rules),
                 ('user', f'''请撰写章节「{section_title}」（经验型，第一人称）。
 
 【强制要求】
@@ -650,15 +706,15 @@ AI味常见特征：
         prompt = ChatPromptTemplate.from_messages([
             ('system',
              '你是专业写作者。按大纲写深度评论，不是堆砌要点。\n'
-             + get_writing_quality_rules()),
+             + quality_rules),
             ('user', f'''请撰写章节「{section_title}」。
 {index_hint}
 
 【强制要求】
 1. {section_opening_rule(section_title)}
 2. 必须覆盖下方「本节大纲要点」中的所有信息，不得另起话题
-3. 不得写入其他章节的标题或内容，不得复述前文段落
-4. 不得跳过或合并章节
+3. 不得写入其他章节的标题或内容
+4. 不得跳过或合并章节；节首勿重复上一节已写过的句子
 
 本节大纲要点（必须全部体现）：
 {section_brief if section_brief else '（无额外要点，但仍须紧扣章节标题）'}

@@ -32,6 +32,8 @@ def test_outline_sections_for_writing_top_level_only():
         {
             'title': '引言',
             'content': '开篇',
+            'claim': '问题已被低估',
+            'open_question': '为何现在才爆发？',
             'children': [{'title': '要点A', 'content': '细节A'}],
         },
         {'title': '正文', 'content': '主体'},
@@ -39,6 +41,8 @@ def test_outline_sections_for_writing_top_level_only():
     sections = outline_sections_for_writing(nodes)
     assert len(sections) == 2
     assert '要点A' in sections[0]['content']
+    assert '本章主张' in sections[0]['content']
+    assert '须回答' in sections[0]['content']
     assert sections[0]['title'] == '引言'
 
 
@@ -46,8 +50,13 @@ def test_internalize_h2_headings():
     raw = '## 引言\n\n段落\n\n## 正文\n\n更多'
     out = internalize_h2_headings(raw)
     assert '## ' not in out
+
+
+def test_flatten_h2_without_space_after_hashes():
+    raw = '##引言\n\n段落'
+    out = internalize_h2_headings(raw)
+    assert '##' not in out
     assert '**引言**' in out
-    assert '**正文**' in out
 
 
 def test_flatten_section_headings_strips_h3():
@@ -83,10 +92,11 @@ def test_max_h2_sections_constant():
 
 
 def test_strip_overlap_with_prior():
-    prior = '**引言**\n\n这是前文结尾。'
-    block = '这是前文结尾。这是本节新内容。'
+    dup = '这是与前文尾部完全重复的一段开头文字，用于测试去重，须足够长才触发裁剪。'
+    prior = f'**引言**\n\n{dup}'
+    block = f'{dup}这是本节新内容。'
     out = strip_overlap_with_prior(block, prior)
-    assert '这是前文结尾' not in out or out.startswith('这是本节')
+    assert out == '这是本节新内容。'
 
 
 def test_extract_single_section_block():

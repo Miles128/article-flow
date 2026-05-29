@@ -127,11 +127,13 @@ export default function PublishPage() {
 
     try {
       const pkg = await researchApi.getResearchPackage(params.id as string);
+      const materialCount = pkg.data.materials?.length ?? 0;
+      const claimCount = pkg.data.claims?.length ?? 0;
       items.push({
         id: "claims",
         label: "资料/主张已登记",
-        done: (pkg.data.materialCount || 0) > 0,
-        detail: `${pkg.data.materialCount} 条资料, ${pkg.data.claimCount} 条主张`,
+        done: materialCount > 0,
+        detail: `${materialCount} 条资料, ${claimCount} 条主张`,
       });
     } catch {
       items.push({ id: "claims", label: "资料包", done: false });

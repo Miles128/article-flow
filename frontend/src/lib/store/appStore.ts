@@ -7,6 +7,7 @@ export { useProjectStore } from './projectStore';
 export { useEditorStore } from './editorStore';
 export { useWorkspaceStore } from './workspaceStore';
 export { useUIStore } from './uiStore';
+export { useWritingStyleStore } from './writingStyleStore';
 
 // ─── Aggregate store (backward compatible) ───
 

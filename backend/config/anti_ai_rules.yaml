@@ -9,9 +9,9 @@ style_limits:
 
 # 成稿节奏（写作 prompt 与扫描共用）
 writing_rhythm:
-  max_sentence_chars: 28
-  max_paragraph_chars: 140
-  max_sentences_per_paragraph: 3
+  max_sentence_chars: 45
+  max_paragraph_chars: 220
+  max_sentences_per_paragraph: 4
   parallel_tricolon_max_per_1000: 1
   semantic_similarity_threshold: 0.52
   semantic_similar_max_per_1000: 1

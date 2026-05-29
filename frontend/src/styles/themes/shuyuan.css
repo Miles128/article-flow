@@ -1,0 +1,42 @@
+/* 书斋墨韵 · 默认壳层主题 */
+
+[data-ui-theme='shuyuan'] {
+  --paper: #f4ead8;
+  --paper-warm: #f0e2cc;
+  --paper-line: #e0d0b4;
+  --ink-muted: #8a7f6e;
+  --ink-body: #3a342c;
+  --ink-deep: #1a1612;
+  --seal: #c96442;
+  --foreground-rgb: 26, 22, 18;
+  --sidebar-width: 220px;
+  --bg-base: #e8d4b0;
+  --bg-gradient: none;
+  --bg-noise-opacity: 0.35;
+  --sheet-bg: #e8dcc4;
+  --sheet-bg-blend: rgba(216, 198, 168, 0.45);
+  --sheet-border: rgba(168, 148, 118, 0.5);
+  --main-canvas-bg: #e8dcc4;
+  --editor-max-width: none;
+  --btn-ghost-bg: rgba(244, 236, 220, 0.95);
+  --btn-ghost-border: rgba(120, 100, 72, 0.5);
+  --btn-seal-fg: #faf6ee;
+  --btn-seal-bg: #b84a32;
+  --btn-seal-border: #8f3626;
+  --sidebar-bg: var(--main-canvas-bg);
+  --step-active-border: #b84a32;
+  --step-active-bg: rgba(184, 74, 50, 0.06);
+  --panel-bg: rgba(244, 236, 220, 0.88);
+  --panel-border: rgba(168, 148, 118, 0.45);
+  --row-hover: rgba(184, 74, 50, 0.06);
+  --accent-fg: #a04832;
+  --accent-bg: rgba(201, 100, 66, 0.1);
+  --accent-border: #c96442;
+  --wen-btn-radius: 6px;
+}
+
+[data-ui-theme='shuyuan'] body::before {
+  background-color: var(--bg-base);
+  background-image: none;
+}
+

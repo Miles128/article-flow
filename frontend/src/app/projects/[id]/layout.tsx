@@ -9,6 +9,7 @@ import type { Project } from "@/types";
 import { ArrowLeft, Loader2, Pencil } from "lucide-react";
 import Link from "next/link";
 import { ProjectHeaderWritingExtras } from "@/components/layout/ProjectHeaderWritingExtras";
+import { useWritingToolbarSlot } from "@/lib/writingToolbarSlot";
 
 export default function ProjectLayout({
   children,
@@ -27,6 +28,7 @@ export default function ProjectLayout({
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   const projectId = params.id as string;
+  const writingToolbarActions = useWritingToolbarSlot((s) => s.actions);
 
   useEffect(() => {
     if (projectId) {
@@ -110,8 +112,13 @@ export default function ProjectLayout({
         <div
           className={
             isWritingPage
-              ? "w-full flex items-center justify-between gap-4 px-3 py-2 min-w-0"
-              : "max-w-4xl mx-auto flex items-center gap-2 px-6 py-4"
+              ? "wen-project-header w-full flex items-center justify-between gap-4 px-0 py-2 min-w-0 wen-main-canvas border-b"
+              : "wen-project-header max-w-4xl mx-auto flex items-center gap-2 px-6 py-4"
+          }
+          style={
+            isWritingPage
+              ? { borderColor: "var(--sheet-border)" }
+              : undefined
           }
         >
           <div className="min-w-0 shrink">
@@ -146,7 +153,10 @@ export default function ProjectLayout({
             )}
           </div>
           {isWritingPage ? (
-            <ProjectHeaderWritingExtras />
+            <div className="flex items-center justify-end gap-2 shrink-0 min-w-0">
+              <ProjectHeaderWritingExtras />
+              {writingToolbarActions}
+            </div>
           ) : null}
         </div>
       }

@@ -128,7 +128,7 @@ export interface HotNewsItem {
   url: string;
   content?: string;
   hotValue: number;
-  source: 'baidu' | 'bing' | 'duckduckgo' | 'tavily';
+  source: 'baidu' | 'bing' | 'duckduckgo' | 'google' | 'tavily';
   category: string;
 }
 
