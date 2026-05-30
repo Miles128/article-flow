@@ -40,6 +40,7 @@ COMPLETED_TITLES_MAX = 40
 
 SectionCallback = Callable[[int, str, str], None]
 SectionStartCallback = Callable[[int, str], None]
+SectionDeltaCallback = Callable[[int, str, str], None]
 
 
 def format_prior_context(
@@ -60,7 +61,7 @@ def format_prior_context(
     if prior.strip():
         tail = prior[-prior_tail_chars:] if len(prior) > prior_tail_chars else prior
         parts.append(
-            '【衔接】上一节落点（可用 1～2 句承接，勿复制下文）：\n'
+            '【衔接】上一节末尾（可写 1～2 句过渡，勿复制下文）：\n'
             f'{tail}'
         )
     return '\n\n'.join(parts) if parts else '（无）'
@@ -75,9 +76,11 @@ class CoherenceAgent:
             ChatPromptTemplate.from_messages([
                 (
                     'system',
-                    '你是全文连贯性编辑。只润色章节之间的过渡、指代一致性与语气统一。'
+                    '你是全文连贯性编辑。只润色章节之间的过渡与指代一致性。'
+                    '语气须服从【风格】栏：若要求正式/学术，不得把全文改得更诗意、更口语或更搞笑。'
                     '禁止删除章节或整段正文，禁止合并或省略章节。'
-                    '输出必须保留每一个章节标题（**标题** 形式，逐字一致），禁止新增 ## 行。',
+                    '输出必须保留每一个章节标题（**标题** 形式，逐字一致）。'
+                    '禁止输出 ## / ### / #### 行。',
                 ),
                 (
                     'user',
@@ -89,6 +92,8 @@ class CoherenceAgent:
 
 【风格】
 {style}
+
+{format_rules}
 
 请输出润色后的完整文章（保留全部章节与关键信息，仅改善衔接）。''',
                 ),
@@ -105,9 +110,10 @@ class CoherenceAgent:
         *,
         total_words: int = DEFAULT_ARTICLE_WORDS,
     ) -> str:
+        from ..article_format import get_article_format_prompt
         from .llm_service import _invoke_with_retry
 
-        return _invoke_with_retry(
+        raw = _invoke_with_retry(
             self._chain,
             input_vars={
                 'outline': truncate_text(
@@ -116,8 +122,57 @@ class CoherenceAgent:
                 ),
                 'draft': draft,
                 'style': style or '（默认）',
+                'format_rules': get_article_format_prompt(),
             },
         )
+        return polish_generated_draft(raw)
+
+
+class InsightPassAgent:
+    """洞察润色：强化判断句、删空话，不压文采、不缩章节。"""
+
+    def __init__(self, llm_service: Any) -> None:
+        self._llm = llm_service
+        self._chain = (
+            ChatPromptTemplate.from_messages([
+                (
+                    'system',
+                    '你是观点型编辑。强化论证与判断，删除套话与空话。'
+                    '禁止删除章节或大幅缩字；禁止把全文改成清单体或口水口语；'
+                    '保留 **章节标题** 逐字一致。禁止输出 ## / ### / #### 行。',
+                ),
+                (
+                    'user',
+                    '''【写前 Brief】
+{brief}
+
+【待润色全文】
+{draft}
+
+{format_rules}
+
+请输出润色后全文。''',
+                ),
+            ])
+            | llm_service.llm
+            | StrOutputParser()
+        )
+
+    def polish(self, draft: str, brief_block: str = '') -> str:
+        from ..article_format import get_article_format_prompt
+        from .llm_service import _invoke_with_retry
+
+        if not (brief_block or '').strip():
+            return draft
+        raw = _invoke_with_retry(
+            self._chain,
+            input_vars={
+                'brief': brief_block,
+                'draft': draft,
+                'format_rules': get_article_format_prompt(),
+            },
+        )
+        return polish_generated_draft(raw)
 
 
 class SectionWriterAgent:
@@ -135,7 +190,7 @@ class SectionWriterAgent:
     ) -> str:
         ctx = {**ctx, 'target_word_count': target_words}
         block = self._llm.generate_section(title, section_type, ctx)
-        return apply_rule_fixes(block)['fixed_content']
+        return (block or '').strip()
 
 
 class WritingOrchestrator:
@@ -145,6 +200,28 @@ class WritingOrchestrator:
         self._llm = llm_service
         self._writer = SectionWriterAgent(llm_service)
         self._coherence = CoherenceAgent(llm_service)
+        self._insight = InsightPassAgent(llm_service)
+
+    def _stream_section_raw(
+        self,
+        title: str,
+        section_type: str,
+        ctx: dict[str, Any],
+        on_partial: Callable[[str], None] | None,
+    ) -> str:
+        from .writing_ai_stream import iter_section_body_tokens
+
+        acc: list[str] = []
+        for token in iter_section_body_tokens(
+            self._llm,
+            title=title,
+            section_type=section_type,
+            ctx=ctx,
+        ):
+            acc.append(token)
+            if on_partial:
+                on_partial(polish_generated_draft(''.join(acc)))
+        return polish_generated_draft(''.join(acc))
 
     def _write_one_section(
         self,
@@ -156,6 +233,7 @@ class WritingOrchestrator:
         completed_titles: list[str],
         *,
         target_words: int | None = None,
+        on_section_partial: Callable[[str], None] | None = None,
     ) -> str:
         sec = sections[idx]
         title = sec.get('title', '') or f'第{idx + 1}节'
@@ -185,12 +263,22 @@ class WritingOrchestrator:
             if target_words is not None
             else (budgets[idx] if idx < len(budgets) else MIN_SECTION_WORDS)
         )
-        block = self._writer.write_section(
-            title,
-            sec.get('section_type', 'info'),
-            ctx,
-            target,
-        )
+        section_type = sec.get('section_type', 'info')
+        if on_section_partial:
+            raw = self._stream_section_raw(
+                title,
+                section_type,
+                {**ctx, 'target_word_count': target},
+                on_section_partial,
+            )
+            block = polish_generated_draft(raw) if raw.strip() else ''
+        else:
+            block = self._writer.write_section(
+                title,
+                section_type,
+                ctx,
+                target,
+            )
         if not (block or '').strip():
             logger.warning('Empty section block for %s', title)
             return f'**{title}**\n\n（本节生成失败，请在本节重写）'
@@ -202,12 +290,21 @@ class WritingOrchestrator:
                 wc,
                 target,
             )
-            block = self._writer.write_section(
-                title,
-                sec.get('section_type', 'info'),
-                {**ctx, 'target_word_count': target},
-                target,
-            )
+            if on_section_partial:
+                raw = self._stream_section_raw(
+                    title,
+                    section_type,
+                    {**ctx, 'target_word_count': target},
+                    on_section_partial,
+                )
+                block = polish_generated_draft(raw) if raw.strip() else ''
+            else:
+                block = self._writer.write_section(
+                    title,
+                    section_type,
+                    {**ctx, 'target_word_count': target},
+                    target,
+                )
         block = strip_overlap_with_prior(block, prior)
         block = extract_single_section_block(block, title, all_titles)
         return polish_generated_draft(block)
@@ -222,6 +319,7 @@ class WritingOrchestrator:
         parallel: bool = False,
         on_section: SectionCallback | None = None,
         on_section_start: SectionStartCallback | None = None,
+        on_section_delta: SectionDeltaCallback | None = None,
     ) -> list[str]:
         total = len(sections)
         parts: list[str] = []
@@ -243,6 +341,14 @@ class WritingOrchestrator:
                 target = dynamic_budgets[0]
                 if on_section_start:
                     on_section_start(i, title)
+
+                def _emit_delta(section_partial: str) -> None:
+                    if not on_section_delta:
+                        return
+                    chunks = [*parts, section_partial]
+                    partial = '\n\n'.join(c for c in chunks if c)
+                    on_section_delta(i, title, polish_generated_draft(partial))
+
                 block = self._write_one_section(
                     i,
                     sections,
@@ -251,6 +357,7 @@ class WritingOrchestrator:
                     prior,
                     completed_titles,
                     target_words=target,
+                    on_section_partial=_emit_delta if on_section_delta else None,
                 )
                 parts.append(block)
                 words_used += count_article_words(block)
@@ -294,11 +401,15 @@ class WritingOrchestrator:
         outline_md: str,
         parallel: bool,
         skip_coherence: bool = False,
+        insight_pass: bool = False,
     ) -> dict[str, Any]:
         full = polish_generated_draft('\n\n'.join(parts))
         before_words = count_article_words(full)
         style = str(ctx_base.get('style', '') or '')
         coherence_applied = False
+        insight_applied = False
+        brief_block = str(ctx_base.get('writing_brief_block') or '')
+        intent = str(ctx_base.get('writing_intent') or '')
 
         if skip_coherence:
             full = ensure_article_title(full, article_title)
@@ -326,6 +437,7 @@ class WritingOrchestrator:
                 'section_word_targets': section_meta,
                 'agents_used': agents,
                 'coherence_applied': False,
+                'insight_pass_applied': False,
                 'writing_mode': 'parallel' if parallel else 'sequential',
             }
 
@@ -336,7 +448,9 @@ class WritingOrchestrator:
                 style,
                 total_words=total_words,
             )
-            polished = apply_rule_fixes(polished)['fixed_content']
+            polished = polish_generated_draft(
+                apply_rule_fixes(polished)['fixed_content'],
+            )
             after_words = count_article_words(polished)
             missing_after = verify_draft_covers_outline(polished, sections)
             if not missing_after and after_words >= int(before_words * 0.85):
@@ -352,10 +466,28 @@ class WritingOrchestrator:
         except Exception as e:
             logger.warning('Coherence agent failed, using raw draft: %s', e)
 
+        run_insight = insight_pass and intent == 'insight_commentary' and brief_block.strip()
+        if run_insight:
+            try:
+                before_i = count_article_words(full)
+                insight_out = self._insight.polish(full, brief_block)
+                insight_out = polish_generated_draft(
+                    apply_rule_fixes(insight_out)['fixed_content'],
+                )
+                after_i = count_article_words(insight_out)
+                missing_i = verify_draft_covers_outline(insight_out, sections)
+                if not missing_i and after_i >= int(before_i * 0.85):
+                    full = insight_out
+                    insight_applied = True
+            except Exception as e:
+                logger.warning('Insight pass failed, using prior draft: %s', e)
+
         full = ensure_article_title(full, article_title)
         missing = verify_draft_covers_outline(full, sections)
 
         agents = ['section_budget_planner', 'section_writer', 'coherence']
+        if insight_applied:
+            agents.append('insight_pass')
         if parallel:
             agents.append('parallel_writer')
 
@@ -380,6 +512,7 @@ class WritingOrchestrator:
             'section_word_targets': section_meta,
             'agents_used': agents,
             'coherence_applied': coherence_applied,
+            'insight_pass_applied': insight_applied,
             'writing_mode': 'parallel' if parallel else 'sequential',
         }
 
@@ -393,7 +526,10 @@ class WritingOrchestrator:
         outline_md: str = '',
         on_section: SectionCallback | None = None,
         on_section_start: SectionStartCallback | None = None,
+        on_section_delta: SectionDeltaCallback | None = None,
         parallel: bool = False,
+        finish_coherence: bool = True,
+        insight_pass: bool = True,
     ) -> dict[str, Any]:
         ctx_base = {**ctx_base, 'target_total_words': total_words, 'target_word_count': total_words}
         budgets = allocate_section_word_budgets(sections, total_words)
@@ -405,6 +541,7 @@ class WritingOrchestrator:
             parallel=parallel,
             on_section=on_section,
             on_section_start=on_section_start,
+            on_section_delta=on_section_delta,
         )
         return self._finalize_draft(
             parts,
@@ -415,7 +552,8 @@ class WritingOrchestrator:
             article_title=article_title,
             outline_md=outline_md,
             parallel=parallel,
-            skip_coherence=True,
+            skip_coherence=not finish_coherence,
+            insight_pass=insight_pass,
         )
 
     def run_fast_draft(
@@ -427,6 +565,8 @@ class WritingOrchestrator:
         article_title: str = '',
         outline_md: str = '',
         parallel: bool = False,
+        finish_coherence: bool = True,
+        insight_pass: bool = True,
     ) -> dict[str, Any]:
         ctx_base = {**ctx_base, 'target_total_words': total_words, 'target_word_count': total_words}
         budgets = allocate_section_word_budgets(sections, total_words)
@@ -447,4 +587,6 @@ class WritingOrchestrator:
             article_title=article_title,
             outline_md=outline_md,
             parallel=parallel,
+            skip_coherence=not finish_coherence,
+            insight_pass=insight_pass,
         )

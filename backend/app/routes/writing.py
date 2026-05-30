@@ -2,12 +2,23 @@
 import json as json_module
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 from ..decorators import with_llm
-from ..config_loader import get_writing_modes, get_anti_ai_rules, get_writing_styles_api_payload
+from ..config_loader import (
+    get_anti_ai_rules,
+    get_writing_intents_api_payload,
+    get_writing_modes,
+    get_writing_styles_api_payload,
+)
+from ..prompts.writing_intent import parse_writing_intent_from_data
 from ..utils import parse_json_from_llm, translate_error, extract_llm_config, get_field
 from ..article_format import ensure_article_title, get_article_format_prompt
 from ..services.llm_service import get_llm_service
 from ..services.anti_ai_service import scan_content, apply_rule_fixes
 from ..services.style_context import merge_writing_context, enrich_writing_context_from_project, get_style_prompt
+from ..services.writing_brief_service import (
+    format_brief_for_prompt,
+    generate_writing_brief,
+    get_writing_brief,
+)
 from ..models import VersionHistory, Outline, ProjectContent, Project
 from ..utils_outline import (
     MAX_OUTLINE_H2_SECTIONS,
@@ -15,7 +26,7 @@ from ..utils_outline import (
     outline_sections_for_writing,
     verify_draft_covers_outline,
 )
-from ..utils_writing_sanitize import polish_generated_draft
+from ..utils_writing_sanitize import normalize_paragraph_spacing, polish_generated_draft
 from ..utils_markdown import transform_preserving_title
 from ..services.writing_word_budget import DEFAULT_ARTICLE_WORDS, allocate_section_word_budgets
 from ..services.writing_agents import WritingOrchestrator, format_prior_context
@@ -76,6 +87,37 @@ def get_writing_modes_api():
 @bp.route('/styles', methods=['GET'])
 def get_writing_styles_api():
     return jsonify(get_writing_styles_api_payload())
+
+
+@bp.route('/intents', methods=['GET'])
+def get_writing_intents_api():
+    return jsonify(get_writing_intents_api_payload())
+
+
+@bp.route('/brief', methods=['GET'])
+def get_writing_brief_api():
+    project_id = request.args.get('project_id') or request.args.get('projectId')
+    if not project_id:
+        return jsonify({'error': 'project_id is required'}), 400
+    brief = get_writing_brief(project_id)
+    return jsonify({
+        'brief': brief,
+        'brief_block': format_brief_for_prompt(brief) if brief else '',
+    })
+
+
+@bp.route('/brief/generate', methods=['POST'])
+@with_llm(require_content=False)
+def generate_writing_brief_api(llm, data):
+    project_id = data.get('project_id') or data.get('projectId')
+    if not project_id:
+        return jsonify({'error': 'project_id is required'}), 400
+    intent = parse_writing_intent_from_data(data)
+    brief = generate_writing_brief(llm, project_id, writing_intent=intent)
+    return jsonify({
+        'brief': brief,
+        'brief_block': format_brief_for_prompt(brief),
+    })
 
 
 @bp.route('/anti-ai-rules', methods=['GET'])
@@ -201,16 +243,23 @@ def framework_mode_generate(llm, data):
     }
 
 
-def _post_process_text(text: str, llm=None, style_prompt: str = '') -> str:
-    """规则去 AI 味；有风格画像时再走 LLM 润色去味（不改动文章标题）"""
+def _post_process_text(
+    text: str,
+    llm=None,
+    style_prompt: str = '',
+    *,
+    llm_polish: bool = True,
+) -> str:
+    """规则去 AI 味；润色/改写后可选 LLM 深度去味（完整节奏规则）。"""
 
     def transform(body: str) -> str:
         processed = apply_rule_fixes(body)['fixed_content']
-        if llm and style_prompt:
+        if llm and llm_polish and style_prompt:
             processed = llm.apply_anti_ai_polish(processed, style_prompt)
         return processed
 
-    return transform_preserving_title(text, transform)
+    body = transform_preserving_title(text, transform)
+    return polish_generated_draft(body)
 
 
 @bp.route('/ai-stream', methods=['POST'])
@@ -271,7 +320,14 @@ def polish_content(llm, data):
         data['content'],
         lambda body: llm.polish_content(body, style, intensity=intensity),
     )
-    return {'polished_content': _post_process_text(text, llm, style_prompt)}
+    return {
+        'polished_content': _post_process_text(
+            text,
+            llm,
+            style_prompt,
+            llm_polish=True,
+        ),
+    }
 
 
 @bp.route('/rewrite', methods=['POST'])
@@ -283,12 +339,27 @@ def rewrite_content(llm, data):
 
     style = data['style']
     intensity = parse_style_intensity_from_data(data)
+    restore_plain = bool(data.get('restore_plain') or data.get('restorePlain'))
     style_prompt = get_style_prompt(data.get('style_profile_id'))
+    writing_intent = parse_writing_intent_from_data(data)
     result = transform_preserving_title(
         data['content'],
-        lambda body: llm.rewrite_content(body, style, intensity=intensity),
+        lambda body: llm.rewrite_content(
+            body,
+            style,
+            intensity=intensity,
+            restore_plain=restore_plain,
+            writing_intent=writing_intent,
+        ),
     )
-    return {'rewritten_content': _post_process_text(result, llm, style_prompt)}
+    return {
+        'rewritten_content': _post_process_text(
+            result,
+            llm,
+            style_prompt,
+            llm_polish=False,
+        ),
+    }
 
 
 @bp.route('/expand', methods=['POST'])
@@ -568,6 +639,8 @@ def fast_draft_from_outline(llm, data):
             article_title = str(ctx_base['outline_title'])
 
     parallel = bool(data.get('parallel', False))
+    finish_coherence = data.get('finish_coherence', data.get('finishCoherence', True))
+    insight_pass = data.get('insight_pass', data.get('insightPass', True))
     orchestrator = WritingOrchestrator(llm)
     return orchestrator.run_fast_draft(
         sections,
@@ -576,6 +649,8 @@ def fast_draft_from_outline(llm, data):
         article_title=article_title,
         outline_md=outline_md,
         parallel=parallel,
+        finish_coherence=bool(finish_coherence),
+        insight_pass=bool(insight_pass),
     )
 
 
@@ -648,6 +723,15 @@ def fast_draft_stream():
         def on_section(idx: int, title: str, block: str):
             event_queue.put(f"data: {json_module.dumps({'type': 'section', 'index': idx, 'title': title, 'content': block}, ensure_ascii=False)}\n\n")
 
+        def on_section_delta(idx: int, title: str, article_partial: str):
+            from ..services.writing_ai_stream import format_sse
+            event_queue.put(format_sse({
+                'type': 'delta',
+                'index': idx,
+                'title': title,
+                'content': article_partial,
+            }))
+
         # 在后台线程运行编排器（它会回调 on_section）
         import threading
         result_container: list[dict] = []
@@ -655,6 +739,11 @@ def fast_draft_stream():
 
         def _run():
             try:
+                finish_coherence = data.get(
+                    'finish_coherence',
+                    data.get('finishCoherence', True),
+                )
+                insight_pass = data.get('insight_pass', data.get('insightPass', True))
                 r = orchestrator.run_fast_draft_stream(
                     sections,
                     ctx_base,
@@ -663,7 +752,10 @@ def fast_draft_stream():
                     outline_md=outline_md,
                     on_section=on_section,
                     on_section_start=on_section_start,
+                    on_section_delta=on_section_delta,
                     parallel=bool(data.get('parallel', False)),
+                    finish_coherence=bool(finish_coherence),
+                    insight_pass=bool(insight_pass),
                 )
                 result_container.append(r)
             except Exception as e:

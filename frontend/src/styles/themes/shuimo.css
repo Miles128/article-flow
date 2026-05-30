@@ -1,0 +1,59 @@
+/* 水墨 · 宣纸灰底、墨色层次，无暖黄纸色 */
+
+[data-ui-theme='shuimo'] {
+  --paper: #f8f8f6;
+  --paper-warm: #f2f2ef;
+  --paper-line: #ddddda;
+  --ink-muted: #8c8c88;
+  --ink-body: #3a3a38;
+  --ink-deep: #1a1a18;
+  --seal: #2e2e2c;
+  --foreground-rgb: 26, 26, 24;
+  --sidebar-width: 212px;
+  --bg-base: #ececea;
+  --bg-gradient: none;
+  --bg-noise-opacity: 0;
+  --sheet-bg: #fafaf8;
+  --sheet-bg-blend: rgba(248, 248, 246, 0.92);
+  --sheet-border: #d4d4d0;
+  --main-canvas-bg: #fafaf8;
+  --panel-bg: rgba(250, 250, 248, 0.94);
+  --panel-border: #d4d4d0;
+  --row-hover: rgba(0, 0, 0, 0.035);
+  --btn-ghost-bg: rgba(255, 255, 253, 0.96);
+  --btn-ghost-border: #c8c8c4;
+  --btn-seal-fg: #f8f8f6;
+  --btn-seal-bg: #3a3a38;
+  --btn-seal-border: #2a2a28;
+  --sidebar-bg: #f0f0ed;
+  --step-active-border: #4a4a48;
+  --step-active-bg: rgba(0, 0, 0, 0.05);
+  --accent-fg: #2e2e2c;
+  --accent-bg: rgba(0, 0, 0, 0.06);
+  --accent-border: #8a8a86;
+  --wen-btn-radius: 6px;
+}
+
+[data-ui-theme='shuimo'] body {
+  color: var(--ink-deep);
+}
+
+[data-ui-theme='shuimo'] body::before {
+  background-color: var(--bg-base);
+  background-image: none;
+}
+
+[data-ui-theme='shuimo'] .wen-title,
+[data-ui-theme='shuimo'] .wen-label {
+  letter-spacing: 0.06em;
+}
+
+[data-ui-theme='shuimo'] .wen-panel,
+[data-ui-theme='shuimo'] .wen-panel-padded {
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.05);
+}
+
+[data-ui-theme='shuimo'] .wen-float-chip {
+  background: rgba(255, 255, 253, 0.94);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}

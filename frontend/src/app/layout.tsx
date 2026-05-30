@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import { ToastContainer } from '@/components/ui/Toast';
+import { appearanceBootstrapScript } from '@/components/theme/AppearanceBootstrap';
+import { ThemeProvider } from '@/components/theme/ThemeProvider';
+import { DEFAULT_ARTICLE_FONT, DEFAULT_UI_FONT } from '@/lib/uiFonts';
+import { DEFAULT_UI_THEME } from '@/lib/uiThemes';
 import '@/styles/globals.css';
-
-const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: '写 — 内容创作工作流',
@@ -16,10 +17,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="zh-CN">
-      <body className={inter.className}>
-        {children}
-        <ToastContainer />
+    <html
+      lang="zh-CN"
+      data-ui-theme={DEFAULT_UI_THEME}
+      data-color-scheme="light"
+      data-ui-font={DEFAULT_UI_FONT}
+      data-article-font={DEFAULT_ARTICLE_FONT}
+      suppressHydrationWarning
+    >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{ __html: appearanceBootstrapScript() }}
+        />
+      </head>
+      <body className="antialiased">
+        <ThemeProvider>
+          {children}
+          <ToastContainer />
+        </ThemeProvider>
       </body>
     </html>
   );

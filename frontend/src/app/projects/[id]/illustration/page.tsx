@@ -865,7 +865,7 @@ Active Theory: 暗底+青色强调`);
           </div>
 
           {/* 使用提示 */}
-          <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-3 border border-blue-100">
+          <div className="bg-blue-50 p-3 border border-blue-100">
             <h4 className="wen-title text-blue-800 mb-1.5 flex items-center gap-1.5">
               <Wand2 size={13} className="text-blue-500" />
               使用提示

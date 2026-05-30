@@ -11,17 +11,18 @@ type StepPageFrameProps = {
   wide?: boolean;
   fullWidth?: boolean;
   toolbarOnly?: boolean;
+  hideToolbar?: boolean;
   children: React.ReactNode;
 };
 
-export function StepPageFrame({ title, stepId, subtitle, titleAside, actions, wide, fullWidth, toolbarOnly, children }: StepPageFrameProps) {
+export function StepPageFrame({ title, stepId, subtitle, titleAside, actions, wide, fullWidth, toolbarOnly, hideToolbar, children }: StepPageFrameProps) {
   const containerClass = fullWidth
     ? toolbarOnly
-      ? 'w-full max-w-none px-3 pt-0 pb-2'
-      : 'w-full max-w-none px-2 py-2'
+      ? 'wen-step-page-frame w-full max-w-none px-0 pt-0 pb-0 wen-main-canvas'
+      : 'wen-step-page-frame w-full max-w-none px-3 py-2 wen-main-canvas'
     : wide
-      ? 'px-6 py-4 max-w-5xl mx-auto'
-      : 'px-6 py-4 max-w-4xl mx-auto';
+      ? 'wen-step-page-frame px-6 py-4 max-w-5xl mx-auto'
+      : 'wen-step-page-frame px-6 py-4 max-w-4xl mx-auto';
 
   const toolbarClass = toolbarOnly
     ? 'wen-toolbar-seamless mb-0 flex-nowrap gap-1 py-1.5 overflow-x-auto'
@@ -29,6 +30,7 @@ export function StepPageFrame({ title, stepId, subtitle, titleAside, actions, wi
 
   return (
     <div className={containerClass}>
+      {!hideToolbar ? (
       <div className={toolbarClass}>
         {toolbarOnly ? (
           <div className="flex items-center gap-1 flex-nowrap overflow-x-auto overflow-y-visible ml-auto w-full justify-end min-w-0">
@@ -44,13 +46,14 @@ export function StepPageFrame({ title, stepId, subtitle, titleAside, actions, wi
               </div>
               {subtitle ? <p className="text-xs text-ink-400 mt-0.5">{subtitle}</p> : null}
             </div>
-            <div className="flex items-center gap-1 flex-wrap overflow-visible">
+            <div className="flex items-center gap-1 flex-wrap overflow-x-auto overflow-y-visible min-w-0 max-w-full justify-end">
               {actions}
               {stepId != null ? <StepNavigation currentStep={stepId} /> : null}
             </div>
           </>
         )}
       </div>
+      ) : null}
       {children}
     </div>
   );

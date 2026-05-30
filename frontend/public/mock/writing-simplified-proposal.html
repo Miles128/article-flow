@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>写作页方案 v4 · 纸上浮钮</title>
+  <style>
+    :root {
+      --paper: #e8dcc4;
+      --paper-sheet: #f6eedc;
+      --paper-float: rgba(255, 252, 245, 0.92);
+      --ink: #2a241c;
+      --ink-muted: #7a6f5c;
+      --ink-faint: #a89882;
+      --seal: #b84a32;
+      --seal-deep: #8f3626;
+      --line: #d9c9a8;
+      --wash: rgba(42, 36, 28, 0.04);
+      --float-shadow: 0 3px 14px rgba(42, 28, 18, 0.09), 0 1px 3px rgba(42, 28, 18, 0.05);
+      --float-shadow-hover: 0 6px 22px rgba(42, 28, 18, 0.13), 0 2px 6px rgba(42, 28, 18, 0.06);
+      --font-serif: "Songti SC", "STSong", "Noto Serif SC", Georgia, serif;
+      --font-kaiti: "Kaiti SC", "STKaiti", "KaiTi", serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-serif);
+      color: var(--ink);
+      background: #e8d4b0;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(168deg, #f0e2c8 0%, #e8d4b0 50%, #dcc49a 100%);
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 1.5rem 1.25rem 3rem;
+    }
+
+    .brief {
+      background: rgba(251, 247, 239, 0.75);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.25rem;
+      box-shadow: var(--float-shadow);
+    }
+
+    .brief h1 { font-family: var(--font-kaiti); font-size: 1.28rem; margin-bottom: 0.5rem; }
+    .brief .lead { font-size: 0.86rem; color: var(--ink-muted); margin-bottom: 1rem; }
+
+    .compare-two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      font-size: 0.78rem;
+    }
+
+    .compare-two > div {
+      padding: 0.7rem 0.8rem;
+      background: var(--paper-float);
+      box-shadow: 0 2px 10px rgba(42, 28, 18, 0.06);
+    }
+
+    .compare-two h3 {
+      font-family: var(--font-kaiti);
+      font-size: 0.88rem;
+      color: var(--seal-deep);
+      margin-bottom: 0.35rem;
+    }
+
+    .compare-two p { color: var(--ink-muted); font-size: 0.74rem; }
+
+    .compare-two ul { margin-top: 0.35rem; padding-left: 1rem; color: var(--ink-muted); }
+
+    .note-box {
+      font-size: 0.76rem;
+      color: var(--ink-muted);
+      padding: 0.65rem 0.8rem;
+      background: rgba(184, 74, 50, 0.05);
+      margin-bottom: 1rem;
+    }
+
+    .demo-btns {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+    }
+
+    .demo-btns button {
+      font-family: var(--font-serif);
+      font-size: 0.76rem;
+      padding: 0.35rem 0.75rem;
+      border: none;
+      background: var(--paper-float);
+      box-shadow: var(--float-shadow);
+      cursor: pointer;
+      color: var(--ink-muted);
+      transition: box-shadow 0.2s, transform 0.2s, color 0.2s;
+    }
+
+    .demo-btns button:hover { box-shadow: var(--float-shadow-hover); transform: translateY(-1px); }
+
+    .demo-btns button.active {
+      color: var(--seal-deep);
+      background: rgba(255, 250, 242, 0.98);
+      font-weight: 600;
+      box-shadow: var(--float-shadow-hover);
+    }
+
+    .mock-shell {
+      background: var(--paper);
+      box-shadow: 0 12px 48px rgba(42, 28, 18, 0.1);
+    }
+
+    .mock-label {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: var(--ink-faint);
+      padding: 0.5rem 1rem 0.25rem;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.55rem 1.25rem;
+      font-size: 0.75rem;
+      background: transparent;
+    }
+
+    .doc-title { font-family: var(--font-kaiti); }
+
+  /* 纸上浮钮：无边框，靠阴影与留白 */
+    .btn {
+      font-family: var(--font-serif);
+      font-size: 0.75rem;
+      padding: 0.4rem 0.85rem;
+      border: none;
+      background: var(--paper-float);
+      box-shadow: var(--float-shadow);
+      cursor: pointer;
+      color: var(--ink);
+      transition: box-shadow 0.2s, transform 0.2s, filter 0.2s;
+    }
+
+    .btn:hover {
+      box-shadow: var(--float-shadow-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-seal {
+      background: var(--seal);
+      color: #faf6ee;
+      box-shadow: 0 3px 12px rgba(143, 54, 38, 0.28), 0 1px 3px rgba(143, 54, 38, 0.15);
+    }
+
+    .btn-seal:hover { filter: brightness(0.96); }
+
+    .btn-ghost {
+      background: transparent;
+      box-shadow: none;
+      color: var(--ink-muted);
+      padding: 0.4rem 0.55rem;
+    }
+
+    .btn-ghost:hover { box-shadow: var(--float-shadow); background: var(--paper-float); }
+
+    .editor-zone {
+      position: relative;
+      padding: 1.25rem 2rem 1.5rem;
+      background: var(--paper-sheet);
+      min-height: 340px;
+    }
+
+    .editor-meta {
+      font-size: 0.72rem;
+      color: var(--ink-faint);
+      margin-bottom: 1rem;
+    }
+
+    .article h1 { font-family: var(--font-kaiti); font-size: 1.35rem; margin-bottom: 0.65rem; }
+    .article h2 { font-family: var(--font-kaiti); font-size: 1rem; margin: 0.9rem 0 0.35rem; }
+    .article p { font-size: 0.92rem; margin-bottom: 0.7rem; text-align: justify; }
+
+    /* 选中：朱砂晕染，无框无线 */
+    .article .selected {
+      background: linear-gradient(
+        102deg,
+        rgba(232, 200, 158, 0) 0%,
+        rgba(232, 200, 158, 0.42) 18%,
+        rgba(220, 175, 135, 0.36) 52%,
+        rgba(232, 200, 158, 0.28) 82%,
+        rgba(232, 200, 158, 0) 100%
+      );
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+      border: none;
+      outline: none;
+      border-radius: 0;
+      padding: 0.08em 0.12em;
+      margin: 0 -0.12em;
+      box-shadow: none;
+      transition: background 0.35s ease;
+    }
+
+    /* 选区浮层：纸片上浮的一排钮，无分隔线 */
+    .selection-menu {
+      position: absolute;
+      top: 4.75rem;
+      left: 22%;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.35rem;
+      pointer-events: none;
+    }
+
+    .selection-menu .menu-label {
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      color: var(--ink-faint);
+      padding: 0 0.25rem;
+      pointer-events: none;
+    }
+
+    .selection-menu .menu-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      max-width: 26rem;
+      pointer-events: auto;
+    }
+
+    .action-btn {
+      font-family: var(--font-serif);
+      font-size: 0.76rem;
+      padding: 0.45rem 0.75rem;
+      text-align: center;
+      border: none;
+      background: var(--paper-float);
+      box-shadow: var(--float-shadow);
+      cursor: pointer;
+      color: var(--ink);
+      transition: box-shadow 0.2s, transform 0.2s, background 0.2s;
+      backdrop-filter: blur(6px);
+    }
+
+    .action-btn:hover {
+      box-shadow: var(--float-shadow-hover);
+      transform: translateY(-2px);
+    }
+
+    .action-btn:active { transform: translateY(0); }
+
+    .action-btn.style-btn {
+      color: var(--seal-deep);
+      font-family: var(--font-kaiti);
+      font-weight: 600;
+    }
+
+    .action-btn.custom-btn {
+      font-family: var(--font-kaiti);
+      color: var(--ink-muted);
+    }
+
+    .statusbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.55rem 1.25rem 0.85rem;
+      font-size: 0.72rem;
+      color: var(--ink-faint);
+      background: transparent;
+    }
+
+    .statusbar-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+
+    .action-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 1rem;
+    }
+
+    .action-toolbar .action-btn.is-on {
+      color: var(--seal-deep);
+      font-weight: 600;
+      background: rgba(255, 250, 242, 0.98);
+      box-shadow: var(--float-shadow-hover);
+    }
+
+    .sheet-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(26, 22, 18, 0.35);
+      z-index: 100;
+    }
+
+    .sheet-backdrop.open { display: block; }
+
+    .bottom-sheet {
+      position: fixed;
+      left: 50%;
+      bottom: 0;
+      transform: translateX(-50%) translateY(100%);
+      width: min(660px, 100%);
+      max-height: 82vh;
+      overflow-y: auto;
+      background: var(--paper-sheet);
+      border: none;
+      border-radius: 6px 6px 0 0;
+      box-shadow: 0 -16px 48px rgba(42, 28, 18, 0.14);
+      z-index: 101;
+      transition: transform 0.28s ease;
+      padding: 1.25rem 1.5rem 1.75rem;
+    }
+
+    .bottom-sheet.open { transform: translateX(-50%) translateY(0); }
+
+    .sheet-handle {
+      width: 36px; height: 4px;
+      background: var(--line);
+      border-radius: 2px;
+      margin: 0 auto 1rem;
+    }
+
+    .bottom-sheet h2 {
+      font-family: var(--font-kaiti);
+      font-size: 1.05rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .bottom-sheet .sub {
+      font-size: 0.76rem;
+      color: var(--ink-muted);
+      margin-bottom: 1rem;
+    }
+
+    .scope-pill {
+      display: inline-block;
+      font-size: 0.65rem;
+      padding: 0.12rem 0.5rem;
+      margin-left: 0.35rem;
+      color: var(--seal-deep);
+      background: rgba(184, 74, 50, 0.08);
+      vertical-align: middle;
+    }
+
+    .style-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.45rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .style-card {
+      text-align: left;
+      padding: 0.65rem 0.7rem;
+      border: none;
+      background: var(--paper-float);
+      box-shadow: 0 2px 8px rgba(42, 28, 18, 0.06);
+      cursor: pointer;
+      font-family: var(--font-serif);
+      transition: box-shadow 0.2s, transform 0.2s, background 0.2s;
+    }
+
+    .style-card:hover { box-shadow: var(--float-shadow); transform: translateY(-1px); }
+
+    .style-card.selected {
+      background: rgba(255, 250, 242, 0.98);
+      box-shadow: var(--float-shadow-hover);
+      transform: translateY(-1px);
+    }
+    .style-card .name { font-family: var(--font-kaiti); font-size: 0.88rem; display: block; }
+    .style-card .desc { font-size: 0.62rem; color: var(--ink-faint); margin-top: 0.1rem; }
+
+    .profile-list { display: flex; flex-direction: column; gap: 0.45rem; margin-bottom: 0.75rem; }
+
+    .profile-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      padding: 0.7rem 0.8rem;
+      border: none;
+      background: var(--paper-float);
+      box-shadow: 0 2px 8px rgba(42, 28, 18, 0.06);
+      cursor: pointer;
+      text-align: left;
+      font-family: var(--font-serif);
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+
+    .profile-card:hover { box-shadow: var(--float-shadow); transform: translateY(-1px); }
+
+    .profile-card.selected {
+      background: rgba(255, 250, 242, 0.98);
+      box-shadow: var(--float-shadow-hover);
+    }
+
+    .profile-card .radio {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 0.35rem;
+      background: var(--line);
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+
+    .profile-card.selected .radio {
+      background: var(--seal);
+      box-shadow: 0 0 0 3px rgba(184, 74, 50, 0.2);
+    }
+
+    .profile-card .name { font-family: var(--font-kaiti); font-size: 0.88rem; display: block; }
+    .profile-card .meta { font-size: 0.65rem; color: var(--ink-faint); margin-top: 0.15rem; }
+
+    .intensity-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.78rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .intensity-row input[type=range] { flex: 1; accent-color: var(--seal); }
+
+    .extra-input {
+      width: 100%;
+      font-size: 0.78rem;
+      padding: 0.55rem 0.1rem;
+      border: none;
+      border-bottom: 1px solid rgba(184, 160, 120, 0.35);
+      background: transparent;
+      margin-bottom: 0.35rem;
+      font-family: var(--font-serif);
+      outline: none;
+    }
+
+    .extra-input:focus { border-bottom-color: rgba(184, 74, 50, 0.45); }
+
+    .extra-hint { font-size: 0.66rem; color: var(--ink-faint); margin-bottom: 1rem; }
+
+    .sheet-actions {
+      display: flex;
+      gap: 0.45rem;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .create-link {
+      font-size: 0.74rem;
+      color: var(--seal-deep);
+      cursor: pointer;
+      border: none;
+      background: none;
+      font-family: var(--font-serif);
+      text-decoration: underline;
+      margin-bottom: 0.75rem;
+      display: block;
+    }
+
+    .arch-note {
+      margin-top: 1.25rem;
+      padding: 1rem 1.1rem;
+      background: rgba(251, 247, 239, 0.65);
+      box-shadow: var(--float-shadow);
+      font-size: 0.74rem;
+      color: var(--ink-muted);
+    }
+
+    .arch-note h3 { font-family: var(--font-kaiti); font-size: 0.9rem; color: var(--ink); margin-bottom: 0.5rem; }
+
+    .arch-note pre { font-size: 0.68rem; line-height: 1.55; overflow-x: auto; margin-top: 0.5rem; }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 640px) {
+      .compare-two { grid-template-columns: 1fr; }
+      .style-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="brief">
+      <h1>方案 v4：风格转换 + 自定义风格</h1>
+      <p class="lead">
+        取消右上角小字「文风」入口。预设语气与执行合并为 <strong>风格转换</strong>；另增 <strong>自定义风格</strong>。
+        <em>视觉：按钮像纸片浮在稿纸上，不用分隔线；选中用朱砂晕染，不用方框。</em>
+      </p>
+
+      <div class="compare-two">
+        <div>
+          <h3>风格转换</h3>
+          <p>内置文体：正式 / 轻松 / 幽默… + 浓度 %</p>
+          <ul>
+            <li>选卡片 → 调浓度 → 改写全文或选中</li>
+            <li>对应后端 <code>rewrite</code> + writing_styles.yaml</li>
+            <li>可「恢复转换前」</li>
+          </ul>
+        </div>
+        <div>
+          <h3>自定义风格</h3>
+          <p>从你提供的范文学习，存后台反复用</p>
+          <ul>
+            <li>选已存档案 → 调浓度 % → 改写</li>
+            <li>对应 <code>StyleProfile</code> + style_profile_id</li>
+            <li>≠ 智能改写（一次性指令）</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="note-box">
+        <strong>与智能改写的区别：</strong>「补充要求」是临时一句话；自定义风格是命名档案、入库、下次默认沿用。
+        项目头栏现有的「风格」下拉可迁入自定义风格抽屉，或作为当前选中档案的快捷显示。
+      </div>
+
+      <div class="demo-btns">
+        <button type="button" id="scene-sel" class="active">有选中 · 浮层</button>
+        <button type="button" id="scene-none">无选中</button>
+        <button type="button" id="btn-preset">风格转换抽屉</button>
+        <button type="button" id="btn-custom">自定义风格抽屉</button>
+        <button type="button" id="btn-doc">改写全文抽屉</button>
+      </div>
+    </header>
+
+    <div class="mock-shell">
+      <div class="mock-label">纸面浮钮 · 无分隔线 · 选中晕染</div>
+      <div class="topbar">
+        <span class="doc-title">肆 · 当算法开始替你构思</span>
+        <div style="display:flex;gap:0.45rem">
+          <button class="btn btn-seal">保存</button>
+          <button class="btn btn-ghost">⋯</button>
+        </div>
+      </div>
+
+      <div class="editor-zone">
+        <div class="editor-meta">1,842 字 · 可读性良好 · 当前自定义：未选</div>
+
+        <div class="selection-menu" id="selection-menu">
+          <div class="menu-label">已选中 86 字</div>
+          <div class="menu-row">
+            <button type="button" class="action-btn">润色</button>
+            <button type="button" class="action-btn">扩写</button>
+            <button type="button" class="action-btn">缩写</button>
+            <button type="button" class="action-btn">去 AI 味</button>
+            <button type="button" class="action-btn style-btn" id="from-float-preset">风格转换</button>
+            <button type="button" class="action-btn custom-btn" id="from-float-custom">自定义风格</button>
+          </div>
+        </div>
+
+        <div class="article">
+          <h1>当算法开始替你构思</h1>
+          <h2>第一节 问题的起点</h2>
+          <p>过去两年，<span class="selected" id="sel">几乎所有内容团队都在问同一个问题：AI 究竟是在放大创作者，还是在稀释「人味」</span>。</p>
+          <p>这不是技术乐观或悲观的口号，而是每天都在发生的分工变化。</p>
+        </div>
+      </div>
+
+      <footer class="statusbar">
+        <span>AI 味 38 · 句均 18 字</span>
+        <div class="statusbar-actions">
+          <button type="button" class="btn" id="open-doc">改写全文</button>
+          <button type="button" class="btn">续写</button>
+        </div>
+      </footer>
+    </div>
+
+    <div class="arch-note">
+      <h3>落地映射（已有后端能力）</h3>
+      <pre>
+风格转换抽屉：
+  · styles ← GET /writing/styles
+  · 执行 ← stream action=rewrite, style, styleIntensity
+
+自定义风格抽屉：
+  · 列表 ← GET /style/
+  · 新建 ← POST /style/ { name, texts[] } → StyleAnalyzer 分析入库
+  · 执行 ← stream 时带 styleProfileId + styleIntensity（浓度叠加在档案 prompt 上）
+  · 项目默认 ← project.styleProfileId（现有 useProjectStyleProfile）
+
+删除：ProjectHeader 小下拉可合并进自定义抽屉；顶栏 WritingStyleToolbar 整栏移除
+      </pre>
+    </div>
+  </div>
+
+  <!-- 改写全文：改表达 + 两个风格入口同款按钮 -->
+  <div class="sheet-backdrop" id="doc-bd"></div>
+  <div class="bottom-sheet" id="doc-sheet">
+    <div class="sheet-handle"></div>
+    <h2>改写全文 <span class="scope-pill">1,842 字</span></h2>
+    <p class="sub">改表达选一项；换语气点「风格转换」或「自定义风格」（与选中浮层相同）。</p>
+
+    <div class="action-toolbar" id="doc-toolbar">
+      <button type="button" class="action-btn selected-expr is-on" data-e="润色">润色</button>
+      <button type="button" class="action-btn selected-expr" data-e="扩写">扩写</button>
+      <button type="button" class="action-btn selected-expr" data-e="缩写">缩写</button>
+      <button type="button" class="action-btn selected-expr" data-e="去 AI 味">去 AI 味</button>
+      <button type="button" class="action-btn style-btn" id="doc-to-preset">风格转换</button>
+      <button type="button" class="action-btn custom-btn" id="doc-to-custom">自定义风格</button>
+    </div>
+
+    <textarea class="extra-input" rows="2" placeholder="补充要求（选填，临时指令，不存档）…"></textarea>
+    <p class="extra-hint">留空则执行上方所选「润色/扩写…」；填写则走一次性 apply_prompt。</p>
+
+    <div class="sheet-actions">
+      <button type="button" class="btn" id="close-doc">取消</button>
+      <button type="button" class="btn btn-seal" id="run-expr">开始润色全文</button>
+    </div>
+  </div>
+
+  <!-- 风格转换：内置文体 -->
+  <div class="sheet-backdrop" id="preset-bd"></div>
+  <div class="bottom-sheet" id="preset-sheet">
+    <div class="sheet-handle"></div>
+    <h2>风格转换 <span class="scope-pill" id="preset-scope">全文</span></h2>
+    <p class="sub">选择内置文体与浓度，一次完成改写（原「文风」+「风格转换」合并）。</p>
+
+    <div class="style-grid" id="preset-grid">
+      <button type="button" class="style-card selected" data-id="professional"><span class="name">正式</span><span class="desc">商务、报告</span></button>
+      <button type="button" class="style-card" data-id="casual"><span class="name">轻松</span><span class="desc">博客、社交</span></button>
+      <button type="button" class="style-card" data-id="academic"><span class="name">学术</span><span class="desc">论文、报告</span></button>
+      <button type="button" class="style-card" data-id="poetic"><span class="name">诗意</span><span class="desc">散文、文学</span></button>
+      <button type="button" class="style-card" data-id="humorous"><span class="name">幽默</span><span class="desc">轻松有梗 · 上限 50%</span></button>
+    </div>
+
+    <div class="intensity-row">
+      <span>浓度</span>
+      <input type="range" min="15" max="85" value="55" id="preset-slider" />
+      <strong id="preset-pct">55%</strong>
+    </div>
+
+    <div class="sheet-actions">
+      <button type="button" class="btn" id="close-preset">取消</button>
+      <button type="button" class="btn">恢复转换前</button>
+      <button type="button" class="btn btn-seal" id="run-preset">按「正式」55% 改写全文</button>
+    </div>
+  </div>
+
+  <!-- 自定义风格：StyleProfile -->
+  <div class="sheet-backdrop" id="custom-bd"></div>
+  <div class="bottom-sheet" id="custom-sheet">
+    <div class="sheet-handle"></div>
+    <h2>自定义风格 <span class="scope-pill" id="custom-scope">全文</span></h2>
+    <p class="sub">从范文学习的个人风格，保存后每次按档案 + 浓度改写。</p>
+
+    <div class="profile-list" id="profile-list">
+      <button type="button" class="profile-card selected" data-name="公众号简约极客">
+        <span class="radio"></span>
+        <span>
+          <span class="name">公众号简约极客</span>
+          <span class="meta">源于 3 篇范文 · 句均 22 字 · 更新于 5/12</span>
+        </span>
+      </button>
+      <button type="button" class="profile-card" data-name="技术博客">
+        <span class="radio"></span>
+        <span>
+          <span class="name">技术博客</span>
+          <span class="meta">源于 2 篇范文 · 偏短句 · 更新于 4/28</span>
+        </span>
+      </button>
+      <button type="button" class="profile-card" data-name="客户 A 品牌稿">
+        <span class="radio"></span>
+        <span>
+          <span class="name">客户 A 品牌稿</span>
+          <span class="meta">源于 5 篇范文 · 更新于 3/15</span>
+        </span>
+      </button>
+    </div>
+
+    <button type="button" class="create-link">+ 从范文新建风格档案…</button>
+
+    <div class="intensity-row">
+      <span>浓度</span>
+      <input type="range" min="15" max="85" value="45" id="custom-slider" />
+      <strong id="custom-pct">45%</strong>
+      <span style="font-size:0.65rem;color:var(--ink-faint)">档案越强，可适当降低</span>
+    </div>
+
+    <label style="font-size:0.74rem;color:var(--ink-muted);display:flex;gap:0.4rem;align-items:center;margin-bottom:1rem">
+      <input type="checkbox" checked /> 设为项目默认风格（下次自动选中）
+    </label>
+
+    <div class="sheet-actions">
+      <button type="button" class="btn" id="close-custom">取消</button>
+      <button type="button" class="btn">管理档案</button>
+      <button type="button" class="btn btn-seal" id="run-custom">按「公众号简约极客」45% 改写全文</button>
+    </div>
+  </div>
+
+  <script>
+    const selMenu = document.getElementById('selection-menu');
+    const selSpan = document.getElementById('sel');
+    let hasSelection = true;
+
+    document.getElementById('scene-sel').onclick = () => {
+      hasSelection = true;
+      selMenu.classList.remove('hidden');
+      selSpan.classList.add('selected');
+      document.getElementById('scene-sel').classList.add('active');
+      document.getElementById('scene-none').classList.remove('active');
+      updateScopeLabels();
+    };
+    document.getElementById('scene-none').onclick = () => {
+      hasSelection = false;
+      selMenu.classList.add('hidden');
+      selSpan.classList.remove('selected');
+      document.getElementById('scene-none').classList.add('active');
+      document.getElementById('scene-sel').classList.remove('active');
+      updateScopeLabels();
+    };
+
+    function updateScopeLabels() {
+      const t = hasSelection ? '选中片段' : '全文';
+      document.getElementById('preset-scope').textContent = t;
+      document.getElementById('custom-scope').textContent = t;
+      updatePresetRun();
+      updateCustomRun();
+    }
+
+    function wireSheet(sheetId, bdId, openIds, closeId) {
+      const sheet = document.getElementById(sheetId);
+      const bd = document.getElementById(bdId);
+      const open = () => {
+        document.querySelectorAll('.bottom-sheet').forEach(s => s.classList.remove('open'));
+        document.querySelectorAll('.sheet-backdrop').forEach(b => b.classList.remove('open'));
+        sheet.classList.add('open');
+        bd.classList.add('open');
+      };
+      const close = () => { sheet.classList.remove('open'); bd.classList.remove('open'); };
+      openIds.forEach(id => document.getElementById(id)?.addEventListener('click', open));
+      document.getElementById(closeId).onclick = close;
+      bd.onclick = close;
+      return { open, close };
+    }
+
+    const doc = wireSheet('doc-sheet', 'doc-bd', ['open-doc'], 'close-doc');
+    const preset = wireSheet('preset-sheet', 'preset-bd',
+      ['btn-preset', 'from-float-preset', 'doc-to-preset'], 'close-preset');
+    const custom = wireSheet('custom-sheet', 'custom-bd',
+      ['btn-custom', 'from-float-custom', 'doc-to-custom'], 'close-custom');
+
+    document.getElementById('doc-to-preset').onclick = () => { doc.close(); preset.open(); };
+    document.getElementById('doc-to-custom').onclick = () => { doc.close(); custom.open(); };
+
+    let presetName = '正式';
+    let presetPct = 55;
+    const presetSlider = document.getElementById('preset-slider');
+    const runPreset = document.getElementById('run-preset');
+
+    function updatePresetRun() {
+      const scope = hasSelection ? '选中' : '全文';
+      runPreset.textContent = `按「${presetName}」${presetPct}% 改写${scope}`;
+    }
+
+    document.querySelectorAll('#preset-grid .style-card').forEach(card => {
+      card.onclick = () => {
+        document.querySelectorAll('#preset-grid .style-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        presetName = card.querySelector('.name').textContent;
+        const cap = presetName === '幽默' ? 50 : 85;
+        presetSlider.max = cap;
+        if (+presetSlider.value > cap) presetSlider.value = cap;
+        presetPct = +presetSlider.value;
+        document.getElementById('preset-pct').textContent = presetPct + '%';
+        updatePresetRun();
+      };
+    });
+
+    presetSlider.oninput = () => {
+      presetPct = +presetSlider.value;
+      document.getElementById('preset-pct').textContent = presetPct + '%';
+      updatePresetRun();
+    };
+
+    let customName = '公众号简约极客';
+    let customPct = 45;
+    const customSlider = document.getElementById('custom-slider');
+    const runCustom = document.getElementById('run-custom');
+
+    function updateCustomRun() {
+      const scope = hasSelection ? '选中' : '全文';
+      runCustom.textContent = `按「${customName}」${customPct}% 改写${scope}`;
+    }
+
+    document.querySelectorAll('#profile-list .profile-card').forEach(card => {
+      card.onclick = () => {
+        document.querySelectorAll('#profile-list .profile-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        customName = card.dataset.name;
+        updateCustomRun();
+      };
+    });
+
+    customSlider.oninput = () => {
+      customPct = +customSlider.value;
+      document.getElementById('custom-pct').textContent = customPct + '%';
+      updateCustomRun();
+    };
+
+    let expr = '润色';
+    document.querySelectorAll('#doc-toolbar .selected-expr').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('#doc-toolbar .selected-expr').forEach(b => b.classList.remove('is-on'));
+        btn.classList.add('is-on');
+        expr = btn.dataset.e;
+        document.getElementById('run-expr').textContent = `开始${expr}全文`;
+      };
+    });
+
+    updateScopeLabels();
+  </script>
+</body>
+</html>

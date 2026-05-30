@@ -41,12 +41,6 @@ export const FALLBACK_WRITING_STYLES: WritingStyleOption[] = [
     maxIntensity: 70,
   },
   {
-    id: "conversational",
-    label: "对话",
-    defaultIntensity: 40,
-    maxIntensity: 65,
-  },
-  {
     id: "academic",
     label: "学术",
     defaultIntensity: 50,
@@ -55,8 +49,8 @@ export const FALLBACK_WRITING_STYLES: WritingStyleOption[] = [
   {
     id: "poetic",
     label: "诗意",
-    defaultIntensity: 35,
-    maxIntensity: 60,
+    defaultIntensity: 28,
+    maxIntensity: 45,
   },
   {
     id: "humorous",
@@ -68,6 +62,9 @@ export const FALLBACK_WRITING_STYLES: WritingStyleOption[] = [
 ];
 
 export const FALLBACK_DEFAULT_STYLE = "professional";
+
+/** 从诗意/幽默等恢复时推荐的正式风格浓度 */
+export const RESTORE_PLAIN_INTENSITY = 42;
 
 export function normalizeWritingStylesPayload(
   raw: WritingStylesPayload | null | undefined,
@@ -109,11 +106,21 @@ export function clampStyleIntensity(
   return Math.max(intensityRange.min, Math.min(cap, Math.round(value)));
 }
 
+/** 已下架的内置风格 id → 替代项（旧项目/工作区配置兼容） */
+export const DEPRECATED_STYLE_ALIASES: Record<string, string> = {
+  conversational: "casual",
+};
+
+export function normalizeWritingStyleId(styleId: string): string {
+  return DEPRECATED_STYLE_ALIASES[styleId] ?? styleId;
+}
+
 export function writingTargetStyleLabel(
   id: string,
   styles: WritingStyleOption[] = FALLBACK_WRITING_STYLES,
 ): string {
-  return styles.find((s) => s.id === id)?.label ?? id;
+  const key = normalizeWritingStyleId(id);
+  return styles.find((s) => s.id === key)?.label ?? id;
 }
 
 /** @deprecated 使用 API 加载的 styles */

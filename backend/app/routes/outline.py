@@ -119,8 +119,10 @@ def generate_outline():
 请生成包含以下要素的大纲：
 1. 吸引人的主标题
 2. 3-12 个二级章节（顶层 nodes，总数不得超过 {MAX_OUTLINE_H2_SECTIONS} 个）
-3. 每个章节下 2-4 个子要点（放 children，成稿用段落/列表展开，不要用 Markdown 标题）；每个要点说明不超过 80 字
-4. 简短开头与结尾；全书大纲说明性文字合计不超过 800 字（要点不是正文）
+3. 每个顶层章节必须包含：claim（本章主张，一句话）、open_question（读者读完本节应得到什么答案）
+4. 每个章节下 2-4 个子要点（放 children）；每个要点说明不超过 80 字
+5. 可选 evidence_refs：该节可引用的资料编号或关键词（无则留空字符串）
+6. 简短开头与结尾；全书大纲说明性文字合计不超过 800 字（要点不是正文）
 
 请以JSON格式返回：
 {{
@@ -130,6 +132,9 @@ def generate_outline():
             "id": 1,
             "title": "一级章节标题",
             "type": "section",
+            "claim": "本章中心主张",
+            "open_question": "本节要回答的问题",
+            "evidence_refs": "",
             "children": [
                 {{
                     "id": 11,

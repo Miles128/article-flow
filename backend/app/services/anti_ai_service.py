@@ -23,19 +23,34 @@ def get_style_limits() -> dict[str, float | int]:
     }
 
 
+def get_anti_ai_generation_prompt() -> str:
+    """成稿生成阶段：禁套话，不压句长/排比（避免写成寡淡说明文）。"""
+    return (
+        '【生成阶段去套话】\n'
+        '禁止：在当今、随着、值得注意的是、综上所述、显著提升、'
+        '不可或缺、深度融合、赋能、旨在。\n'
+        '用具体事实与判断替代空洞形容词；不要输出写作元信息。'
+    )
+
+
 def get_anti_ai_style_prompt() -> str:
+    """润色/发布前：完整节奏与句式约束。"""
     limits = get_style_limits()
     return (
         '严格遵守去AI味规则：避免「在当今/随着/值得注意的是/综上所述」等套话；'
         '用具体数字和场景替代空洞形容词；段落长短有变化。'
         f'破折号（——/—）不超过每500字{limits["em_dash_max_per_500"]}个；'
         f'超过{limits["long_sentence_chars"]}字的句子占比不超过'
-        f'{int(float(limits["long_sentence_max_ratio"]) * 100)}%，长句必须拆短；'
+        f'{int(float(limits["long_sentence_max_ratio"]) * 100)}%，长句须语义完整再保留；'
         f'三个并列词/短语的排比，每1000字最多{limits["parallel_tricolon_max_per_1000"]}处；'
         f'语义相近、换说法重复的句子，每1000字最多{limits["semantic_similar_max_per_1000"]}组，'
         '删掉冗余复述，一句只说一个意思。\n'
         f'{get_article_format_prompt()}'
     )
+
+
+def get_anti_ai_polish_prompt() -> str:
+    return get_anti_ai_style_prompt()
 
 
 class RuleMatch(TypedDict):
