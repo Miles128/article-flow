@@ -6,10 +6,15 @@ yarn-error.log*
 # Next.js
 .next/
 out/
+*.tsbuildinfo
 
 # Python
 venv/
+.venv/
 __pycache__/
+backend/data/*
+!backend/data/.gitkeep
+!backend/data/README.md
 *.py[cod]
 *.so
 .env

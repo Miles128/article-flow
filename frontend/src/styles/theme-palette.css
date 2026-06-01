@@ -1,0 +1,203 @@
+/* Tailwind surface / primary / ink 令牌（rgb 三元组，供 tailwind.config 引用） */
+
+/* 默认与所有非书斋主题：中性灰，无暖黄纸色 */
+html:not([data-ui-theme='shuyuan']) {
+  --color-surface-0: 255 255 255;
+  --color-surface-50: 250 250 250;
+  --color-surface-100: 245 245 245;
+  --color-surface-200: 229 229 229;
+  --color-surface-300: 212 212 212;
+  --color-primary-50: 245 245 245;
+  --color-primary-100: 229 229 229;
+  --color-primary-200: 212 212 212;
+  --color-primary-300: 163 163 163;
+  --color-primary-400: 115 115 115;
+  --color-primary-500: 64 64 64;
+  --color-primary-600: 56 56 56;
+  --color-primary-700: 48 48 48;
+  --color-primary-800: 38 38 38;
+  --color-primary-900: 23 23 23;
+  --color-ink-50: 250 250 250;
+  --color-ink-100: 245 245 245;
+  --color-ink-200: 212 212 212;
+  --color-ink-300: 163 163 163;
+  --color-ink-400: 115 115 115;
+  --color-ink-500: 82 82 82;
+  --color-ink-600: 64 64 64;
+  --color-ink-700: 51 51 51;
+  --color-ink-800: 38 38 38;
+  --color-ink-900: 23 23 23;
+  --color-gray-50: 250 250 250;
+  --color-gray-100: 245 245 245;
+  --color-gray-200: 229 229 229;
+  --color-gray-300: 212 212 212;
+  --color-gray-400: 163 163 163;
+  --color-gray-500: 115 115 115;
+  --color-gray-600: 82 82 82;
+  --color-gray-700: 64 64 64;
+  --color-gray-800: 38 38 38;
+  --color-gray-900: 23 23 23;
+  --selection-bg: 200 200 200;
+  --scrollbar-thumb: 180 180 180;
+  --scrollbar-thumb-hover: 140 140 140;
+  --float-chip-bg: 255 255 255;
+}
+
+/* 书斋：暖纸墨 */
+[data-ui-theme='shuyuan'] {
+  --color-surface-0: 250 246 238;
+  --color-surface-50: 247 240 228;
+  --color-surface-100: 244 234 216;
+  --color-surface-200: 236 223 200;
+  --color-surface-300: 224 208 180;
+  --color-primary-50: 250 244 234;
+  --color-primary-100: 244 234 216;
+  --color-primary-200: 236 223 200;
+  --color-primary-300: 224 184 150;
+  --color-primary-400: 207 184 150;
+  --color-primary-500: 201 100 66;
+  --color-primary-600: 181 86 58;
+  --color-primary-700: 160 72 50;
+  --color-primary-800: 139 58 42;
+  --color-primary-900: 110 46 34;
+  --color-ink-50: 250 244 234;
+  --color-ink-100: 232 220 200;
+  --color-ink-200: 184 168 144;
+  --color-ink-300: 138 127 110;
+  --color-ink-400: 92 83 72;
+  --color-ink-500: 74 67 58;
+  --color-ink-600: 58 52 44;
+  --color-ink-700: 46 41 34;
+  --color-ink-800: 33 30 25;
+  --color-ink-900: 26 22 18;
+  --color-gray-50: 250 244 234;
+  --color-gray-100: 240 226 204;
+  --color-gray-200: 224 208 180;
+  --color-gray-300: 207 184 150;
+  --color-gray-400: 184 168 144;
+  --color-gray-500: 138 127 110;
+  --color-gray-600: 92 83 72;
+  --color-gray-700: 74 67 58;
+  --color-gray-800: 58 52 44;
+  --color-gray-900: 26 22 18;
+  --selection-bg: 232 201 168;
+  --scrollbar-thumb: 212 196 168;
+  --scrollbar-thumb-hover: 191 168 136;
+  --float-chip-bg: 255 252 245;
+}
+
+[data-ui-theme='material'] {
+  --color-primary-50: 232 240 254;
+  --color-primary-100: 210 227 252;
+  --color-primary-200: 173 201 245;
+  --color-primary-300: 120 168 240;
+  --color-primary-400: 66 133 244;
+  --color-primary-500: 26 115 232;
+  --color-primary-600: 21 101 209;
+  --color-primary-700: 18 87 179;
+  --color-primary-800: 15 73 149;
+  --color-primary-900: 12 58 118;
+}
+
+[data-ui-theme='ocean'] {
+  --color-primary-50: 232 244 250;
+  --color-primary-100: 200 230 245;
+  --color-primary-200: 150 205 230;
+  --color-primary-300: 90 170 210;
+  --color-primary-400: 40 140 185;
+  --color-primary-500: 13 110 153;
+  --color-primary-600: 11 95 133;
+  --color-primary-700: 9 80 112;
+  --color-primary-800: 8 66 92;
+  --color-primary-900: 6 52 72;
+}
+
+[data-ui-theme='slate'] {
+  --float-chip-bg: 30 41 59;
+  --selection-bg: 56 189 248;
+  --scrollbar-thumb: 71 85 105;
+  --scrollbar-thumb-hover: 56 189 248;
+  --color-surface-0: 30 41 59;
+  --color-surface-50: 30 41 59;
+  --color-surface-100: 51 65 85;
+  --color-surface-200: 71 85 105;
+  --color-surface-300: 100 116 139;
+  --color-primary-50: 224 242 254;
+  --color-primary-100: 186 230 253;
+  --color-primary-200: 125 211 252;
+  --color-primary-300: 56 189 248;
+  --color-primary-400: 14 165 233;
+  --color-primary-500: 56 189 248;
+  --color-primary-600: 2 132 199;
+  --color-primary-700: 3 105 161;
+  --color-primary-800: 7 89 133;
+  --color-primary-900: 12 74 110;
+  --color-ink-50: 241 245 249;
+  --color-ink-100: 226 232 240;
+  --color-ink-200: 203 213 225;
+  --color-ink-300: 148 163 184;
+  --color-ink-400: 100 116 139;
+  --color-ink-500: 148 163 184;
+  --color-ink-600: 203 213 225;
+  --color-ink-700: 226 232 240;
+  --color-ink-800: 241 245 249;
+  --color-ink-900: 248 250 252;
+}
+
+[data-ui-theme='cyber'] {
+  --float-chip-bg: 12 18 28;
+  --selection-bg: 0 245 212;
+  --scrollbar-thumb: 50 70 90;
+  --scrollbar-thumb-hover: 0 245 212;
+  --color-ink-50: 232 255 249;
+  --color-ink-100: 184 220 224;
+  --color-ink-200: 120 160 176;
+  --color-ink-300: 90 122 138;
+  --color-ink-400: 70 100 116;
+  --color-ink-500: 120 160 176;
+  --color-ink-600: 184 212 224;
+  --color-ink-700: 210 230 236;
+  --color-ink-800: 232 255 249;
+  --color-ink-900: 240 255 252;
+  --color-primary-50: 224 255 252;
+  --color-primary-100: 180 250 240;
+  --color-primary-200: 0 245 212;
+  --color-primary-300: 0 220 190;
+  --color-primary-400: 0 201 173;
+  --color-primary-500: 0 245 212;
+  --color-primary-600: 0 200 175;
+  --color-primary-700: 0 160 140;
+  --color-primary-800: 0 130 115;
+  --color-primary-900: 0 100 88;
+  --color-surface-0: 15 20 28;
+  --color-surface-50: 12 16 24;
+  --color-surface-100: 18 28 40;
+  --color-surface-200: 30 42 58;
+  --color-surface-300: 50 70 90;
+}
+
+[data-ui-theme='shuimo'] {
+  --color-primary-50: 242 242 240;
+  --color-primary-100: 228 228 224;
+  --color-primary-200: 200 200 196;
+  --color-primary-300: 160 160 156;
+  --color-primary-400: 120 120 116;
+  --color-primary-500: 58 58 56;
+  --color-primary-600: 46 46 44;
+  --color-primary-700: 36 36 34;
+  --color-primary-800: 28 28 26;
+  --color-primary-900: 20 20 18;
+}
+
+[data-ui-theme='minimal'] {
+  --color-primary-50: 245 245 245;
+  --color-primary-100: 229 229 229;
+  --color-primary-200: 212 212 212;
+  --color-primary-300: 163 163 163;
+  --color-primary-400: 115 115 115;
+  --color-primary-500: 23 23 23;
+  --color-primary-600: 20 20 20;
+  --color-primary-700: 17 17 17;
+  --color-primary-800: 14 14 14;
+  --color-primary-900: 10 10 10;
+}

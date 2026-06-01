@@ -1,27 +1,36 @@
 from flask import Blueprint, request, jsonify
-from ..models import ResearchMaterial
-from ..services.llm_service import get_llm_service
-import requests
+from ..models import ResearchMaterial, Claim
+from ..decorators import with_llm
+from ..utils import parse_json_from_llm, get_field
+from ..utils_ssrf import fetch_url_safely
+from ..services.deep_analysis_service import generate_deep_analysis
+import logging
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint('research', __name__)
+
+MAX_CONTENT_LENGTH = 500_000
+
 
 @bp.route('', methods=['GET'])
 def get_research_materials():
     project_id = request.args.get('project_id')
     if not project_id:
         return jsonify({'error': 'project_id is required'}), 400
-    
+
     materials = ResearchMaterial.get_by_project(project_id)
     return jsonify(materials)
+
 
 @bp.route('', methods=['POST'])
 def create_research_material():
     data = request.json
     if not data or 'project_id' not in data:
         return jsonify({'error': 'project_id is required'}), 400
-    
+
     material = ResearchMaterial.create(
         project_id=data['project_id'],
         source_type=data.get('source_type', 'web'),
@@ -31,103 +40,95 @@ def create_research_material():
         summary=data.get('summary', ''),
         keywords=data.get('keywords', [])
     )
-    
+
     return jsonify(material), 201
+
 
 @bp.route('/fetch-url', methods=['POST'])
 def fetch_url():
     data = request.json
     if not data or 'url' not in data:
         return jsonify({'error': 'url is required'}), 400
-    
-    url = data['url']
-    
+
+    url = data['url'].strip()
+
+    success, content, resolved_url = fetch_url_safely(url, max_size=2 * 1024 * 1024)
+    if not success:
+        return jsonify({'error': content}), 400
+
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-        }
-        response = requests.get(url, headers=headers, timeout=15)
-        response.encoding = 'utf-8'
-        
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
+        soup = BeautifulSoup(content, 'html.parser')
+
         for script in soup(['script', 'style', 'nav', 'footer', 'aside']):
             script.decompose()
-        
+
         title = soup.title.string if soup.title else ''
         if not title:
             h1 = soup.find('h1')
             title = h1.get_text(strip=True) if h1 else '未命名'
-        
+
         main_content = soup.find('main') or soup.find('article') or soup.find('body')
         if main_content:
             paragraphs = main_content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
-            content = '\n\n'.join([p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)])
+            extracted = '\n\n'.join([p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)])
         else:
-            content = soup.get_text(strip=True)
-        
+            extracted = soup.get_text(strip=True)
+
+        if len(extracted) > MAX_CONTENT_LENGTH:
+            extracted = extracted[:MAX_CONTENT_LENGTH]
+
         return jsonify({
             'title': title,
-            'content': content,
+            'content': extracted,
             'source_url': url,
             'source_type': 'web'
         })
-        
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'HTML parsing error for {url}: {e}', exc_info=True)
+        return jsonify({'error': '页面解析失败'}), 500
+
 
 @bp.route('/summarize', methods=['POST'])
-def summarize():
-    data = request.json
-    if not data or 'content' not in data:
-        return jsonify({'error': 'content is required'}), 400
-    
-    max_length = data.get('max_length', 200)
-    
-    try:
-        llm = get_llm_service()
-        summary = llm.summarize_content(data['content'], max_length)
-        
-        return jsonify({'summary': summary})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@with_llm
+def summarize(llm, data):
+    content = data['content']
+    if len(content) > MAX_CONTENT_LENGTH:
+        return jsonify({'error': '内容过长，请缩减后重试'}), 400
+
+    max_length = min(int(get_field(data, 'max_length', 'maxLength') or 200), 500)
+    summary = llm.summarize_content(content, max_length)
+    return {'summary': summary}
+
 
 @bp.route('/extract-keywords', methods=['POST'])
-def extract_keywords():
-    data = request.json
-    if not data or 'content' not in data:
-        return jsonify({'error': 'content is required'}), 400
-    
-    count = data.get('count', 5)
-    
-    try:
-        llm = get_llm_service()
-        keywords = llm.extract_keywords(data['content'], count)
-        
-        return jsonify({'keywords': keywords})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@with_llm
+def extract_keywords(llm, data):
+    count = min(int(get_field(data, 'count') or 5), 20)
+    keywords = llm.extract_keywords(data['content'], count)
+    return {'keywords': keywords}
+
 
 @bp.route('/generate-citation', methods=['POST'])
 def generate_citation():
     data = request.json
     if not data:
         return jsonify({'error': 'No data provided'}), 400
-    
+
     source_type = data.get('source_type', 'web')
     title = data.get('title', '')
     author = data.get('author', '')
     url = data.get('url', '')
     publication_date = data.get('publication_date', '')
-    
-    current_date = datetime.now().strftime('%Y-%m-%d')
-    
+
+    current_date = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+
     citations = {
         'apa': '',
         'mla': '',
         'gb': ''
     }
-    
+
     if source_type == 'web':
         citations['apa'] = f"{author}. ({publication_date or current_date}). {title}. 检索自 {url}"
         citations['mla'] = f"{author}. \"{title}\". {publication_date or current_date}, {url}."
@@ -137,16 +138,114 @@ def generate_citation():
         citations['apa'] = f"{author}. ({publication_date or current_date}). {title}. {publisher}."
         citations['mla'] = f"{author}. {title}. {publisher}, {publication_date or current_date}."
         citations['gb'] = f"{author}. {title}[M]. {publisher}, {publication_date or current_date}."
-    
+
     return jsonify(citations)
+
+
+@bp.route('/claims', methods=['GET'])
+def get_claims():
+    project_id = request.args.get('project_id')
+    if not project_id:
+        return jsonify({'error': 'project_id is required'}), 400
+    return jsonify(Claim.get_by_project(project_id))
+
+
+@bp.route('/claims', methods=['POST'])
+def create_claim():
+    data = request.json or {}
+    project_id = get_field(data, 'project_id', 'projectId')
+    if not project_id or not data.get('text'):
+        return jsonify({'error': 'project_id and text are required'}), 400
+    claim = Claim.create(
+        project_id=project_id,
+        text=data['text'],
+        material_id=get_field(data, 'material_id', 'materialId') or '',
+        source_quote=get_field(data, 'source_quote', 'sourceQuote') or '',
+        verified=data.get('verified', False),
+    )
+    return jsonify(claim), 201
+
+
+@bp.route('/claims/<claim_id>', methods=['DELETE'])
+def delete_claim(claim_id):
+    if Claim.delete(claim_id):
+        return jsonify({'success': True})
+    return jsonify({'error': 'Claim not found'}), 404
+
+
+@bp.route('/claims/verify', methods=['POST'])
+@with_llm
+def verify_claims(llm, data):
+    project_id = get_field(data, 'project_id', 'projectId')
+    if not project_id:
+        return jsonify({'error': 'project_id is required'}), 400
+
+    claims = Claim.get_by_project(project_id)
+    result = llm.verify_claims(data['content'], claims)
+    parsed = parse_json_from_llm(result)
+    return parsed or {'raw_result': result}
+
+
+@bp.route('/deep-analysis', methods=['POST'])
+@with_llm(require_content=False)
+def deep_analysis(llm, data):
+    """联网搜索 + 项目资料 → 结构化深度分析报告（热点解读五段式）。"""
+    topic = (
+        get_field(data, 'topic', 'query', 'title') or ''
+    ).strip()
+    if not topic:
+        raise ValueError('请提供 topic（分析主题或选题标题）')
+
+    project_id = get_field(data, 'project_id', 'projectId') or None
+    description = get_field(data, 'description') or ''
+    use_web = data.get('use_web_search', data.get('useWebSearch', True))
+    use_materials = data.get('use_materials', data.get('useMaterials', True))
+    max_search = min(int(get_field(data, 'max_search_results', 'maxSearchResults') or 12), 20)
+
+    result = generate_deep_analysis(
+        llm,
+        topic=topic,
+        description=description,
+        project_id=project_id,
+        use_web_search=bool(use_web),
+        use_materials=bool(use_materials),
+        max_search_results=max_search,
+    )
+    save_to_project = bool(
+        data.get('save_to_project', data.get('saveToProject', False)),
+    )
+    if save_to_project and project_id and result.get('report_markdown'):
+        from ..services.writing_brief_service import persist_deep_analysis_material
+
+        persist_deep_analysis_material(
+            project_id,
+            topic=result.get('topic') or topic,
+            report_markdown=result['report_markdown'],
+            writing_angles=result.get('writing_angles'),
+        )
+        result['saved_to_materials'] = True
+    return result
+
+
+@bp.route('/research-package', methods=['GET'])
+def get_research_package():
+    project_id = request.args.get('project_id')
+    if not project_id:
+        return jsonify({'error': 'project_id is required'}), 400
+    materials = ResearchMaterial.get_by_project(project_id)
+    claims = Claim.get_by_project(project_id)
+    return jsonify({
+        'materials': materials,
+        'claims': claims,
+        'material_count': len(materials),
+        'claim_count': len(claims),
+    })
+
 
 @bp.route('/<material_id>', methods=['DELETE'])
 def delete_material(material_id):
-    from .. import db_data as _db
-    from bson.objectid import ObjectId
-    
-    result = db.research_materials.delete_one({'_id': ObjectId(material_id)})
-    if result.deleted_count > 0:
+    result = ResearchMaterial.delete(material_id)
+    if result:
         return jsonify({'success': True})
-    
+
     return jsonify({'error': 'Material not found'}), 404

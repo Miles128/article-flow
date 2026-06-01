@@ -1,0 +1,13 @@
+# 发布门禁（参考 wechat-publisher ai_score gate）
+export_block_threshold: 45
+warn_threshold: 35
+target_score: 30
+
+required_publish_fields:
+  - title
+  - hook
+  - digest
+  - body
+  - closing_question
+
+publish_bundle_version: "1.0"

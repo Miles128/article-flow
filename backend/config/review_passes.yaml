@@ -1,0 +1,103 @@
+# 审校轮次配置
+passes:
+  content:
+    id: content
+    name: 内容审校
+    icon: FileSearch
+    focus: 事实准确性、逻辑连贯性、结构完整性
+    order: 1
+    description: 检查数据引用、逻辑链、要点覆盖
+
+  style:
+    id: style
+    name: 风格审校
+    icon: Palette
+    focus: 降AI味、口语化增强、个性化融入
+    order: 2
+    description: 消除套话、增加具体细节、打破AI句式
+
+  detail:
+    id: detail
+    name: 细节审校
+    icon: SearchCheck
+    focus: 标点规范、排版格式、错别字检查
+    order: 3
+    description: 统一标点、修正格式、检查中英混排
+
+# AI 套话库
+ai_cliche_db:
+  opening:
+    - 在当今
+    - 随着
+    - 近年来
+    - 众所周知
+  transition:
+    - 值得注意的是
+    - 需要指出的是
+    - 不得不说
+    - 综上所述
+  written:
+    - 显著提升
+    - 充分利用
+    - 有效改善
+    - 深入了解
+    - 经过深入分析
+  ai_pattern:
+    - 不仅...而且
+    - 通过...实现
+    - 基于...的
+    - 在...方面
+    - 具有...特点
+
+# 审核流程
+audit_flows:
+  - id: quick
+    name: 快速审核
+    description: 仅检查拼写和基本格式
+    steps:
+      - id: spelling
+        name: 拼写检查
+        required: true
+      - id: format
+        name: 格式检查
+        required: true
+
+  - id: standard
+    name: 标准审核
+    description: 完整的内容和格式审核
+    steps:
+      - id: spelling
+        name: 拼写检查
+        required: true
+      - id: grammar
+        name: 语法检查
+        required: true
+      - id: logic
+        name: 逻辑检查
+        required: false
+      - id: format
+        name: 格式检查
+        required: true
+
+  - id: strict
+    name: 严格审核
+    description: 全方面深度审核，包括合规性
+    steps:
+      - id: spelling
+        name: 拼写检查
+        required: true
+      - id: grammar
+        name: 语法检查
+        required: true
+      - id: logic
+        name: 逻辑检查
+        required: true
+      - id: compliance
+        name: 合规检查
+        required: true
+      - id: aitaste
+        name: AI味检测
+        required: false
+      - id: format
+        name: 格式检查
+        required: true

@@ -1,0 +1,114 @@
+/* 主界面与正文区配色随 data-color-scheme 一致 */
+
+:root {
+  --chrome-mix: #ffffff;
+  --chrome-bg: color-mix(in srgb, var(--main-canvas-bg) 92%, var(--chrome-mix) 8%);
+}
+
+[data-color-scheme='dark'] {
+  --chrome-mix: #000000;
+}
+
+.wen-chrome-bg {
+  background: var(--chrome-bg);
+  border-color: var(--sheet-border);
+}
+
+/* 顶栏 / 工具条：暗色不再掺白 */
+[data-color-scheme='dark'] .wen-toolbar {
+  background: var(--chrome-bg);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+[data-color-scheme='light'] .wen-toolbar {
+  background: var(--chrome-bg);
+}
+
+/* 面板与毛玻璃块跟主题底一致 */
+[data-color-scheme='dark'] .wen-panel,
+[data-color-scheme='dark'] .wen-panel-padded {
+  background: var(--panel-bg, var(--sheet-bg));
+  border-color: var(--panel-border, var(--sheet-border));
+  color: var(--ink-deep);
+}
+
+[data-color-scheme='dark'] .text-ink-900,
+[data-color-scheme='dark'] .text-ink-800 {
+  color: var(--ink-deep);
+}
+
+[data-color-scheme='dark'] .text-ink-700,
+[data-color-scheme='dark'] .text-ink-600 {
+  color: var(--ink-body);
+}
+
+[data-color-scheme='dark'] .text-ink-500,
+[data-color-scheme='dark'] .text-ink-400,
+[data-color-scheme='dark'] .text-ink-300 {
+  color: var(--ink-muted);
+}
+
+[data-color-scheme='dark'] .border-surface-300,
+[data-color-scheme='dark'] .border-surface-200 {
+  border-color: var(--sheet-border);
+}
+
+[data-color-scheme='dark'] .bg-surface-50\/40,
+[data-color-scheme='dark'] .bg-surface-50\/65,
+[data-color-scheme='dark'] .bg-surface-50\/75,
+[data-color-scheme='dark'] .bg-surface-50\/70,
+[data-color-scheme='dark'] .bg-surface-50\/85,
+[data-color-scheme='dark'] .bg-surface-50\/82,
+[data-color-scheme='dark'] .wen-glass,
+[data-color-scheme='dark'] .wen-glass-heavy,
+[data-color-scheme='dark'] .bg-white,
+[data-color-scheme='dark'] .bg-white\/80 {
+  background-color: rgb(var(--color-surface-50) / var(--tw-bg-opacity, 1));
+}
+
+[data-color-scheme='dark'] .text-primary-600,
+[data-color-scheme='dark'] .text-primary-700 {
+  color: var(--seal);
+}
+
+[data-color-scheme='dark'] .wen-editor-sheet {
+  background: var(--sheet-bg);
+  border-color: var(--sheet-border);
+  box-shadow: 0 0 0 1px rgb(var(--float-chip-bg) / 0.2) inset,
+    2px 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+[data-color-scheme='dark'] .wen-editor-preview,
+[data-color-scheme='dark'] .wen-editor-textarea,
+[data-color-scheme='dark'] .wen-editor-preview .md-preview {
+  color: var(--ink-deep);
+}
+
+[data-color-scheme='dark'] .wen-editor-textarea::placeholder {
+  color: var(--ink-muted);
+}
+
+[data-color-scheme='dark'] .wen-ai-score-good {
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.2);
+}
+
+[data-color-scheme='dark'] .wen-ai-score-warn {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.2);
+}
+
+[data-color-scheme='dark'] .wen-ai-score-high {
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* 亮色：正文区与主画布同色 */
+[data-color-scheme='light'] .wen-editor-sheet {
+  background: var(--sheet-bg);
+  border-color: var(--sheet-border);
+}
+
+[data-color-scheme='light'] .wen-editor-preview {
+  background: var(--main-canvas-bg);
+}

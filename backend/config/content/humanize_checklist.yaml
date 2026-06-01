@@ -1,0 +1,87 @@
+# 人味化改写 pass（参考 wechat-publisher 阶段3.5 九条清单）
+checks:
+  - id: burstiness
+    name: 句长抖动
+    rule: 相邻三句字数差至少一次>15；每3-4长句插入5-12字短句
+  - id: transition_ban
+    name: 禁用连接词
+    max_hits: 1
+  - id: ai_vocab
+    name: AI高频词
+    max_hits: 2
+  - id: opening_icebreak
+    name: 开头破冰
+    rule: 禁止「随着…发展」，改具体场景/数字/对话
+  - id: first_person
+    name: 人称立场
+    min_count: 3
+  - id: fact_density
+    name: 事实密度
+    rule: 每500字至少1个数字或专有名词
+  - id: punctuation
+    name: 标点多样性
+    rule: 破折号不超过每500字1个；少用括号
+  - id: long_sentence
+    name: 长句比例
+    rule: 超过30字的句子占比不超过10%
+  - id: parallel_tricolon
+    name: 三连排比
+    rule: 三个并列词/短语的排比，每1000字最多1处
+  - id: semantic_similarity
+    name: 语义重复
+    rule: 相近语义的句子每1000字最多1组；删冗余复述、换说法重复
+  - id: imperfection
+    name: 结构不完美
+    rule: 允许短段、自嘲、反悔句
+  - id: voice
+    name: 账号语气
+    rule: 按 style_profile 过滤语气
+
+transition_forbidden:
+  - 首先
+  - 其次
+  - 再次
+  - 最后
+  - 不仅
+  - 而且
+  - 一方面
+  - 另一方面
+  - 值得一提的是
+  - 不可否认
+  - 毋庸置疑
+  - 综上所述
+  - 总而言之
+  - 由此可见
+  - 众所周知
+  - 不难发现
+  - 显而易见
+  - 在…的背景下
+  - 随着…的发展
+  - 站在…的角度
+  - 让我们一起来
+  - 归根结底
+  - 无论如何
+
+ai_vocab_blacklist:
+  - 赋能
+  - 打造
+  - 聚焦
+  - 深度融合
+  - 生态
+  - 闭环
+  - 链路
+  - 抓手
+  - 底层逻辑
+  - 降本增效
+  - 数字化转型
+  - 破局
+  - 出圈
+  - 沉淀
+  - 深耕
+  - 范式
+  - 一站式
+  - 端到端
+  - 核心竞争力
+  - 引领
+  - 颠覆
+  - 革命性

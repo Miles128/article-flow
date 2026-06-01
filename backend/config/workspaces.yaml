@@ -1,0 +1,22 @@
+# 工作区配置
+workspaces:
+  - id: wechat
+    name: 公众号
+    description: 微信公众号文章
+    icon: MessageCircle
+    constraints: 段落≤150字/AI味<30%/需要封面图/中文标点/敏感词检查
+    defaultStyle: casual
+
+  - id: video
+    name: 视频文案
+    description: 短视频/中视频脚本
+    icon: Video
+    constraints: 高度口语化/AI味<20%/前3秒Hook/分镜标注/句长≤30字
+    defaultStyle: casual
+
+  - id: general
+    name: 通用
+    description: 通用写作
+    icon: FileText
+    constraints: AI味<30%/段落≤500字/灵活配置
+    defaultStyle: professional
