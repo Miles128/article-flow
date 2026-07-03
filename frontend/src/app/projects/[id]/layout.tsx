@@ -10,6 +10,7 @@ import { ArrowLeft, Loader2, Pencil } from "lucide-react";
 import Link from "next/link";
 import { ProjectHeaderWritingExtras } from "@/components/layout/ProjectHeaderWritingExtras";
 import { useWritingToolbarSlot } from "@/lib/writingToolbarSlot";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 export default function ProjectLayout({
   children,
@@ -161,7 +162,7 @@ export default function ProjectLayout({
         </div>
       }
     >
-      {children}
+      <ErrorBoundary>{children}</ErrorBoundary>
     </AppShell>
   );
 }

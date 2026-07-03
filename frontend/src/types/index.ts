@@ -51,7 +51,7 @@ export interface Topic {
 export interface ResearchMaterial {
   _id: string;
   projectId: string;
-  sourceType: 'web' | 'file' | 'image' | 'text';
+  sourceType: 'web' | 'file' | 'image' | 'text' | 'deep_analysis';
   sourceUrl: string;
   title: string;
   content: string;
@@ -62,7 +62,7 @@ export interface ResearchMaterial {
 }
 
 export interface OutlineNode {
-  id: string | number;
+  id: string;
   title: string;
   content?: string;
   type?: 'section' | 'heading' | 'paragraph';
@@ -117,6 +117,7 @@ export interface Outline {
   _id: string;
   projectId: string;
   title: string;
+  frameworkId?: string;
   nodes: OutlineNode[];
   version: number;
   createdAt: string;

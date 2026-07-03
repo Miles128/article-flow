@@ -129,7 +129,7 @@ export default function ProjectPage() {
             <div
               className="bg-primary-500 h-2 "
               style={{
-                width: `${Math.min(100, Math.round((currentProject.wordCount / currentProject.targetWordCount) * 100))}%`,
+                width: `${Math.min(100, Math.round((currentProject.wordCount / Math.max(1, currentProject.targetWordCount)) * 100))}%`,
               }}
             />
           </div>

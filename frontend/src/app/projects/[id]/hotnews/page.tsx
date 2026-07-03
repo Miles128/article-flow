@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { hotnewsApi, topicsApi } from "@/lib/api/client";
 import { StepPageFrame } from "@/components/layout/StepPageFrame";
 import { useStepFromRoute } from "@/lib/hooks/useStepFromRoute";
-import type { HotNewsItem } from "@/types";
+import type { HotNewsCategory, HotNewsItem } from "@/types";
 import {
   Loader2,
   Sparkles,
@@ -15,13 +15,13 @@ import {
   X,
   Target,
   Users,
-  Hash,
   ExternalLink,
   Lightbulb,
   BarChart3,
   Bookmark,
   Search,
   ArrowLeft,
+  Layers,
 } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -39,22 +39,30 @@ interface SearchLink {
   platforms: { name: string; url: string }[];
 }
 
+type ViewMode = "categories" | "search" | "mining";
+
 export default function HotnewsPage() {
   const params = useParams();
   const router = useRouter();
   const { stepId } = useStepFromRoute();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [view, setView] = useState<"search" | "mining">("search");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeSearchLabel, setActiveSearchLabel] = useState("");
-  const [hasSearched, setHasSearched] = useState(false);
+  // 视图状态
+  const [view, setView] = useState<ViewMode>("categories");
 
+  // 类别列表
+  const [categories, setCategories] = useState<HotNewsCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+
+  // 搜索状态
+  const [selectedCategory, setSelectedCategory] = useState<HotNewsCategory | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchItems, setSearchItems] = useState<HotNewsItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [searchWarning, setSearchWarning] = useState<string | null>(null);
 
+  // 选题挖掘状态
   const [miningKeywords, setMiningKeywords] = useState("");
   const [miningCount, setMiningCount] = useState(8);
   const [miningResult, setMiningResult] = useState<{
@@ -64,16 +72,75 @@ export default function HotnewsPage() {
   const [miningLoading, setMiningLoading] = useState(false);
   const [miningError, setMiningError] = useState<string | null>(null);
   const [expandedTopic, setExpandedTopic] = useState<number | null>(null);
-
   const [searchLinks, setSearchLinks] = useState<SearchLink[]>([]);
   const [generatingLinks, setGeneratingLinks] = useState(false);
 
+  // 加载类别列表
   useEffect(() => {
-    inputRef.current?.focus();
+    async function loadCategories() {
+      setCategoriesLoading(true);
+      setCategoriesError(null);
+      try {
+        const response = await hotnewsApi.getCategories();
+        if (response.data?.categories) {
+          setCategories(response.data.categories);
+        } else {
+          setCategoriesError("获取类别失败");
+        }
+      } catch (error: unknown) {
+        const err = error as { friendlyMessage?: string; message?: string };
+        setCategoriesError(err.friendlyMessage || err.message || "获取类别失败");
+      } finally {
+        setCategoriesLoading(false);
+      }
+    }
+    loadCategories();
   }, []);
 
-  async function runSearch(query?: string) {
-    const q = (query ?? searchQuery).trim();
+  // 选择类别后搜索
+  async function handleSelectCategory(category: HotNewsCategory) {
+    setSelectedCategory(category);
+    setSearchQuery("");
+    setSearchItems([]);
+    setSearchError(null);
+    setView("search");
+
+    await runSearchByCategory(category.name);
+  }
+
+  // 按类别搜索
+  async function runSearchByCategory(categoryName: string) {
+    setSearchLoading(true);
+    setSearchError(null);
+    setSearchItems([]);
+
+    try {
+      const response = await hotnewsApi.search({ category: categoryName });
+      if (response.data?.items && response.data.items.length > 0) {
+        setSearchItems(response.data.items);
+      } else if (response.data?.error) {
+        setSearchError(response.data.error);
+      } else {
+        setSearchError("该类别下未找到相关资讯，请换类别重试");
+      }
+    } catch (error: unknown) {
+      const err = error as {
+        friendlyMessage?: string;
+        response?: { data?: { error?: string } };
+      };
+      setSearchError(
+        err.friendlyMessage ||
+          err.response?.data?.error ||
+          "搜索失败，请稍后重试"
+      );
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  // 自定义关键词搜索
+  async function runCustomSearch() {
+    const q = searchQuery.trim();
     if (!q) {
       setSearchError("请输入搜索关键词");
       inputRef.current?.focus();
@@ -82,24 +149,14 @@ export default function HotnewsPage() {
 
     setSearchLoading(true);
     setSearchError(null);
-    setSearchWarning(null);
     setSearchItems([]);
-    setHasSearched(true);
-    setActiveSearchLabel(q);
-    setSearchQuery(q);
-    setView("search");
 
     try {
-      const response = await hotnewsApi.search({ query: q });
-      if (response.data?.items?.length > 0) {
+      const response = await hotnewsApi.search({ category: q });
+      if (response.data?.items && response.data.items.length > 0) {
         setSearchItems(response.data.items);
-        if (response.data.warnings?.length) {
-          setSearchWarning(response.data.warnings.join("；"));
-        }
       } else if (response.data?.error) {
         setSearchError(response.data.error);
-      } else if (response.data?.warnings?.length) {
-        setSearchError(response.data.warnings.join("；"));
       } else {
         setSearchError("未找到相关资讯，请换关键词重试");
       }
@@ -111,16 +168,18 @@ export default function HotnewsPage() {
       setSearchError(
         err.friendlyMessage ||
           err.response?.data?.error ||
-          "搜索失败，请稍后重试",
+          "搜索失败，请稍后重试"
       );
     } finally {
       setSearchLoading(false);
     }
   }
 
+  // 选题挖掘
   async function handleMineTopics() {
-    if (!activeSearchLabel.trim()) {
-      setSearchError("请先搜索关键词");
+    const categoryName = selectedCategory?.name || searchQuery.trim();
+    if (!categoryName) {
+      setSearchError("请先选择类别或输入关键词");
       return;
     }
 
@@ -130,20 +189,16 @@ export default function HotnewsPage() {
     setSearchLinks([]);
     setView("mining");
 
-    const baseQuery = activeSearchLabel.trim();
-    const extra = miningKeywords.trim();
-    const query = extra ? `${baseQuery} ${extra}`.trim() : baseQuery;
-
     try {
       const response = await hotnewsApi.mineTopics({
-        query,
+        category: categoryName,
         count: miningCount,
       });
       setMiningResult(response.data);
     } catch (error: unknown) {
       const err = error as { friendlyMessage?: string; message?: string };
       setMiningError(
-        err.friendlyMessage || err.message || "挖掘失败，请稍后重试",
+        err.friendlyMessage || err.message || "挖掘失败，请稍后重试"
       );
     } finally {
       setMiningLoading(false);
@@ -180,7 +235,94 @@ export default function HotnewsPage() {
     }
   }
 
+  // ─── 视图 1：类别选择 ───
+  if (view === "categories") {
+    return (
+      <StepPageFrame
+        wide
+        title="热搜选题"
+        subtitle="选择一个大类，系统将自动搜索最新资讯"
+        stepId={stepId}
+      >
+        <div className="space-y-6">
+          {categoriesLoading && (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="animate-spin text-primary-500" size={32} />
+              <span className="ml-3 text-ink-600">加载类别中...</span>
+            </div>
+          )}
+
+          {categoriesError && (
+            <div className="p-4 bg-red-50 border border-red-200 text-sm text-red-700 flex items-start gap-2">
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <span>{categoriesError}</span>
+            </div>
+          )}
+
+          {!categoriesLoading && !categoriesError && (
+            <>
+              <div className="wen-panel-padded p-5 space-y-3">
+                <label className="block text-sm font-medium text-ink-700">
+                  或直接输入关键词搜索
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search
+                      size={16}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400"
+                    />
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="自定义关键词，例如：DeepSeek、新能源汽车"
+                      className="w-full pl-9 pr-3 py-3 border border-surface-300 focus:ring-2 focus:ring-primary-500 outline-none text-sm"
+                      onKeyDown={(e) => e.key === "Enter" && runCustomSearch()}
+                    />
+                  </div>
+                  <button
+                    onClick={runCustomSearch}
+                    disabled={searchLoading}
+                    className="wen-btn-seal px-4 py-2 text-sm font-medium disabled:opacity-50 shrink-0"
+                  >
+                    搜索
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="wen-title text-ink-900 mb-3">选择感兴趣的大类</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.name}
+                      onClick={() => handleSelectCategory(cat)}
+                      className="wen-panel-padded p-4 text-left hover:border-primary-300 hover:bg-primary-50/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-2xl">{cat.icon}</span>
+                        <span className="font-semibold text-ink-900 text-sm">
+                          {cat.name}
+                        </span>
+                      </div>
+                      <p className="text-xs text-ink-500 leading-relaxed">
+                        {cat.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </StepPageFrame>
+    );
+  }
+
+  // ─── 视图 2：选题挖掘结果 ───
   if (view === "mining") {
+    const label = selectedCategory?.name || searchQuery;
     return (
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
@@ -190,13 +332,13 @@ export default function HotnewsPage() {
               setMiningResult(null);
               setMiningError(null);
             }}
-            className="p-2 hover:bg-surface-200/50 "
+            className="p-2 hover:bg-surface-200/50 rounded"
           >
             <ArrowLeft size={20} className="text-ink-600" />
           </button>
           <div>
             <h2 className="wen-title text-ink-900">
-              「{activeSearchLabel}」· 选题挖掘
+              「{label}」· 选题挖掘
             </h2>
             <p className="text-ink-500 text-sm">基于搜索结果的 AI 分析</p>
           </div>
@@ -244,60 +386,40 @@ export default function HotnewsPage() {
     );
   }
 
+  // ─── 视图 3：搜索结果 ───
+  const label = selectedCategory?.name || searchQuery;
   return (
     <StepPageFrame
       wide
       title="热搜选题"
-      subtitle="输入关键词直接搜索"
+      subtitle={`「${label}」搜索结果`}
       stepId={stepId}
     >
       <div className="space-y-4">
-        <div className="wen-panel-padded p-5 space-y-3">
-          <label
-            htmlFor="hotnews-query"
-            className="block text-sm font-medium text-ink-700"
+        {/* 顶部操作栏 */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => {
+              setView("categories");
+              setSearchItems([]);
+              setSearchError(null);
+              setSelectedCategory(null);
+            }}
+            className="flex items-center gap-1 text-sm text-ink-500 hover:text-ink-700"
           >
-            搜索关键词
-          </label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search
-                size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400"
-              />
-              <input
-                id="hotnews-query"
-                ref={inputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="例如：DeepSeek 发布、新能源汽车政策、AI 写作"
-                className="w-full pl-9 pr-3 py-3 border border-surface-300 focus:ring-2 focus:ring-primary-500 outline-none text-sm"
-                onKeyDown={(e) => e.key === "Enter" && runSearch()}
-              />
-            </div>
-            <button
-              onClick={() => runSearch()}
-              disabled={searchLoading}
-              className="wen-btn-seal px-4 py-2 text-sm font-medium disabled:opacity-50 shrink-0"
-            >
-              {searchLoading ? (
-                <Loader2 className="animate-spin" size={18} />
-              ) : (
-                "搜索资讯"
-              )}
-            </button>
-          </div>
-          <p className="text-xs text-ink-400">
-            Bing · DuckDuckGo · Google 多引擎实时搜索
-          </p>
-        </div>
+            <ArrowLeft size={16} />
+            重新选择类别
+          </button>
 
-        {searchWarning && (
-          <div className="p-3 bg-amber-50 border border-amber-200 text-sm text-amber-800">
-            {searchWarning}
-          </div>
-        )}
+          <button
+            onClick={handleMineTopics}
+            disabled={miningLoading || searchItems.length === 0}
+            className="wen-btn-seal px-4 py-2 text-sm font-medium disabled:opacity-50 flex items-center gap-2"
+          >
+            <Sparkles size={16} />
+            AI 挖掘选题
+          </button>
+        </div>
 
         {searchError && (
           <div className="p-4 bg-red-50 border border-red-200 text-sm text-red-700 flex items-start gap-2">
@@ -309,39 +431,32 @@ export default function HotnewsPage() {
         {searchLoading && (
           <div className="flex items-center justify-center py-12 text-ink-500 text-sm">
             <Loader2 className="animate-spin text-primary-500 mr-2" size={20} />
-            正在搜索「{activeSearchLabel || searchQuery}」，约需 15–30
-            秒，请稍候…
+            正在搜索「{label}」，请稍候…
           </div>
         )}
 
-        {!searchLoading &&
-          hasSearched &&
-          searchItems.length === 0 &&
-          !searchError && (
-            <div className="text-center py-12 text-ink-500 text-sm">
-              暂无结果，请换关键词重试
-            </div>
-          )}
+        {!searchLoading && searchItems.length === 0 && !searchError && (
+          <div className="text-center py-12 text-ink-500 text-sm">
+            暂无结果，请换类别或关键词重试
+          </div>
+        )}
 
         {!searchLoading && searchItems.length > 0 && (
           <>
             <p className="text-sm text-ink-600">
-              「
-              <span className="font-medium text-ink-900">
-                {activeSearchLabel}
-              </span>
-              」共 {searchItems.length} 条结果
+              「<span className="font-medium text-ink-900">{label}</span>」
+              共 {searchItems.length} 条结果
             </p>
             <div className="space-y-3">
               {searchItems.map((item, i) => (
-                <div key={i} className="wen-panel-padded p-4 ">
+                <div key={i} className="wen-panel-padded p-4 rounded-lg">
                   <div className="flex items-start gap-3">
                     <span
                       className={clsx(
-                        "w-7 h-7 flex items-center justify-center text-xs font-bold shrink-0",
+                        "w-7 h-7 flex items-center justify-center text-xs font-bold shrink-0 rounded",
                         i < 3
-                          ? "wen-chip-active"
-                          : "bg-surface-200/50 text-ink-600",
+                          ? "bg-primary-500 text-white"
+                          : "bg-surface-200/50 text-ink-600"
                       )}
                     >
                       {i + 1}
@@ -367,49 +482,16 @@ export default function HotnewsPage() {
                       <span className="inline-block mt-2 text-xs px-1.5 py-0.5 rounded bg-surface-200/50 text-ink-500">
                         {item.source === "baidu"
                           ? "百度"
-                          : item.source === "bing"
-                            ? "Bing"
-                            : item.source === "duckduckgo"
-                              ? "DuckDuckGo"
-                              : item.source === "google"
-                                ? "Google"
-                                : "Tavily"}
+                          : item.source === "duckduckgo"
+                          ? "DuckDuckGo"
+                          : item.source === "tavily"
+                          ? "Tavily"
+                          : item.source}
                       </span>
                     </div>
                   </div>
                 </div>
               ))}
-            </div>
-
-            <div className="wen-panel-padded p-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <Target className="text-primary-600" size={20} />
-                <div>
-                  <h3 className="wen-title text-ink-900">AI 挖掘选题</h3>
-                  <p className="text-xs text-ink-500">
-                    基于上方「{activeSearchLabel}」的搜索结果
-                  </p>
-                </div>
-              </div>
-              <input
-                type="text"
-                value={miningKeywords}
-                onChange={(e) => setMiningKeywords(e.target.value)}
-                placeholder="补充说明（可选，会追加到完整搜索句后）"
-                className="w-full px-4 py-2.5 border border-surface-300 text-sm outline-none focus:ring-2 focus:ring-primary-500"
-              />
-              <button
-                onClick={handleMineTopics}
-                disabled={miningLoading}
-                className="wen-btn-seal w-full justify-center py-2.5 disabled:opacity-50 font-medium flex items-center justify-center gap-2"
-              >
-                {miningLoading ? (
-                  <Loader2 className="animate-spin" size={18} />
-                ) : (
-                  <Sparkles size={18} />
-                )}
-                开始智能挖掘
-              </button>
             </div>
           </>
         )}
@@ -436,8 +518,8 @@ function TopicCard({
   return (
     <div
       className={clsx(
-        "wen-panel-padded border",
-        expanded ? "border-primary-300" : "border-surface-300",
+        "wen-panel-padded border rounded-lg",
+        expanded ? "border-primary-300" : "border-surface-300"
       )}
     >
       <div className="p-4 cursor-pointer" onClick={onToggle}>
@@ -445,8 +527,8 @@ function TopicCard({
           <div className="flex gap-3">
             <span
               className={clsx(
-                "w-8 h-8 flex items-center justify-center text-sm font-bold shrink-0",
-                index < 3 ? "wen-chip-active" : "bg-surface-200/50 text-ink-600",
+                "w-8 h-8 flex items-center justify-center text-sm font-bold shrink-0 rounded",
+                index < 3 ? "bg-primary-500 text-white" : "bg-surface-200/50 text-ink-600"
               )}
             >
               {index + 1}
@@ -459,7 +541,8 @@ function TopicCard({
                 e.stopPropagation();
                 onSave();
               }}
-              className="p-2 text-ink-400 hover:text-primary-500"
+              className="p-2 text-ink-400 hover:text-primary-500 rounded"
+              title="保存选题"
             >
               <Bookmark size={18} />
             </button>
@@ -468,7 +551,7 @@ function TopicCard({
         </div>
       </div>
       {expanded && (
-        <div className="px-4 pb-4 border-t space-y-3 text-sm text-ink-700">
+        <div className="px-4 pb-4 border-t border-surface-200 space-y-3 text-sm text-ink-700">
           {topic.angle && (
             <p>
               <Lightbulb size={14} className="inline mr-1" />
@@ -493,8 +576,7 @@ function TopicCard({
                 <button
                   key={i}
                   onClick={() => onSearchLinks([kw])}
-                  className="px-2 py-1 bg-blue-50 text-blue-700 text-xs text-left"
-                  title={kw}
+                  className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded hover:bg-blue-100"
                 >
                   {kw}
                 </button>
@@ -517,10 +599,10 @@ function SearchLinksPanel({
   generating: boolean;
 }) {
   return (
-    <div className="wen-panel-padded border p-5">
+    <div className="wen-panel-padded border rounded-lg p-5">
       <div className="flex justify-between mb-3">
         <h3 className="wen-title">搜索链接</h3>
-        <button onClick={onClose}>
+        <button onClick={onClose} className="rounded p-1 hover:bg-surface-200/50">
           <X size={18} />
         </button>
       </div>
@@ -535,7 +617,7 @@ function SearchLinksPanel({
                 href={p.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs px-2 py-1 border hover:bg-surface-200/30"
+                className="text-xs px-2 py-1 border rounded hover:bg-surface-200/30"
               >
                 {p.name}
               </a>

@@ -73,9 +73,6 @@ class _RWLock:
         return self._WriteContext(self)
 
 
-_rw_lock = _RWLock()
-
-
 class FileCollection:
     # 不允许通过 update 修改的字段
     IMMUTABLE_FIELDS = {'_id'}
@@ -83,6 +80,7 @@ class FileCollection:
     def __init__(self, name):
         self.name = name
         self.path = os.path.join(DATA_DIR, f'{name}.json')
+        self._lock = _RWLock()  # 每个 Collection 独立锁，避免跨 Collection 互斥
         self._ensure_file()
 
     def _ensure_file(self):
@@ -105,7 +103,9 @@ class FileCollection:
                 logger.warning(f'Corrupted file backed up to {backup_path}')
             except OSError:
                 pass
-            return []
+            # 标记数据已损坏，阻止后续写入覆盖
+            self._corrupted = True
+            raise RuntimeError(f'Data file {self.path} is corrupted, backup saved to {backup_path}')
 
     def _write(self, data):
         """原子写入数据（内部方法，需在锁保护下调用）"""
@@ -123,8 +123,11 @@ class FileCollection:
             raise
 
     def find(self, query=None, sort=None):
-        with _rw_lock.read_lock():
-            items = self._read()
+        try:
+            with self._lock.read_lock():
+                items = self._read()
+        except RuntimeError:
+            return []
         if query:
             items = [i for i in items if all(i.get(k) == v for k, v in query.items())]
         if sort:
@@ -134,15 +137,18 @@ class FileCollection:
         return items
 
     def find_one(self, query):
-        with _rw_lock.read_lock():
-            items = self._read()
+        try:
+            with self._lock.read_lock():
+                items = self._read()
+        except RuntimeError:
+            return None
         for i in items:
             if all(i.get(k) == v for k, v in query.items()):
                 return i
         return None
 
     def insert_one(self, doc):
-        with _rw_lock.write_lock():
+        with self._lock.write_lock():
             items = self._read()
             items.append(doc)
             self._write(items)
@@ -156,7 +162,7 @@ class FileCollection:
             logger.warning(f'Attempt to modify immutable fields {protected_keys} in {self.name}')
             set_data = {k: v for k, v in set_data.items() if k not in self.IMMUTABLE_FIELDS}
 
-        with _rw_lock.write_lock():
+        with self._lock.write_lock():
             items = self._read()
             found = False
             for i in items:
@@ -169,7 +175,7 @@ class FileCollection:
         return type('Result', (), {'modified_count': 1 if found else 0})()
 
     def delete_one(self, query):
-        with _rw_lock.write_lock():
+        with self._lock.write_lock():
             items = self._read()
             for idx, item in enumerate(items):
                 if all(item.get(k) == v for k, v in query.items()):
@@ -180,7 +186,7 @@ class FileCollection:
 
     def delete_many(self, query):
         """删除所有匹配的文档"""
-        with _rw_lock.write_lock():
+        with self._lock.write_lock():
             items = self._read()
             original_len = len(items)
             items = [i for i in items if not all(i.get(k) == v for k, v in query.items())]
@@ -191,8 +197,11 @@ class FileCollection:
 
     def count(self, query=None):
         """统计匹配文档数"""
-        with _rw_lock.read_lock():
-            items = self._read()
+        try:
+            with self._lock.read_lock():
+                items = self._read()
+        except RuntimeError:
+            return 0
         if query:
             items = [i for i in items if all(i.get(k) == v for k, v in query.items())]
         return len(items)

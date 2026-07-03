@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick References: Writing Style Toolbar</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.6;
+      color: #1a1a1a;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+      background: #fafaf8;
+    }
+    h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
+    h2 { font-size: 1.25rem; margin-top: 2rem; border-bottom: 1px solid #e5e2dc; padding-bottom: 0.35rem; }
+    h3 { font-size: 1.05rem; margin-top: 1.5rem; color: #444; }
+    .tldr {
+      background: #e8f4fc;
+      border-left: 4px solid #3b82f6;
+      padding: 1rem 1.25rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.5rem 0;
+    }
+    .tldr strong { display: block; margin-bottom: 0.35rem; }
+    pre {
+      background: #f0ede8;
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+    figure { margin: 1.25rem 0; }
+    img {
+      max-width: 100%;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      border: 1px solid #e5e2dc;
+    }
+    figcaption { font-size: 0.875rem; color: #666; margin-top: 0.5rem; }
+    .tag {
+      display: inline-block;
+      background: #e5e2dc;
+      color: #555;
+      font-size: 0.75rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      margin-left: 0.25rem;
+    }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+    th, td { border: 1px solid #e5e2dc; padding: 0.5rem 0.75rem; text-align: left; }
+    th { background: #f0ede8; }
+    .meta { color: #888; font-size: 0.875rem; }
+  </style>
+</head>
+<body>
+  <h1>Quick References: Writing Style Toolbar</h1>
+  <p class="meta">Article-Flow · Generated 2026-05-29 via Lazyweb MCP</p>
+
+  <div class="tldr">
+    <strong>TL;DR</strong>
+  The best AI writing tools separate style selection, intensity control, and apply action.
+  Article-Flow's toolbar is structurally sound — references suggest scannable mode chips,
+  style descriptions on demand, and post-convert feedback in a side panel.
+  </div>
+
+  <h2>Patterns</h2>
+  <ol>
+    <li><strong>Inline compact bar</strong> — dropdown + slider + action (Article-Flow today)</li>
+    <li><strong>Sidebar mode picker</strong> — vertical rewrite modes + live preview (Quillbot)</li>
+    <li><strong>Editor + analysis rail</strong> — clean canvas, metrics on the right (Hemingway)</li>
+  </ol>
+
+  <h2>Article-Flow mapping</h2>
+  <h3>Current</h3>
+  <pre>┌──────────────────────────────────────────────────────────────┐
+│ 风格 [下拉] │ 浓度 [━━●━━] 72% │ 恢复正式 │ ✦ 风格转换      │
+└──────────────────────────────────────────────────────────────┘</pre>
+
+  <h3>Recommended evolution</h3>
+  <pre>┌──────────────────────────────────────────────────────────────┐
+│ [正式] [幽默] [叙事] ...  │ 浓度 ━━●━━ 72%  │ ✦ 转换选中/全文 │
+└──────────────────────────────────────────────────────────────┘</pre>
+
+  <h2>References</h2>
+
+  <h3>Pattern A: Named rewrite modes</h3>
+  <p><em>Quillbot</em> — Toggleable modes (Standard, Fluency, Formal, Creative, Shorten, Expand). Use pill buttons instead of a hidden dropdown for top styles.</p>
+
+  <h3>Pattern B: AI toolkit beside editor</h3>
+  <figure>
+    <img src="references/tiptap-ai-editor-toolkit.png" alt="Tiptap AI editor with sidebar toolkit">
+    <figcaption>Tiptap — AI actions grouped in a left rail, editor stays central <span class="tag">Lazyweb</span></figcaption>
+  </figure>
+
+  <h3>Pattern C: Intensity as continuous dial</h3>
+  <figure>
+    <img src="references/sudowrite-tone-slider.png" alt="Sudowrite tone slider">
+    <figcaption>Sudowrite — Genre picks + tone slider for gradation <span class="tag">Lazyweb</span></figcaption>
+  </figure>
+
+  <h3>Pattern D: Style library catalog</h3>
+  <figure>
+    <img src="references/vaero-style-library.png" alt="Vaero style library">
+    <figcaption>Vaero — Searchable, categorized style personas <span class="tag">Lazyweb</span></figcaption>
+  </figure>
+
+  <h3>Pattern E: Editor + quality sidebar</h3>
+  <figure>
+    <img src="references/hemingway-editor-sidebar.png" alt="Hemingway editor with sidebar">
+    <figcaption>Hemingway — Central editor, right rail for readability metrics <span class="tag">Lazyweb</span></figcaption>
+  </figure>
+
+  <h2>Suggested next steps</h2>
+  <table>
+    <tr><th>Priority</th><th>Change</th><th>Reference</th></tr>
+    <tr><td>High</td><td>Style pills for top presets + dropdown overflow</td><td>Quillbot</td></tr>
+    <tr><td>Medium</td><td>Style description on hover/focus</td><td>Vaero</td></tr>
+    <tr><td>Medium</td><td>Grey slider track past per-style maxIntensity</td><td>Sudowrite</td></tr>
+    <tr><td>Low</td><td>Post-convert stats in side panel</td><td>Hemingway</td></tr>
+  </table>
+</body>
+</html>

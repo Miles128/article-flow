@@ -20,12 +20,13 @@ def _escape_lc_template(text: str) -> str:
     return text.replace('{', '{{').replace('}', '}}')
 
 
-_llm_cache: Dict[str, 'LLMService'] = {}
+_llm_cache: Dict[str, tuple] = {}  # key -> (LLMService, created_timestamp)
 
 DEFAULT_REQUEST_TIMEOUT = 120
 MAX_CACHE_SIZE = 50
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 1
+CACHE_TTL_SECONDS = 3600  # 缓存 1 小时后过期
 
 
 def max_output_tokens_for_words(word_count: int) -> int:
@@ -828,7 +829,11 @@ def get_llm_service(
     cache_key = _get_cache_key(provider, api_key, model_name, base_url, temperature)
 
     if cache_key in _llm_cache:
-        return _llm_cache[cache_key]
+        service, created_at = _llm_cache[cache_key]
+        if time.time() - created_at < CACHE_TTL_SECONDS:
+            return service
+        else:
+            del _llm_cache[cache_key]
 
     service = LLMService(
         provider=provider,
@@ -841,6 +846,6 @@ def get_llm_service(
     if len(_llm_cache) >= MAX_CACHE_SIZE:
         oldest_key = next(iter(_llm_cache))
         del _llm_cache[oldest_key]
-    _llm_cache[cache_key] = service
+    _llm_cache[cache_key] = (service, time.time())
 
     return service

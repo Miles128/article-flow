@@ -6,13 +6,20 @@ import {
   FALLBACK_WRITING_STYLES,
 } from "@/lib/writingStyles";
 
+// 构造超过 PILL_STYLE_COUNT(5) 的样式列表，使 overflow select 渲染
+const STYLES_WITH_OVERFLOW = [
+  ...FALLBACK_WRITING_STYLES,
+  { id: "satirical", label: "讽刺", defaultIntensity: 30, maxIntensity: 60 },
+  { id: "dramatic", label: "戏剧", defaultIntensity: 40, maxIntensity: 70 },
+];
+
 describe("WritingStyleToolbar", () => {
   it("renders style pills, overflow select, intensity slider and convert", () => {
     render(
       <WritingStyleToolbar
-        value="humorous"
+        value="satirical"
         intensity={28}
-        styles={FALLBACK_WRITING_STYLES}
+        styles={STYLES_WITH_OVERFLOW}
         defaultStyle="professional"
         intensityRange={FALLBACK_INTENSITY}
         onChange={vi.fn()}
@@ -22,7 +29,7 @@ describe("WritingStyleToolbar", () => {
     );
     expect(screen.getByRole("button", { name: "正式" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "诗意" })).toBeInTheDocument();
-    expect(screen.getByLabelText("更多文体")).toHaveValue("humorous");
+    expect(screen.getByLabelText("更多文体")).toHaveValue("satirical");
     expect(screen.getByText("浓度")).toBeInTheDocument();
     expect(screen.getByText("28%")).toBeInTheDocument();
     expect(screen.getByRole("slider")).toHaveAttribute("max", "85");

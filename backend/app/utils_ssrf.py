@@ -68,6 +68,23 @@ def validate_url(url: str) -> tuple[bool, str]:
     return True, ''
 
 
+def resolve_url_to_ip(url: str) -> tuple[str | None, str]:
+    """
+    解析 URL 的目标 IP，用于 DNS 重绑定防护。
+    返回 (resolved_ip, hostname)
+    """
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname or ''
+        resolved_ips = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        for family, _, _, _, sockaddr in resolved_ips:
+            ip_str = sockaddr[0]
+            return ip_str, hostname
+    except socket.gaierror:
+        pass
+    return None, ''
+
+
 def get_safe_request_kwargs(url: str, timeout: int = 15) -> dict:
     """
     获取安全的 requests 请求参数
@@ -85,7 +102,7 @@ def get_safe_request_kwargs(url: str, timeout: int = 15) -> dict:
 
 def fetch_url_safely(url: str, max_size: int = 5 * 1024 * 1024) -> tuple[bool, str, str]:
     """
-    安全抓取 URL 内容
+    安全抓取 URL 内容（含 DNS 重绑定防护）
     返回 (success, content_or_error, resolved_url)
     """
     import requests as req_lib
@@ -95,10 +112,29 @@ def fetch_url_safely(url: str, max_size: int = 5 * 1024 * 1024) -> tuple[bool, s
     if not is_safe:
         return False, error, url
 
+    # DNS 重绑定防护：解析 IP 后用 IP 直连，设置 Host 头
+    resolved_ip, hostname = resolve_url_to_ip(url)
     kwargs = get_safe_request_kwargs(url)
 
     try:
-        response = req_lib.get(url, **kwargs)
+        # 用解析后的 IP 直连，防止 DNS 重绑定绕过
+        if resolved_ip and hostname:
+            from urllib.parse import urlparse as _urlparse
+            parsed = _urlparse(url)
+            port = parsed.port
+            if _is_private_ip(resolved_ip):
+                return False, 'DNS 解析结果指向内部地址', url
+            # 构造 IP 直连 URL
+            if ':' in resolved_ip:  # IPv6
+                ip_url = f"{parsed.scheme}://[{resolved_ip}]{':' + str(port) if port else ''}{parsed.path}"
+            else:
+                ip_url = f"{parsed.scheme}://{resolved_ip}{':' + str(port) if port else ''}{parsed.path}"
+            if parsed.query:
+                ip_url += f'?{parsed.query}'
+            kwargs['headers']['Host'] = hostname
+            response = req_lib.get(ip_url, **kwargs)
+        else:
+            response = req_lib.get(url, **kwargs)
 
         # 手动处理重定向（最多 3 次）
         max_redirects = 3

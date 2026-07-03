@@ -176,7 +176,7 @@ export default function ResearchPage() {
       } else {
         showToast(
           "success",
-          `深度分析完成：检索 ${resp.data.search_item_count} 条，资料 ${resp.data.material_count} 条`,
+          `深度分析完成：检索 ${resp.data.searchItemCount} 条，资料 ${resp.data.materialCount} 条`,
         );
       }
     } catch (error: unknown) {
@@ -187,7 +187,7 @@ export default function ResearchPage() {
   }
 
   async function saveAnalysisAsMaterial() {
-    if (!params.id || !analysisResult?.report_markdown?.trim()) return;
+    if (!params.id || !analysisResult?.reportMarkdown?.trim()) return;
     setSavingAnalysis(true);
     try {
       await researchApi.create({
@@ -195,9 +195,9 @@ export default function ResearchPage() {
         sourceType: "deep_analysis",
         sourceUrl: "",
         title: `深度分析：${analysisResult.topic}`,
-        content: analysisResult.report_markdown,
+        content: analysisResult.reportMarkdown,
         summary: analysisResult.sections[0]?.content?.slice(0, 200) || "",
-        keywords: analysisResult.writing_angles?.slice(0, 5) || [],
+        keywords: analysisResult.writingAngles?.slice(0, 5) || [],
         citation: "",
       });
       showToast("success", "已保存为资料");
@@ -210,13 +210,13 @@ export default function ResearchPage() {
   }
 
   async function applyAnalysisToOutline() {
-    if (!params.id || !analysisResult?.outline_nodes?.length) return;
+    if (!params.id || !analysisResult?.outlineNodes?.length) return;
     setApplyingOutline(true);
     try {
       await outlineApi.createOrUpdate({
         projectId: params.id as string,
         title: analysisResult.topic,
-        nodes: analysisResult.outline_nodes,
+        nodes: analysisResult.outlineNodes,
       });
       showToast("success", "已写入大纲，可前往「列出大纲」微调");
       router.push(`/projects/${params.id}/outline`);
@@ -228,15 +228,15 @@ export default function ResearchPage() {
   }
 
   async function importSuggestedClaims() {
-    if (!params.id || !analysisResult?.suggested_claims?.length) return;
+    if (!params.id || !analysisResult?.suggestedClaims?.length) return;
     try {
-      for (const c of analysisResult.suggested_claims.slice(0, 8)) {
+      for (const c of analysisResult.suggestedClaims.slice(0, 8)) {
         const text = (c.text || "").trim();
         if (!text) continue;
         await researchApi.createClaim({
           projectId: params.id as string,
           text,
-          sourceQuote: (c.source_quote || "").trim(),
+          sourceQuote: (c.sourceQuote || "").trim(),
         });
       }
       loadClaims();
@@ -259,7 +259,7 @@ export default function ResearchPage() {
     setActiveSearchQuery(q);
     setSearchQuery(q);
     try {
-      const response = await hotnewsApi.search({ query: q, maxResults: 12 });
+      const response = await hotnewsApi.search({ category: q, maxResults: 12 });
       const items = response.data?.items || [];
       if (items.length > 0) {
         setSearchItems(items);
@@ -460,7 +460,7 @@ export default function ResearchPage() {
                 )}
                 写入大纲
               </button>
-              {analysisResult.suggested_claims?.length > 0 && (
+              {analysisResult.suggestedClaims?.length > 0 && (
                 <button
                   type="button"
                   onClick={() => void importSuggestedClaims()}
@@ -474,9 +474,9 @@ export default function ResearchPage() {
         </div>
         {analysisResult && (
           <div className="border border-surface-200 bg-surface-50/70 p-4 max-h-[28rem] overflow-y-auto text-sm text-ink-800 space-y-4">
-            {analysisResult.writing_angles?.length > 0 && (
+            {analysisResult.writingAngles?.length > 0 && (
               <p className="text-xs text-ink-500">
-                可写角度：{analysisResult.writing_angles.join(" · ")}
+                可写角度：{analysisResult.writingAngles.join(" · ")}
               </p>
             )}
             {analysisResult.sections.map((sec, i) => (

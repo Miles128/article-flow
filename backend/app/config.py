@@ -16,7 +16,7 @@ class Config:
     DEFAULT_MODEL_PROVIDER = os.getenv('DEFAULT_MODEL_PROVIDER', 'openai')
     DEFAULT_MODEL_NAME = os.getenv('DEFAULT_MODEL_NAME', 'gpt-4o-mini')
     
-    CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001').split(',')
+    CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001,tauri://localhost,https://tauri.localhost').split(',')
     
     HOTNEWS_SOURCES = os.getenv('HOTNEWS_SOURCES', 'weibo,zhihu,bilibili').split(',')
     

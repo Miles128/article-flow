@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Project, ProjectContent, Topic, ResearchMaterial, Outline, HotNewsSearchResult, Comment, Claim, AntiAiScanResult, ContentEvalResult, CriticResult } from '@/types';
+import type { Project, ProjectContent, Topic, ResearchMaterial, Outline, HotNewsCategory, HotNewsSearchResult, Comment, Claim, AntiAiScanResult, ContentEvalResult, CriticResult } from '@/types';
 
 // ===== 键名转换工具 =====
 
@@ -55,6 +55,10 @@ function resolveApiBaseUrl(): string {
 
 /** SSE 必须直连 Flask；经 Next 代理会被缓冲成一次性响应 */
 export function resolveStreamingApiBaseUrl(): string {
+  // 优先使用专用的流式 API URL
+  if (process.env.NEXT_PUBLIC_STREAMING_API_URL) {
+    return process.env.NEXT_PUBLIC_STREAMING_API_URL.replace(/\/$/, '');
+  }
   const base = resolveApiBaseUrl();
   if (typeof window === 'undefined') {
     return base;
@@ -72,6 +76,7 @@ export function resolveStreamingApiBaseUrl(): string {
 
 const api = axios.create({
   baseURL: resolveApiBaseUrl(),
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -234,16 +239,16 @@ export type DeepAnalysisSection = { title: string; content: string };
 
 export type DeepAnalysisResult = {
   topic: string;
-  framework_id: string;
+  frameworkId: string;
   warnings: string[];
-  search_item_count: number;
-  material_count: number;
-  search_items: Array<{ title?: string; content?: string; url?: string; source?: string }>;
+  searchItemCount: number;
+  materialCount: number;
+  searchItems: Array<{ title?: string; content?: string; url?: string; source?: string }>;
   sections: DeepAnalysisSection[];
-  report_markdown: string;
-  suggested_claims: Array<{ text?: string; source_quote?: string }>;
-  writing_angles: string[];
-  outline_nodes: Array<{
+  reportMarkdown: string;
+  suggestedClaims: Array<{ text?: string; sourceQuote?: string }>;
+  writingAngles: string[];
+  outlineNodes: Array<{
     id: number;
     title: string;
     content: string;
@@ -457,10 +462,12 @@ export const reviewApi = {
 };
 
 export const hotnewsApi = {
-  search: (params: { query: string; maxResults?: number }) =>
+  getCategories: () => api.get<{ categories: HotNewsCategory[] }>('/hotnews/categories'),
+  search: (params: { category: string; tavilyApiKey?: string; maxResults?: number }) =>
     api.get<HotNewsSearchResult>('/hotnews/search', { params, timeout: 90000 }),
   mineTopics: (data: {
-    query: string;
+    keywords?: string[];
+    category?: string;
     count?: number;
   }) =>
     api.post('/hotnews/mine-topics', data),

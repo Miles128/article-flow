@@ -40,7 +40,6 @@ from ..services.draft_version_service import (
     restore_draft_version,
     DRAFT_STEP,
 )
-import json
 
 bp = Blueprint('writing', __name__)
 

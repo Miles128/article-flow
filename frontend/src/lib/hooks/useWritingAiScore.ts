@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { writingApi } from "@/lib/api/client";
 
-const DEBOUNCE_MS = 900;
+const DEBOUNCE_MS = 2500;
 
 export function useWritingAiScore(content: string, enabled: boolean) {
   const [score, setScore] = useState<number | null>(null);

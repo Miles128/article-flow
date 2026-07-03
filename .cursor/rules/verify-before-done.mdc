@@ -1,0 +1,13 @@
+---
+description: Article-Flow verification commands
+alwaysApply: true
+---
+
+# Verify (Article-Flow)
+
+Before claiming done:
+
+```bash
+cd "/Users/sihai/Documents/My Projects/Article-Flow/frontend" && npm test
+cd "/Users/sihai/Documents/My Projects/Article-Flow/backend" && pytest
+```

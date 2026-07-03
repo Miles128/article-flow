@@ -816,10 +816,10 @@ export default function WritingPage() {
       saveTimerRef.current = setTimeout(() => {
         handleSave(false);
       }, 2000);
-      return () => {
-        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      };
     }
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
   }, [content]);
 
   function handleModeSelect(modeId: string) {

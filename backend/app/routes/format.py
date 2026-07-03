@@ -270,15 +270,22 @@ def markdown_to_pdf(md_content: str, title: str = '') -> io.BytesIO:
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
 
-    # 注册中文字体（使用内置的 helvetica 作为后备；fpdf2 支持 Unicode）
-    # fpdf2 内置支持 CJK 需要用 add_font 注册支持 Unicode 的字体
-    # 使用 fpdf2 自带的 Unicode 字体机制
-    try:
-        pdf.add_font('NotoSansSC', '', '/System/Library/Fonts/Supplemental/Arial Unicode.ttf')
-        font_name = 'NotoSansSC'
-    except Exception:
-        # Fallback: use built-in (no CJK, but won't crash)
-        font_name = 'Helvetica'
+    # 注册中文字体：跨平台查找
+    font_name = 'Helvetica'
+    font_search_paths = [
+        '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',  # macOS
+        '/usr/share/fonts/truetype/noto/NotoSansSC-Regular.ttf',  # Linux
+        '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',  # Linux alt
+        '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc',  # Linux alt 2
+        'C:\\Windows\\Fonts\\msyh.ttc',  # Windows 微软雅黑
+    ]
+    for font_path in font_search_paths:
+        try:
+            pdf.add_font('NotoSansSC', '', font_path)
+            font_name = 'NotoSansSC'
+            break
+        except Exception:
+            continue
 
     pdf.set_font(font_name, '', 12)
 
