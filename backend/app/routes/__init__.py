@@ -8,3 +8,6 @@ from . import format as format
 from . import ai as ai
 from . import hotnews as hotnews
 from . import workspace as workspace
+from . import style as style
+from . import content as content
+from . import illustration as illustration

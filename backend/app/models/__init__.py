@@ -69,16 +69,26 @@ class Project:
     @classmethod
     def delete(cls, project_id):
         """删除项目及其所有关联数据（聚合根级联删除）"""
-        # 级联删除关联数据
-        Topic.delete_by_project(project_id)
-        ResearchMaterial.delete_by_project(project_id)
-        Claim.delete_by_project(project_id)
-        Outline.delete_by_project(project_id)
-        Comment.delete_by_project(project_id)
-        ProjectContent.delete_by_project(project_id)
-        VersionHistory.delete_by_project(project_id)
+        errors = []
+        # 级联删除关联数据，即使中间步骤失败也继续删除其余
+        for deleter in [
+            Topic.delete_by_project,
+            ResearchMaterial.delete_by_project,
+            Claim.delete_by_project,
+            Outline.delete_by_project,
+            Comment.delete_by_project,
+            ProjectContent.delete_by_project,
+            VersionHistory.delete_by_project,
+        ]:
+            try:
+                deleter(project_id)
+            except Exception as e:
+                errors.append(f'{deleter.__qualname__}: {e}')
         # 删除项目本身
         result = db['projects'].delete_one({'_id': project_id})
+        if errors:
+            from .. import logger as _logger
+            _logger.warning(f'Partial delete errors for project {project_id}: {errors}')
         return result.deleted_count > 0
 
 
@@ -270,14 +280,34 @@ class Outline:
 
     @classmethod
     def create_or_update(cls, project_id, data):
-        existing = db['outlines'].find_one({'project_id': project_id})
-        if existing:
-            data['updated_at'] = _now()
-            data.pop('_id', None)
-            db['outlines'].update_one({'project_id': project_id}, {'$set': data})
-            return db['outlines'].find_one({'project_id': project_id})
-        else:
-            return cls.create(project_id, data.get('title', ''), data.get('nodes', []))
+        # 原子操作：在一次写锁内完成查找和创建/更新
+        collection = db['outlines']
+        with collection._lock.write_lock():
+            items = collection._read()
+            existing = None
+            for item in items:
+                if item.get('project_id') == project_id:
+                    existing = item
+                    break
+            if existing:
+                data['updated_at'] = _now()
+                data.pop('_id', None)
+                existing.update(data)
+                collection._write(items)
+                return existing
+            else:
+                outline = {
+                    '_id': _gen_id(),
+                    'project_id': project_id,
+                    'title': data.get('title', ''),
+                    'nodes': data.get('nodes', []),
+                    'version': 1,
+                    'created_at': _now(),
+                    'updated_at': _now()
+                }
+                items.append(outline)
+                collection._write(items)
+                return outline
 
     @classmethod
     def delete_by_project(cls, project_id):
@@ -351,13 +381,21 @@ class Comment:
             'author': author,
             'created_at': _now()
         }
-        # 通过 FileCollection 的 update_one 做追加：读→追加→原子写
-        comment = db['comments'].find_one({'_id': comment_id})
-        if comment:
-            replies = comment.get('replies', [])
-            replies.append(reply)
-            db['comments'].update_one({'_id': comment_id}, {'$set': {'replies': replies}})
-            return comment
+        # 原子操作：在一次写锁内完成读-追加-写，避免 TOCTOU 竞态
+        collection = db['comments']
+        with collection._lock.write_lock():
+            items = collection._read()
+            found = False
+            for item in items:
+                if item.get('_id') == comment_id:
+                    replies = item.get('replies', [])
+                    replies.append(reply)
+                    item['replies'] = replies
+                    found = True
+                    break
+            if found:
+                collection._write(items)
+                return item
         return None
 
     @classmethod

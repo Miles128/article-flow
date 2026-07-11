@@ -24,6 +24,8 @@ def test_writing_styles_api_payload():
     humorous = next(s for s in payload['styles'] if s['id'] == 'humorous')
     assert humorous['default_intensity'] == 28
     assert humorous['max_intensity'] == 50
+    poetic = next(s for s in payload['styles'] if s['id'] == 'poetic')
+    assert poetic['max_intensity'] == 45
 
 
 def test_rhythm_rules_use_config():

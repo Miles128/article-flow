@@ -29,6 +29,7 @@ import { WorkspaceSettingsModal } from "@/components/modal/WorkspaceSettingsModa
 import { projectsApi } from "@/lib/api/client";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/layout/BrandLogo";
+import { stepNumeral } from "@/lib/uiThemes";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -169,7 +170,7 @@ export function Sidebar() {
         <button
           type="button"
           onClick={() => setSidebarCollapsed(false)}
-          className="hidden md:flex fixed top-3 left-3 z-50 p-2 text-ink-400 hover:text-ink-800 transition-colors"
+          className="wen-icon-btn hidden md:flex fixed top-3 left-3 z-50 w-9 h-9 text-ink-400 hover:text-ink-800"
           title="显示侧栏"
           aria-label="显示侧栏"
         >
@@ -180,7 +181,7 @@ export function Sidebar() {
       <button
         type="button"
         onClick={toggleSidebar}
-        className="fixed top-3 left-3 z-50 p-2 text-ink-400 hover:text-ink-800 md:hidden"
+        className="wen-icon-btn fixed top-3 left-3 z-50 w-9 h-9 text-ink-400 hover:text-ink-800 md:hidden"
         aria-label="切换菜单"
       >
         {sidebarOpen ? (
@@ -200,17 +201,17 @@ export function Sidebar() {
 
       <aside
         className={clsx(
-          "fixed left-0 top-0 h-full w-40 bg-surface-50/70 backdrop-blur-[4px] border-r border-surface-300 z-40 transition-transform duration-200 flex flex-col",
+          "wen-sidebar fixed left-0 top-0 h-full border-r z-40 transition-transform duration-200 flex flex-col",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
           sidebarCollapsed ? "md:-translate-x-full" : "md:translate-x-0",
         )}
       >
-        <div className="px-4 pt-5 pb-3 flex items-start justify-between gap-1">
-          <BrandLogo href="/" size="md" />
+        <div className="px-3 pt-4 pb-2 flex items-start justify-between gap-1 border-b border-surface-300">
+          <BrandLogo href="/" size="md" seal />
           <button
             type="button"
             onClick={hideSidebar}
-            className="p-1 text-ink-300 hover:text-ink-700 transition-colors shrink-0 mt-0.5"
+            className="wen-icon-btn w-7 h-7 text-ink-300 hover:text-ink-700 shrink-0 mt-0.5 border-0 bg-transparent"
             title="隐藏侧栏"
             aria-label="隐藏侧栏"
           >
@@ -244,7 +245,16 @@ export function Sidebar() {
           </Link>
 
           {currentProject && (
-            <div className="mt-5 pt-4 border-t border-surface-300">
+            <div className="px-3 py-2.5 border-b border-surface-300">
+              <p className="text-[10px] text-ink-300 mb-0.5 tracking-wide">当前篇目</p>
+              <p className="text-[13px] font-kaiti text-ink-800 truncate leading-snug">
+                {currentProject.title}
+              </p>
+            </div>
+          )}
+
+          {currentProject && (
+            <div className="mt-2 pt-1">
               {(() => {
                 const ct = (currentProject.contentType ||
                   "article") as ContentType;
@@ -265,7 +275,8 @@ export function Sidebar() {
                         isActive ? "wen-nav-step-active" : "wen-nav-step-item"
                       }
                     >
-                      <span className="truncate block">{step.name}</span>
+                      <span className="wen-nav-step-num">{stepNumeral(step.id)}</span>
+                      <span className="truncate">{step.name}</span>
                     </button>
                   );
                 });
@@ -306,14 +317,6 @@ export function Sidebar() {
             设置
           </button>
 
-          {currentProject && (
-            <div className="px-3 py-2.5 border-t border-surface-300">
-              <p className="text-[10px] text-ink-300 mb-0.5">当前项目</p>
-              <p className="text-[13px] font-kaiti text-ink-800 truncate leading-snug">
-                {currentProject.title}
-              </p>
-            </div>
-          )}
         </div>
       </aside>
 

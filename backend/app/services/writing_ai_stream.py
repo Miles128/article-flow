@@ -14,11 +14,16 @@ from ..prompts.writing_style_intensity import (
     format_style_prompt,
     parse_style_intensity_from_data,
 )
+from ..services.style_rewrite_service import (
+    iter_rewrite_body_selective,
+    should_use_selective_rewrite,
+)
+from ..prompts.writing_intent import normalize_writing_intent, parse_writing_intent_from_data
 from ..prompts.writing_quality import (
     get_section_length_instruction,
-    get_writing_quality_rules,
+    get_section_writing_rules,
 )
-from ..utils_writing_sanitize import polish_generated_draft
+from ..utils_writing_sanitize import normalize_paragraph_spacing, polish_generated_draft, strip_writing_meta_leakage
 from ..services.llm_service import LLMService
 from ..services.llm_streaming import build_text_chain, iter_chain_text, iter_llm_messages
 from ..services.style_context import merge_writing_context, enrich_writing_context_from_project, get_style_prompt
@@ -60,7 +65,7 @@ def _post_process(text: str, llm: LLMService, style_prompt: str) -> str:
             processed = llm.apply_anti_ai_polish(processed, style_prompt)
         except Exception as e:
             logger.warning('anti_ai polish skipped in stream: %s', e)
-    return processed
+    return polish_generated_draft(processed)
 
 
 def _stream_transform_body(
@@ -101,16 +106,16 @@ def _tokens_continue(llm: LLMService, data: dict[str, Any]) -> Iterator[tuple[st
     acc: list[str] = []
     for token in iter_chain_text(chain):
         acc.append(token)
-        yield token, base + ''.join(acc)
+        merged = normalize_paragraph_spacing(base + ''.join(acc))
+        yield token, merged
 
 
 def _tokens_polish(llm: LLMService, data: dict[str, Any]) -> Iterator[tuple[str, str]]:
     style = data.get('style', get_default_writing_style())
     intensity = parse_style_intensity_from_data(data)
     fallback = get_default_writing_style()
-    style_desc = format_style_prompt(style, intensity) or format_style_prompt(
-        fallback, intensity,
-    )
+    style_key = style if format_style_prompt(style, intensity) else fallback
+    style_desc = format_style_prompt(style_key, intensity)
 
     def body_fn(body: str) -> Iterator[str]:
         chain = build_text_chain(llm, [
@@ -134,15 +139,39 @@ def _tokens_rewrite(llm: LLMService, data: dict[str, Any]) -> Iterator[tuple[str
         raise ValueError('style is required')
 
     intensity = parse_style_intensity_from_data(data)
+    restore_plain = bool(data.get('restore_plain') or data.get('restorePlain'))
+    content = data.get('content') or ''
+    title_block, body = split_markdown_title(content)
+    stream_input = body if title_block else content
 
-    def body_fn(body: str) -> Iterator[str]:
+    if should_use_selective_rewrite(style, intensity, restore_plain=restore_plain):
+        stats: dict[str, Any] = {}
+        data['_rewrite_stats'] = stats
+        for delta, partial in iter_rewrite_body_selective(
+            llm,
+            stream_input,
+            style,
+            intensity=intensity,
+            writing_intent=parse_writing_intent_from_data(data),
+            stats_out=stats,
+        ):
+            full = merge_markdown_title(title_block, partial) if title_block else partial
+            yield delta, full
+        return
+
+    def body_fn(inner: str) -> Iterator[str]:
         chain = build_text_chain(
             llm,
-            rewrite_style_messages(body, style, intensity=intensity),
+            rewrite_style_messages(
+                inner,
+                style,
+                intensity=intensity,
+                restore_plain=restore_plain,
+            ),
         )
         yield from iter_chain_text(chain)
 
-    yield from _stream_transform_body(llm, data.get('content') or '', body_fn)
+    yield from _stream_transform_body(llm, content, body_fn)
 
 
 def _tokens_expand(llm: LLMService, data: dict[str, Any]) -> Iterator[tuple[str, str]]:
@@ -306,36 +335,30 @@ def _tokens_framework(llm: LLMService, data: dict[str, Any]) -> Iterator[tuple[s
     acc: list[str] = []
     for token in iter_chain_text(chain):
         acc.append(token)
-        yield token, ''.join(acc)
+        yield token, polish_generated_draft(''.join(acc))
 
 
-def _tokens_generate_section(llm: LLMService, data: dict[str, Any]) -> Iterator[tuple[str, str]]:
-    title = data.get('section_title') or data.get('sectionTitle', '')
-    if not title:
-        raise ValueError('section_title is required')
-    section_type = data.get('section_type') or data.get('sectionType', 'info')
-    project_id = data.get('project_id') or data.get('projectId')
-    ctx = merge_writing_context({**data, 'anti_ai_rules': True})
-    ctx['section_brief'] = (
-        data.get('section_brief')
-        or data.get('sectionBrief')
-        or data.get('section_content')
-        or data.get('sectionContent')
-        or ctx.get('section_brief')
-        or ''
-    )
-    if project_id:
-        ctx = enrich_writing_context_from_project(project_id, ctx)
-    explicit_target = get_field(data, 'target_word_count', 'targetWordCount')
-    if explicit_target is not None:
-        ctx['target_word_count'] = max(120, int(explicit_target))
-
+def iter_section_body_tokens(
+    llm: LLMService,
+    *,
+    title: str,
+    section_type: str,
+    ctx: dict[str, Any],
+) -> Iterator[str]:
+    """按节写作：逐 token 产出本节正文（不做全文润色，便于 SSE 流式）。"""
     style_block = ctx.get('style', '')
     research = ctx.get('research', '')
     prior = ctx.get('prior_sections', '')
     anti = ctx.get('anti_ai_rules', '')
     section_brief = (ctx.get('section_brief') or '').strip()
     from ..utils_outline import truncate_text, writing_context_limits
+
+    intent = normalize_writing_intent(ctx.get('writing_intent'))
+    brief_block = (ctx.get('writing_brief_block') or '').strip()
+    quality_rules = get_section_writing_rules(
+        intent,
+        writing_brief_block=brief_block,
+    )
 
     tw = int(ctx.get('target_word_count') or ctx.get('target_total_words') or 400)
     limits = writing_context_limits(tw)
@@ -354,7 +377,7 @@ def _tokens_generate_section(llm: LLMService, data: dict[str, Any]) -> Iterator[
         chain = build_text_chain(llm, [
             ('system',
              '你是专业写作者。用第一人称"我"写个人经验，必须具体、有细节。'
-             + get_writing_quality_rules()),
+             + quality_rules),
             (
                 'user',
                 f'''请撰写章节「{title}」（经验型，第一人称）。
@@ -392,7 +415,7 @@ def _tokens_generate_section(llm: LLMService, data: dict[str, Any]) -> Iterator[
         chain = build_text_chain(llm, [
             ('system',
              '你是专业写作者。严格按大纲撰写，论证清楚，禁止编造案例。\n'
-             + get_writing_quality_rules()),
+             + quality_rules),
             (
                 'user',
                 f'''请撰写章节「{title}」。
@@ -429,8 +452,32 @@ def _tokens_generate_section(llm: LLMService, data: dict[str, Any]) -> Iterator[
             ),
         ])
 
+    yield from iter_chain_text(chain)
+
+
+def _tokens_generate_section(llm: LLMService, data: dict[str, Any]) -> Iterator[tuple[str, str]]:
+    title = data.get('section_title') or data.get('sectionTitle', '')
+    if not title:
+        raise ValueError('section_title is required')
+    section_type = data.get('section_type') or data.get('sectionType', 'info')
+    project_id = data.get('project_id') or data.get('projectId')
+    ctx = merge_writing_context({**data, 'anti_ai_rules': True})
+    ctx['section_brief'] = (
+        data.get('section_brief')
+        or data.get('sectionBrief')
+        or data.get('section_content')
+        or data.get('sectionContent')
+        or ctx.get('section_brief')
+        or ''
+    )
+    if project_id:
+        ctx = enrich_writing_context_from_project(project_id, ctx)
+    explicit_target = get_field(data, 'target_word_count', 'targetWordCount')
+    if explicit_target is not None:
+        ctx['target_word_count'] = max(120, int(explicit_target))
+
     acc: list[str] = []
-    for token in iter_chain_text(chain):
+    for token in iter_section_body_tokens(llm, title=title, section_type=section_type, ctx=ctx):
         acc.append(token)
         yield token, polish_generated_draft(''.join(acc))
 
@@ -503,24 +550,30 @@ def iter_writing_ai_events(
             return
 
         if action == 'generate_section':
-            final = polish_generated_draft(apply_rule_fixes(last_full)['fixed_content'])
+            final = polish_generated_draft(last_full)
             yield format_sse({'type': 'done', 'content': final})
             return
 
         if action == 'continue':
             style_prompt = _style_prompt_from_data(data)
-            continuation = _post_process(last_full[len(data.get('content') or ''):], llm, style_prompt)
+            final = _post_process(last_full, llm, style_prompt)
             base = data.get('content') or ''
+            continuation = final[len(base):] if final.startswith(base) else final
             yield format_sse({
                 'type': 'done',
-                'content': base + continuation,
+                'content': final,
                 'continuation': continuation,
             })
             return
 
         if action == 'rewrite':
-            # 风格转换：仅规则去 AI 味，不再用「风格画像」二次润色（会把文体改回去）
-            final = apply_rule_fixes(last_full)['fixed_content']
+            final = polish_generated_draft(last_full)
+            extra: dict[str, Any] = {'type': 'done', 'content': final}
+            stats = data.get('_rewrite_stats')
+            if isinstance(stats, dict):
+                extra['rewrite_stats'] = stats
+            yield format_sse(extra)
+            return
         else:
             style_prompt = _style_prompt_from_data(data)
             final = _post_process(last_full, llm, style_prompt)

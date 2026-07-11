@@ -17,6 +17,7 @@ import { isTauri, openFile, saveFile } from "@/lib/platform";
 import MarkdownIt from "markdown-it";
 type MarkdownItInstance = InstanceType<typeof MarkdownIt>;
 import hljs from "highlight.js";
+import DOMPurify from "dompurify";
 import {
   FileText,
   Loader2,
@@ -992,7 +993,7 @@ export default function FormatPage() {
               {displayContent ? (
                 <div
                   className="preview-content"
-                  dangerouslySetInnerHTML={{ __html: previewHtml }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml) }}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center py-16 text-ink-400">

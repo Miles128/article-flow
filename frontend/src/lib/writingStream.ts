@@ -3,6 +3,15 @@ import {
   resolveStreamingApiBaseUrl,
 } from '@/lib/api/client';
 
+export type RewriteStreamStats = {
+  selective?: boolean;
+  unit_count?: number;
+  planned_count?: number;
+  rewritten_count?: number;
+  target_pct?: number;
+  cover_ratio?: number;
+};
+
 export type WritingStreamEvent = {
   type: string;
   action?: string;
@@ -11,6 +20,7 @@ export type WritingStreamEvent = {
   message?: string;
   continuation?: string;
   missing_sections?: string[];
+  rewrite_stats?: RewriteStreamStats;
 };
 
 /** 解析 SSE（data: {...}\\n\\n） */

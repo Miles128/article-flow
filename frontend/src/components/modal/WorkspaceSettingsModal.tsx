@@ -3,6 +3,8 @@
 import { X, FolderOpen } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { isTauri, selectFolder } from "@/lib/platform";
+import { UiFontSwitcher } from "@/components/theme/UiFontSwitcher";
+import { UiThemeSwitcher } from "@/components/theme/UiThemeSwitcher";
 
 interface WorkspaceSettingsModalProps {
   isOpen: boolean;
@@ -31,27 +33,25 @@ export function WorkspaceSettingsModal({
       role="presentation"
     >
       <div
-        className="bg-surface-50/70 backdrop-blur-[3px] max-w-md w-full border border-surface-300"
+        className="bg-surface-50/70 backdrop-blur-[3px] max-w-lg w-full max-h-[min(88vh,560px)] border border-surface-300 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-300">
-          <h2 className="wen-title">设置</h2>
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-surface-300 shrink-0">
+          <h2 className="wen-title text-base">设置</h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-1 text-ink-400 hover:text-ink-800"
+            className="wen-icon-btn w-8 h-8 text-ink-400 hover:text-ink-800 border-0 bg-transparent"
+            aria-label="关闭"
           >
             <X size={18} strokeWidth={1.5} />
           </button>
         </div>
 
-        <div className="p-4 space-y-3">
-          <label className="block text-xs text-ink-400 font-kaiti">
+        <div className="p-4 space-y-3 overflow-y-auto min-h-0 flex-1">
+          <label className="block text-xs text-ink-500 font-ui">
             工作区文件夹
           </label>
-          <p className="text-xs text-ink-400">
-            导入与导出的 Markdown 文件默认使用此目录。
-          </p>
           <div className="flex items-center gap-2">
             {isTauri ? (
               <>
@@ -82,11 +82,16 @@ export function WorkspaceSettingsModal({
               />
             )}
           </div>
+
+          <div className="pt-3 border-t border-surface-300 space-y-3">
+            <UiThemeSwitcher />
+            <UiFontSwitcher />
+          </div>
         </div>
 
-        <div className="px-4 py-3 border-t border-surface-300 flex justify-end">
-          <button type="button" onClick={onClose} className="wen-btn-seal">
-            完成
+        <div className="px-4 py-3 border-t border-surface-300 flex justify-end gap-2 shrink-0 bg-surface-50/90">
+          <button type="button" onClick={onClose} className="wen-btn-seal min-w-[5.5rem]">
+            确定
           </button>
         </div>
       </div>

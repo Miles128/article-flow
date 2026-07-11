@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { useAppStore } from '@/lib/store';
 import { clsx } from 'clsx';
@@ -13,26 +14,33 @@ interface AppShellProps {
 export function AppShell({ children, header, headerBorderless }: AppShellProps) {
  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
 
+ useEffect(() => {
+   document.documentElement.setAttribute(
+     'data-sidebar-collapsed',
+     sidebarCollapsed ? 'true' : 'false',
+   );
+ }, [sidebarCollapsed]);
+
  return (
  <div className="h-screen flex overflow-hidden">
  <Sidebar />
  <div
  className={clsx(
  'flex-1 flex flex-col overflow-hidden min-w-0 transition-[margin] duration-200',
- sidebarCollapsed ? 'md:ml-0' : 'md:ml-40'
+ sidebarCollapsed ? 'md:ml-0' : 'md:ml-[var(--sidebar-width)]'
  )}
  >
  {header && (
  <div
  className={clsx(
- 'flex-shrink-0 bg-surface-50/75 backdrop-blur-[3px]',
- !headerBorderless && 'border-b border-surface-300',
+ 'flex-shrink-0 wen-chrome-bg',
+ !headerBorderless && 'border-b',
  )}
  >
  {header}
  </div>
  )}
- <main className="flex-1 overflow-y-auto relative z-0 bg-transparent">{children}</main>
+ <main className="flex-1 overflow-y-auto relative z-0 wen-main-canvas">{children}</main>
  </div>
  </div>
  );

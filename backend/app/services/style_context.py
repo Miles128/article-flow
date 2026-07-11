@@ -1,7 +1,16 @@
-"""写作上下文：风格画像注入"""
+"""写作上下文：风格画像、写作意图、写前 Brief 注入"""
 from typing import Any
 
-from ..services.anti_ai_service import get_anti_ai_style_prompt
+from ..prompts.writing_intent import parse_writing_intent_from_data
+from ..services.anti_ai_service import (
+    get_anti_ai_generation_prompt,
+    get_anti_ai_polish_prompt,
+)
+from ..services.writing_brief_service import (
+    DEEP_ANALYSIS_SOURCE_TYPE,
+    format_brief_for_prompt,
+    get_writing_brief,
+)
 from .style_service import StyleProfile, StyleAnalyzer
 
 
@@ -37,6 +46,9 @@ def _target_style_from_request(data: dict[str, Any]) -> str:
 
 def merge_writing_context(data: dict[str, Any]) -> dict[str, Any]:
     ctx = dict(data.get('context') or {})
+    intent = parse_writing_intent_from_data(data)
+    ctx['writing_intent'] = intent
+
     target_style = _target_style_from_request(data)
     if target_style:
         existing = ctx.get('style', '')
@@ -48,8 +60,13 @@ def merge_writing_context(data: dict[str, Any]) -> dict[str, Any]:
     if prompt:
         existing = ctx.get('style', '')
         ctx['style'] = f'{existing}\n\n{prompt}'.strip() if existing else prompt
+
     if data.get('anti_ai_rules'):
-        ctx['anti_ai_rules'] = get_anti_ai_style_prompt()
+        if data.get('anti_ai_polish'):
+            ctx['anti_ai_rules'] = get_anti_ai_polish_prompt()
+        else:
+            ctx['anti_ai_rules'] = get_anti_ai_generation_prompt()
+
     for key in (
         'section_brief',
         'full_outline',
@@ -58,14 +75,20 @@ def merge_writing_context(data: dict[str, Any]) -> dict[str, Any]:
         'prior_sections',
         'research',
         'target_word_count',
+        'writing_brief_block',
     ):
         if key in data and data[key] not in (None, ''):
             ctx[key] = data[key]
+
+    brief_block = (data.get('writing_brief_block') or ctx.get('writing_brief_block') or '').strip()
+    if brief_block:
+        ctx['writing_brief_block'] = brief_block
+
     return ctx
 
 
 def enrich_writing_context_from_project(project_id: str, ctx: dict[str, Any]) -> dict[str, Any]:
-    """从项目加载大纲与资料，供按纲写作使用。"""
+    """从项目加载大纲、资料、写前 Brief，供按纲写作使用。"""
     from ..models import Outline, ResearchMaterial
     from ..utils_outline import (
         outline_nodes_to_markdown,
@@ -78,6 +101,13 @@ def enrich_writing_context_from_project(project_id: str, ctx: dict[str, Any]) ->
     out = dict(ctx)
     tw = int(out.get('target_word_count') or out.get('target_total_words') or 2000)
     limits = writing_context_limits(tw)
+
+    brief = get_writing_brief(project_id)
+    if brief and not out.get('writing_brief_block'):
+        out['writing_brief_block'] = format_brief_for_prompt(brief)
+    if brief and brief.get('writing_intent') and not out.get('writing_intent'):
+        out['writing_intent'] = brief['writing_intent']
+
     if not out.get('outline_index'):
         outline = Outline.get_by_project(project_id)
         nodes = outline.get('nodes', []) if outline else []
@@ -104,11 +134,15 @@ def enrich_writing_context_from_project(project_id: str, ctx: dict[str, Any]) ->
             from datetime import datetime
 
             y = datetime.now().year
+            deep = [m for m in materials if m.get('source_type') == DEEP_ANALYSIS_SOURCE_TYPE]
+            rest = [m for m in materials if m.get('source_type') != DEEP_ANALYSIS_SOURCE_TYPE]
+            ordered = deep + rest
             parts: list[str] = [
                 f'（写作年份 {y}；仅可引用下列资料中的事实，勿编造案例；勿把旧闻当年份写「最近」）',
             ]
-            for i, m in enumerate(materials[:12], 1):
-                chunk = f"### 资料{i}: {m.get('title') or '无标题'}"
+            for i, m in enumerate(ordered[:12], 1):
+                tag = '深度分析' if m.get('source_type') == DEEP_ANALYSIS_SOURCE_TYPE else '资料'
+                chunk = f"### {tag}{i}: {m.get('title') or '无标题'}"
                 if m.get('summary'):
                     chunk += f"\n{m['summary']}"
                 elif m.get('content'):

@@ -3,6 +3,7 @@ from ..models import ResearchMaterial, Claim
 from ..decorators import with_llm
 from ..utils import parse_json_from_llm, get_field
 from ..utils_ssrf import fetch_url_safely
+from ..services.deep_analysis_service import generate_deep_analysis
 import logging
 from bs4 import BeautifulSoup
 from datetime import datetime, timezone
@@ -183,6 +184,47 @@ def verify_claims(llm, data):
     result = llm.verify_claims(data['content'], claims)
     parsed = parse_json_from_llm(result)
     return parsed or {'raw_result': result}
+
+
+@bp.route('/deep-analysis', methods=['POST'])
+@with_llm(require_content=False)
+def deep_analysis(llm, data):
+    """联网搜索 + 项目资料 → 结构化深度分析报告（热点解读五段式）。"""
+    topic = (
+        get_field(data, 'topic', 'query', 'title') or ''
+    ).strip()
+    if not topic:
+        raise ValueError('请提供 topic（分析主题或选题标题）')
+
+    project_id = get_field(data, 'project_id', 'projectId') or None
+    description = get_field(data, 'description') or ''
+    use_web = data.get('use_web_search', data.get('useWebSearch', True))
+    use_materials = data.get('use_materials', data.get('useMaterials', True))
+    max_search = min(int(get_field(data, 'max_search_results', 'maxSearchResults') or 12), 20)
+
+    result = generate_deep_analysis(
+        llm,
+        topic=topic,
+        description=description,
+        project_id=project_id,
+        use_web_search=bool(use_web),
+        use_materials=bool(use_materials),
+        max_search_results=max_search,
+    )
+    save_to_project = bool(
+        data.get('save_to_project', data.get('saveToProject', False)),
+    )
+    if save_to_project and project_id and result.get('report_markdown'):
+        from ..services.writing_brief_service import persist_deep_analysis_material
+
+        persist_deep_analysis_material(
+            project_id,
+            topic=result.get('topic') or topic,
+            report_markdown=result['report_markdown'],
+            writing_angles=result.get('writing_angles'),
+        )
+        result['saved_to_materials'] = True
+    return result
 
 
 @bp.route('/research-package', methods=['GET'])

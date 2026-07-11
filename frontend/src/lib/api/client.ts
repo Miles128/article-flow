@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Project, ProjectContent, Topic, ResearchMaterial, Outline, HotNewsSearchResult, Comment, Claim, AntiAiScanResult, ContentEvalResult, CriticResult } from '@/types';
+import type { Project, ProjectContent, Topic, ResearchMaterial, Outline, HotNewsCategory, HotNewsSearchResult, Comment, Claim, AntiAiScanResult, ContentEvalResult, CriticResult } from '@/types';
 
 // ===== 键名转换工具 =====
 
@@ -55,6 +55,10 @@ function resolveApiBaseUrl(): string {
 
 /** SSE 必须直连 Flask；经 Next 代理会被缓冲成一次性响应 */
 export function resolveStreamingApiBaseUrl(): string {
+  // 优先使用专用的流式 API URL
+  if (process.env.NEXT_PUBLIC_STREAMING_API_URL) {
+    return process.env.NEXT_PUBLIC_STREAMING_API_URL.replace(/\/$/, '');
+  }
   const base = resolveApiBaseUrl();
   if (typeof window === 'undefined') {
     return base;
@@ -72,6 +76,7 @@ export function resolveStreamingApiBaseUrl(): string {
 
 const api = axios.create({
   baseURL: resolveApiBaseUrl(),
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -218,6 +223,38 @@ export const researchApi = {
     api.post('/research/claims/verify', { projectId, content }),
   getResearchPackage: (projectId: string) =>
     api.get<{ materials: ResearchMaterial[]; claims: Claim[] }>(`/research/research-package`, { params: { projectId } }),
+  deepAnalysis: (data: {
+    projectId?: string;
+    topic: string;
+    description?: string;
+    useWebSearch?: boolean;
+    useMaterials?: boolean;
+    maxSearchResults?: number;
+    saveToProject?: boolean;
+  }) =>
+    api.post<DeepAnalysisResult>('/research/deep-analysis', data, { timeout: 180000 }),
+};
+
+export type DeepAnalysisSection = { title: string; content: string };
+
+export type DeepAnalysisResult = {
+  topic: string;
+  frameworkId: string;
+  warnings: string[];
+  searchItemCount: number;
+  materialCount: number;
+  searchItems: Array<{ title?: string; content?: string; url?: string; source?: string }>;
+  sections: DeepAnalysisSection[];
+  reportMarkdown: string;
+  suggestedClaims: Array<{ text?: string; sourceQuote?: string }>;
+  writingAngles: string[];
+  outlineNodes: Array<{
+    id: number;
+    title: string;
+    content: string;
+    sectionType: string;
+    children: [];
+  }>;
 };
 
 export const outlineApi = {
@@ -243,6 +280,22 @@ export const writingApi = {
         max_intensity?: number;
       }>;
     }>('/writing/styles'),
+  getIntents: () =>
+    api.get<{
+      default: string;
+      intents: Array<{ id: string; label: string; description?: string }>;
+    }>('/writing/intents'),
+  getBrief: (projectId: string) =>
+    api.get<{ brief: Record<string, unknown> | null; brief_block: string }>(
+      '/writing/brief',
+      { params: { projectId } },
+    ),
+  generateBrief: (data: { projectId: string; writingIntent?: string }) =>
+    api.post<{ brief: Record<string, unknown>; brief_block: string }>(
+      '/writing/brief/generate',
+      data,
+      { timeout: 120000 },
+    ),
   scanAiRules: (content: string) => api.post<AntiAiScanResult>('/writing/scan-ai-rules', { content }),
   fixAiRules: (content: string, opts?: { useLlmPolish?: boolean; styleProfileId?: string }) =>
     api.post<{ fixedContent: string; beforeScore: number; afterScore: number; improved: boolean }>('/writing/fix-ai-rules', {
@@ -409,10 +462,12 @@ export const reviewApi = {
 };
 
 export const hotnewsApi = {
-  search: (params: { query: string; maxResults?: number }) =>
+  getCategories: () => api.get<{ categories: HotNewsCategory[] }>('/hotnews/categories'),
+  search: (params: { category: string; tavilyApiKey?: string; maxResults?: number }) =>
     api.get<HotNewsSearchResult>('/hotnews/search', { params, timeout: 90000 }),
   mineTopics: (data: {
-    query: string;
+    keywords?: string[];
+    category?: string;
     count?: number;
   }) =>
     api.post('/hotnews/mine-topics', data),
@@ -452,6 +507,9 @@ export const writingStreamApi = {
     styleIntensity?: number;
     styleProfileId?: string;
     targetWordCount?: number;
+    writingIntent?: string;
+    finishCoherence?: boolean;
+    insightPass?: boolean;
   }): Promise<Response> => {
     const apiBase = resolveStreamingApiBaseUrl();
     const url = `${apiBase}/writing/fast-draft-stream`;

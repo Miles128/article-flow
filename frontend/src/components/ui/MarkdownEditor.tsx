@@ -38,7 +38,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { clsx } from "clsx";
-import { countArticleWords } from "@/lib/textUtils";
+import { countArticleWords, getTextareaCaretClientPoint } from "@/lib/textUtils";
 
 type EditorMode = "edit" | "preview" | "split";
 
@@ -51,17 +51,31 @@ interface MarkdownEditorProps {
   seamlessToolbar?: boolean;
   placeholder?: string;
   minHeight?: number | string;
+  showStatusBar?: boolean;
+  /** 工具栏右侧：字数、改写全文、续写等 */
+  toolbarEnd?: React.ReactNode;
+  /** 锁定编辑/预览模式，并隐藏模式切换 */
+  forcedMode?: EditorMode;
   onAIAction?: (action: string, selection?: string) => void;
   aiBusyAction?: string | null;
   onSelectionChange?: (
     selection: { start: number; end: number; text: string } | null,
   ) => void;
+  /** 右键选中时触发，用于弹出选区菜单 */
+  onSelectionContextMenu?: (payload: {
+    start: number;
+    end: number;
+    text: string;
+    x: number;
+    y: number;
+  }) => void;
 }
 
 export interface MarkdownEditorHandle {
   insertAtCursor: (text: string) => void;
   focus: () => void;
   scrollToTop: () => void;
+  getSelectionAnchorPoint: () => { x: number; y: number } | null;
 }
 
 const ToolbarButton: React.FC<{
@@ -75,7 +89,7 @@ const ToolbarButton: React.FC<{
     onClick={onClick}
     title={title}
     className={clsx(
-      "p-1.5 text-ink-500 hover:text-ink-900 transition-colors",
+      "wen-format-btn p-0 text-ink-500 hover:text-ink-900 transition-colors",
       active && "text-primary-600",
     )}
   >
@@ -96,13 +110,18 @@ export const MarkdownEditor = forwardRef<
     seamlessToolbar = false,
     placeholder = "开始输入...",
     minHeight = 400,
+    showStatusBar = true,
+    toolbarEnd,
+    forcedMode,
     onAIAction,
     aiBusyAction = null,
     onSelectionChange,
+    onSelectionContextMenu,
   },
   ref,
 ) {
-  const [mode, setMode] = useState<EditorMode>("split");
+  const [mode, setMode] = useState<EditorMode>(forcedMode ?? "split");
+  const activeMode = forcedMode ?? mode;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const caretRef = useRef({ start: 0, end: 0 });
   const [selection, setSelection] = useState<{
@@ -149,6 +168,16 @@ export const MarkdownEditor = forwardRef<
       scrollToTop() {
         const el = textareaRef.current;
         if (el) el.scrollTop = 0;
+      },
+      getSelectionAnchorPoint() {
+        const el = textareaRef.current;
+        if (!el || el.selectionStart === el.selectionEnd) return null;
+        try {
+          return getTextareaCaretClientPoint(el, el.selectionEnd);
+        } catch {
+          const r = el.getBoundingClientRect();
+          return { x: r.left + Math.min(120, r.width * 0.3), y: r.top + 36 };
+        }
       },
     }),
     [value, onChange],
@@ -217,6 +246,28 @@ export const MarkdownEditor = forwardRef<
     }
   };
 
+  const handleTextareaContextMenu = (
+    e: React.MouseEvent<HTMLTextAreaElement>,
+  ) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const { selectionStart: start, selectionEnd: end } = el;
+    if (start === end) return;
+    e.preventDefault();
+    const next = {
+      start,
+      end,
+      text: value.substring(start, end),
+    };
+    setSelection(next);
+    onSelectionChange?.(next);
+    onSelectionContextMenu?.({
+      ...next,
+      x: e.clientX,
+      y: e.clientY,
+    });
+  };
+
   const statsText = selection?.text?.trim() ? selection.text : value;
   const wordCount = countArticleWords(statsText);
   const charCount = value.length;
@@ -224,22 +275,19 @@ export const MarkdownEditor = forwardRef<
   return (
     <div
       className={clsx(
-        "overflow-hidden bg-surface-50/70 backdrop-blur-[2px]",
-        seamlessToolbar
-          ? "border-x border-b border-surface-300 border-t-0"
-          : "border border-surface-300",
+        "overflow-hidden backdrop-blur-[2px] wen-editor-sheet",
+        seamlessToolbar ? "border-0 border-b" : "border border-surface-300",
       )}
     >
       {showToolbar && (
         <div
           className={clsx(
             seamlessToolbar
-              ? "wen-toolbar-seamless border-b border-surface-300"
-              : "wen-toolbar",
-            "flex-wrap gap-1",
+              ? "wen-editor-format-bar wen-toolbar-seamless"
+              : "wen-editor-format-bar wen-toolbar",
           )}
         >
-          <div className="flex items-center gap-0.5 flex-wrap">
+          <div className="wen-editor-format-group">
             <ToolbarButton
               onClick={() => insertMarkdown("**", "**", "粗体文字")}
               title="粗体 (Ctrl+B)"
@@ -259,7 +307,7 @@ export const MarkdownEditor = forwardRef<
               <Strikethrough size={16} />
             </ToolbarButton>
 
-            <div className="w-px h-5 bg-surface-300 mx-0.5" />
+            <div className="wen-format-divider" />
 
             <ToolbarButton
               onClick={() => insertLine("# ", "一级标题")}
@@ -280,7 +328,7 @@ export const MarkdownEditor = forwardRef<
               <Heading3 size={16} />
             </ToolbarButton>
 
-            <div className="w-px h-5 bg-surface-300 mx-0.5" />
+            <div className="wen-format-divider" />
 
             <ToolbarButton
               onClick={() => insertLine("- ", "列表项")}
@@ -301,7 +349,7 @@ export const MarkdownEditor = forwardRef<
               <CheckSquare size={16} />
             </ToolbarButton>
 
-            <div className="w-px h-5 bg-surface-300 mx-0.5" />
+            <div className="wen-format-divider" />
 
             <ToolbarButton
               onClick={() => insertLine("> ", "引用文字")}
@@ -341,7 +389,10 @@ export const MarkdownEditor = forwardRef<
             </ToolbarButton>
           </div>
 
-          <div className="flex items-center gap-2">
+          {toolbarEnd ? (
+            <div className="wen-editor-format-actions">{toolbarEnd}</div>
+          ) : (
+          <div className="flex items-center gap-2 shrink-0">
             {onAIAction && (
               <div className="flex items-center gap-1 border-l border-gray-300 pl-2 ml-2">
                 <button
@@ -389,15 +440,16 @@ export const MarkdownEditor = forwardRef<
               </div>
             )}
 
-            <div className="w-px h-5 bg-surface-300 mx-0.5" />
+            <div className="wen-format-divider" />
 
+            {!forcedMode ? (
             <div className="flex items-center gap-2 text-xs text-ink-500 border-l border-surface-300 pl-2">
               <button
                 type="button"
                 onClick={() => setMode("edit")}
                 className={clsx(
                   "hover:text-ink-900 transition-colors",
-                  mode === "edit" && "text-primary-600 font-kaiti",
+                  activeMode === "edit" && "text-primary-600 font-kaiti",
                 )}
               >
                 编辑
@@ -407,7 +459,7 @@ export const MarkdownEditor = forwardRef<
                 onClick={() => setMode("split")}
                 className={clsx(
                   "hover:text-ink-900 transition-colors",
-                  mode === "split" && "text-primary-600 font-kaiti",
+                  activeMode === "split" && "text-primary-600 font-kaiti",
                 )}
               >
                 双栏
@@ -417,12 +469,13 @@ export const MarkdownEditor = forwardRef<
                 onClick={() => setMode("preview")}
                 className={clsx(
                   "hover:text-ink-900 transition-colors",
-                  mode === "preview" && "text-primary-600 font-kaiti",
+                  activeMode === "preview" && "text-primary-600 font-kaiti",
                 )}
               >
                 预览
               </button>
             </div>
+            ) : null}
 
             {onSave && (
               <button
@@ -440,34 +493,36 @@ export const MarkdownEditor = forwardRef<
               </button>
             )}
           </div>
+          )}
         </div>
       )}
 
       <div className="flex min-h-[400px]" style={{ minHeight: minHeight }}>
-        {(mode === "edit" || mode === "split") && (
+        {(activeMode === "edit" || activeMode === "split") && (
           <div
             className={clsx(
               "flex-1 flex flex-col",
-              mode === "split" && "border-r border-surface-300",
+              activeMode === "split" && "border-r border-surface-300",
             )}
           >
             <textarea
               ref={textareaRef}
               value={value}
               onChange={(e) => onChange(e.target.value)}
-              onSelect={handleSelectionChange}
-              onClick={handleSelectionChange}
-              onKeyUp={handleSelectionChange}
+              onSelect={() => handleSelectionChange()}
+              onClick={() => handleSelectionChange()}
+              onKeyUp={() => handleSelectionChange()}
+              onContextMenu={handleTextareaContextMenu}
               onBlur={updateCaret}
               placeholder={placeholder}
-              className="flex-1 w-full p-4 resize-none focus:outline-none font-editor text-[15px] leading-[1.9] text-ink-800 bg-transparent placeholder:text-ink-300"
+              className="wen-editor-textarea flex-1 w-full p-4 resize-none focus:outline-none font-editor text-[15px] leading-[1.9] text-ink-800 bg-transparent placeholder:text-ink-300"
               spellCheck={false}
             />
           </div>
         )}
 
-        {(mode === "preview" || mode === "split") && (
-          <div className="flex-1 overflow-y-auto bg-surface-50/40">
+        {(activeMode === "preview" || activeMode === "split") && (
+          <div className="flex-1 overflow-y-auto wen-editor-preview">
             <div className="md-preview font-editor p-6 max-w-none">
               {value ? (
                 <ReactMarkdown
@@ -627,6 +682,7 @@ export const MarkdownEditor = forwardRef<
         )}
       </div>
 
+      {showStatusBar ? (
       <div className="border-t border-surface-300 px-4 py-2 flex items-center justify-between text-xs text-ink-400">
         <div className="flex items-center gap-4 text-ink-400">
           <span>
@@ -644,6 +700,7 @@ export const MarkdownEditor = forwardRef<
         </div>
         <span className="text-ink-300">Markdown</span>
       </div>
+      ) : null}
     </div>
   );
 });

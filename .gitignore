@@ -17,7 +17,8 @@ backend/data/*
 !backend/data/README.md
 *.py[cod]
 *.so
-.env
+.env*
+!.env.example
 
 # OS
 .DS_Store

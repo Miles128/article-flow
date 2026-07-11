@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 import { outlineApi, contentApi } from "@/lib/api/client";
@@ -8,7 +8,7 @@ import { importContentFromFile, getSelectedTopic } from "@/lib/contentFlow";
 import { buildTopicSearchQuery } from "@/lib/searchQuery";
 import { StepPageFrame } from "@/components/layout/StepPageFrame";
 import { useStepFromRoute } from "@/lib/hooks/useStepFromRoute";
-import type { OutlineNode } from "@/types";
+import type { OutlineNode, Outline } from "@/types";
 import {
   ListOrdered,
   Plus,
@@ -159,9 +159,12 @@ export default function OutlinePage() {
   const params = useParams();
   const { currentProject } = useAppStore();
   const { stepId } = useStepFromRoute();
-  const [outline, setOutline] = useState<any>(null);
+  const [outline, setOutline] = useState<Partial<Outline> | null>(null);
   const [loading, setLoading] = useState(true);
-  const [templates, setTemplates] = useState<any[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<
+    Array<{ name: string; description: string; structure: OutlineNode[] }>
+  >([]);
   const [showTemplates, setShowTemplates] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
@@ -175,6 +178,13 @@ export default function OutlinePage() {
     }>
   >([]);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 组件卸载时清理防抖定时器
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     loadOutline();
@@ -196,10 +206,12 @@ export default function OutlinePage() {
     if (!params.id) return;
     try {
       setLoading(true);
+      setLoadError(null);
       const response = await outlineApi.getByProject(params.id as string);
       setOutline(response.data);
     } catch (error) {
       console.error("Failed to load outline:", error);
+      setLoadError("加载大纲失败，请刷新重试");
     } finally {
       setLoading(false);
     }
@@ -214,7 +226,7 @@ export default function OutlinePage() {
     }
   }
 
-  async function saveOutline(data: any) {
+  async function saveOutline(data: Partial<Outline>) {
     if (!params.id) return;
     try {
       await outlineApi.createOrUpdate({
@@ -224,10 +236,11 @@ export default function OutlinePage() {
       });
     } catch (error) {
       console.error("Failed to save outline:", error);
+      showToast("error", "保存大纲失败，请重试");
     }
   }
 
-  function debouncedSave(data: any) {
+  function debouncedSave(data: Partial<Outline>) {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => saveOutline(data), 1000);
   }
@@ -255,14 +268,14 @@ export default function OutlinePage() {
 
   function addNode(parentId?: string | number) {
     const newNode: OutlineNode = {
-      id: Date.now(),
+      id: crypto.randomUUID(),
       title: "新节点",
       content: "",
       sectionType: "info",
       children: [],
     };
 
-    let newOutline: any;
+    let newOutline: Partial<Outline>;
     if (outline) {
       newOutline = { ...outline };
       if (parentId) {
@@ -293,6 +306,25 @@ export default function OutlinePage() {
     debouncedSave(newOutline);
   }
 
+  function updateNode(id: string | number, title: string) {
+    if (!outline) return;
+    if (!title.trim()) return; // 空标题不更新
+    const updateRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
+      return nodes.map((node) => {
+        if (node.id === id) return { ...node, title };
+        if (node.children)
+          return { ...node, children: updateRecursive(node.children) };
+        return node;
+      });
+    };
+    const newOutline: Partial<Outline> = {
+      ...outline,
+      nodes: updateRecursive(outline.nodes || []),
+    };
+    setOutline(newOutline);
+    debouncedSave(newOutline);
+  }
+
   function updateSectionType(
     id: string | number,
     sectionType: "info" | "experience",
@@ -306,25 +338,7 @@ export default function OutlinePage() {
         return node;
       });
     };
-    const newOutline = {
-      ...outline,
-      nodes: updateRecursive(outline.nodes || []),
-    };
-    setOutline(newOutline);
-    debouncedSave(newOutline);
-  }
-
-  function updateNode(id: string | number, title: string) {
-    if (!outline) return;
-    const updateRecursive = (nodes: OutlineNode[]): OutlineNode[] => {
-      return nodes.map((node) => {
-        if (node.id === id) return { ...node, title };
-        if (node.children)
-          return { ...node, children: updateRecursive(node.children) };
-        return node;
-      });
-    };
-    const newOutline = {
+    const newOutline: Partial<Outline> = {
       ...outline,
       nodes: updateRecursive(outline.nodes || []),
     };
@@ -343,7 +357,7 @@ export default function OutlinePage() {
           return node;
         });
     };
-    const newOutline = {
+    const newOutline: Partial<Outline> = {
       ...outline,
       nodes: deleteRecursive(outline.nodes || []),
     };
@@ -356,14 +370,14 @@ export default function OutlinePage() {
     name: string;
     sections: Array<{ title: string; hint: string }>;
   }) {
-    const nodes: OutlineNode[] = fw.sections.map((s, i) => ({
-      id: Date.now() + i,
+    const nodes: OutlineNode[] = fw.sections.map((s) => ({
+      id: crypto.randomUUID(),
       title: s.title,
       content: s.hint || "",
       sectionType: "info" as const,
       children: [],
     }));
-    const newOutline = {
+    const newOutline: Partial<Outline> = {
       ...(outline || { title: "文章大纲" }),
       title: fw.name,
       frameworkId: fw.id,
@@ -378,6 +392,27 @@ export default function OutlinePage() {
       <div className="flex items-center justify-center py-16">
         <Loader2 className="animate-spin h-8 w-8 text-ink-300 mx-auto" />
       </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <StepPageFrame
+        wide
+        title="列出大纲"
+        subtitle="AI 生成 + 手动编辑"
+        stepId={stepId}
+      >
+        <div className="text-center py-16">
+          <p className="text-red-600 mb-4">{loadError}</p>
+          <button
+            onClick={loadOutline}
+            className="px-4 py-2 wen-btn-seal font-medium"
+          >
+            重试
+          </button>
+        </div>
+      </StepPageFrame>
     );
   }
 
@@ -399,7 +434,7 @@ export default function OutlinePage() {
                   const trimmed = line.trim();
                   if (trimmed) {
                     nodes.push({
-                      id: Date.now() + idx,
+                      id: crypto.randomUUID(),
                       title: trimmed.replace(/^#+\s*/, ""),
                       content: "",
                       children: [],
@@ -407,7 +442,10 @@ export default function OutlinePage() {
                   }
                 });
                 if (nodes.length > 0) {
-                  const newOutline = { title: "导入大纲", nodes };
+                  const newOutline: Partial<Outline> = {
+                    title: "导入大纲",
+                    nodes,
+                  };
                   setOutline(newOutline);
                   debouncedSave(newOutline);
                 }
@@ -544,7 +582,7 @@ export default function OutlinePage() {
                   <button
                     key={index}
                     onClick={() => {
-                      const newOutline = {
+                      const newOutline: Partial<Outline> = {
                         title: template.name,
                         nodes: template.structure,
                       };

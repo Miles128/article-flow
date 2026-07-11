@@ -1,0 +1,81 @@
+/* Minimal · 纯白克制 */
+
+[data-ui-theme='minimal'] {
+  --paper: #ffffff;
+  --paper-warm: #fafafa;
+  --paper-line: #eeeeee;
+  --ink-muted: #a3a3a3;
+  --ink-body: #404040;
+  --ink-deep: #171717;
+  --seal: #171717;
+  --wen-body-size: 15px;
+  --foreground-rgb: 23, 23, 23;
+  --sidebar-width: 188px;
+  --bg-base: #ffffff;
+  --bg-gradient: none;
+  --bg-noise-opacity: 0;
+  --sheet-bg: #ffffff;
+  --sheet-bg-blend: #ffffff;
+  --sheet-border: #e5e5e5;
+  --main-canvas-bg: #ffffff;
+  --editor-max-width: none;
+  --btn-ghost-bg: #ffffff;
+  --btn-ghost-border: #d4d4d4;
+  --btn-seal-fg: #ffffff;
+  --btn-seal-bg: #171717;
+  --btn-seal-border: #171717;
+  --sidebar-bg: #fafafa;
+  --step-active-border: #171717;
+  --step-active-bg: rgba(0, 0, 0, 0.04);
+  --panel-bg: #ffffff;
+  --panel-border: #e5e5e5;
+  --row-hover: rgba(0, 0, 0, 0.04);
+  --accent-fg: #171717;
+  --accent-bg: rgba(0, 0, 0, 0.05);
+  --accent-border: #171717;
+  --theme-font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+  --theme-font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --theme-radius: 4px;
+  --wen-btn-radius: 4px;
+  --theme-panel-shadow: none;
+}
+
+[data-ui-theme='minimal'] body {
+  font-family: var(--theme-font-body);
+  color: var(--ink-deep);
+}
+
+[data-ui-theme='minimal'] body::before {
+  background-color: var(--bg-base);
+  background-image: none;
+}
+
+[data-ui-theme='minimal'] body::after {
+  opacity: 0;
+}
+
+[data-ui-theme='minimal'] .wen-title,
+[data-ui-theme='minimal'] .wen-label {
+  font-family: var(--theme-font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+[data-ui-theme='minimal'] .wen-panel,
+[data-ui-theme='minimal'] .wen-panel-padded {
+  background: #ffffff;
+  border: 1px solid var(--sheet-border);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+[data-ui-theme='minimal'] .wen-btn-seal {
+  border-radius: var(--theme-radius);
+  box-shadow: none;
+}
+
+[data-ui-theme='minimal'] .wen-float-chip {
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #eee;
+}

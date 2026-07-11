@@ -20,6 +20,14 @@ _META_LINE3 = re.compile(
 )
 
 
+def normalize_paragraph_spacing(text: str) -> str:
+    """合并连续空行，避免续写/润色后段落间距越来越大。"""
+    if not (text or '').strip():
+        return text or ''
+    t = (text or '').replace('\r\n', '\n')
+    return re.sub(r'\n{3,}', '\n\n', t).strip()
+
+
 def strip_writing_meta_leakage(text: str) -> str:
     if not (text or '').strip():
         return text or ''
@@ -37,11 +45,15 @@ def strip_writing_meta_leakage(text: str) -> str:
         if _META_LINE3.search(stripped):
             continue
         kept.append(line)
-    return re.sub(r'\n{3,}', '\n\n', '\n'.join(kept)).strip()
+    return normalize_paragraph_spacing(
+        re.sub(r'\n{3,}', '\n\n', '\n'.join(kept)).strip(),
+    )
 
 
 def polish_generated_draft(text: str) -> str:
     """成稿统一后处理：去元信息 + 扁平化 ##/###。"""
     from .utils_outline import flatten_section_headings
 
-    return flatten_section_headings(strip_writing_meta_leakage(text))
+    return normalize_paragraph_spacing(
+        flatten_section_headings(strip_writing_meta_leakage(text)),
+    )

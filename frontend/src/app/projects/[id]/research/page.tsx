@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store";
-import { researchApi, topicsApi, hotnewsApi } from "@/lib/api/client";
+import {
+  researchApi,
+  topicsApi,
+  hotnewsApi,
+  outlineApi,
+  type DeepAnalysisResult,
+} from "@/lib/api/client";
 import { showToast } from "@/components/ui/Toast";
 import { getApiError } from "@/lib/apiError";
 import { buildTopicSearchQuery } from "@/lib/searchQuery";
@@ -26,6 +32,7 @@ import {
   Target,
   AlertCircle,
   Globe,
+  Brain,
 } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -66,6 +73,15 @@ export default function ResearchPage() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchWarning, setSearchWarning] = useState<string | null>(null);
   const [addingResultUrl, setAddingResultUrl] = useState<string | null>(null);
+
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<DeepAnalysisResult | null>(
+    null,
+  );
+  const [useWebForAnalysis, setUseWebForAnalysis] = useState(true);
+  const [useMaterialsForAnalysis, setUseMaterialsForAnalysis] = useState(true);
+  const [savingAnalysis, setSavingAnalysis] = useState(false);
+  const [applyingOutline, setApplyingOutline] = useState(false);
 
   useEffect(() => {
     loadMaterials();
@@ -128,6 +144,108 @@ export default function ResearchPage() {
     }
   }
 
+  function analysisTopic(): string {
+    return (
+      searchQuery.trim() ||
+      (selectedTopic ? buildTopicSearchQuery(selectedTopic) : "")
+    );
+  }
+
+  async function runDeepAnalysis() {
+    const topic = analysisTopic();
+    if (!topic) {
+      showToast("error", "请输入完整标题或先选择选题");
+      return;
+    }
+    if (!params.id) return;
+    setAnalysisLoading(true);
+    setAnalysisResult(null);
+    try {
+      const resp = await researchApi.deepAnalysis({
+        projectId: params.id as string,
+        topic,
+        description: selectedTopic?.description,
+        useWebSearch: useWebForAnalysis,
+        useMaterials: useMaterialsForAnalysis,
+        saveToProject: true,
+      });
+      setAnalysisResult(resp.data);
+      const w = resp.data.warnings?.filter(Boolean) ?? [];
+      if (w.length) {
+        showToast("success", `深度分析完成（${w.join("；")}）`);
+      } else {
+        showToast(
+          "success",
+          `深度分析完成：检索 ${resp.data.searchItemCount} 条，资料 ${resp.data.materialCount} 条`,
+        );
+      }
+    } catch (error: unknown) {
+      showToast("error", getApiError(error, "深度分析失败"));
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }
+
+  async function saveAnalysisAsMaterial() {
+    if (!params.id || !analysisResult?.reportMarkdown?.trim()) return;
+    setSavingAnalysis(true);
+    try {
+      await researchApi.create({
+        projectId: params.id as string,
+        sourceType: "deep_analysis",
+        sourceUrl: "",
+        title: `深度分析：${analysisResult.topic}`,
+        content: analysisResult.reportMarkdown,
+        summary: analysisResult.sections[0]?.content?.slice(0, 200) || "",
+        keywords: analysisResult.writingAngles?.slice(0, 5) || [],
+        citation: "",
+      });
+      showToast("success", "已保存为资料");
+      loadMaterials();
+    } catch (error: unknown) {
+      showToast("error", getApiError(error, "保存失败"));
+    } finally {
+      setSavingAnalysis(false);
+    }
+  }
+
+  async function applyAnalysisToOutline() {
+    if (!params.id || !analysisResult?.outlineNodes?.length) return;
+    setApplyingOutline(true);
+    try {
+      await outlineApi.createOrUpdate({
+        projectId: params.id as string,
+        title: analysisResult.topic,
+        nodes: analysisResult.outlineNodes,
+      });
+      showToast("success", "已写入大纲，可前往「列出大纲」微调");
+      router.push(`/projects/${params.id}/outline`);
+    } catch (error: unknown) {
+      showToast("error", getApiError(error, "写入大纲失败"));
+    } finally {
+      setApplyingOutline(false);
+    }
+  }
+
+  async function importSuggestedClaims() {
+    if (!params.id || !analysisResult?.suggestedClaims?.length) return;
+    try {
+      for (const c of analysisResult.suggestedClaims.slice(0, 8)) {
+        const text = (c.text || "").trim();
+        if (!text) continue;
+        await researchApi.createClaim({
+          projectId: params.id as string,
+          text,
+          sourceQuote: (c.sourceQuote || "").trim(),
+        });
+      }
+      loadClaims();
+      showToast("success", "已导入建议主张");
+    } catch (error: unknown) {
+      showToast("error", getApiError(error, "导入主张失败"));
+    }
+  }
+
   async function runWebSearch(queryOverride?: string) {
     const q = (queryOverride ?? searchQuery).trim();
     if (!q) {
@@ -141,7 +259,7 @@ export default function ResearchPage() {
     setActiveSearchQuery(q);
     setSearchQuery(q);
     try {
-      const response = await hotnewsApi.search({ query: q, maxResults: 12 });
+      const response = await hotnewsApi.search({ category: q, maxResults: 12 });
       const items = response.data?.items || [];
       if (items.length > 0) {
         setSearchItems(items);
@@ -278,6 +396,99 @@ export default function ResearchPage() {
         </button>
       }
     >
+      <div className="wen-panel-padded p-5 mb-6 border border-primary-200/60 bg-primary-50/30">
+        <h3 className="wen-title text-ink-900 mb-2 flex items-center gap-2">
+          <Brain size={18} className="text-primary-600" />
+          深度分析
+        </h3>
+        <p className="text-xs text-ink-500 mb-3">
+          自动联网搜索 + 合并本项目资料，生成五段式分析报告（事件速览 → 深层分析 →
+          影响预判），可保存为资料或一键写入大纲。
+        </p>
+        <div className="flex flex-wrap gap-4 text-xs text-ink-600 mb-3">
+          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useWebForAnalysis}
+              onChange={(e) => setUseWebForAnalysis(e.target.checked)}
+            />
+            联网搜索
+          </label>
+          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useMaterialsForAnalysis}
+              onChange={(e) => setUseMaterialsForAnalysis(e.target.checked)}
+            />
+            使用已存资料（{materials.length} 条）
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => void runDeepAnalysis()}
+            disabled={analysisLoading || !analysisTopic()}
+            className="wen-btn-seal disabled:opacity-50 text-sm inline-flex items-center gap-1"
+          >
+            {analysisLoading ? (
+              <Loader2 className="animate-spin" size={16} />
+            ) : (
+              <Brain size={16} />
+            )}
+            一键深度分析
+          </button>
+          {analysisResult && (
+            <>
+              <button
+                type="button"
+                onClick={() => void saveAnalysisAsMaterial()}
+                disabled={savingAnalysis}
+                className="px-3 py-1.5 text-sm border border-surface-300 hover:bg-surface-50 disabled:opacity-50"
+              >
+                {savingAnalysis ? "保存中…" : "保存为资料"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void applyAnalysisToOutline()}
+                disabled={applyingOutline}
+                className="px-3 py-1.5 text-sm border border-primary-300 text-primary-700 hover:bg-primary-50 disabled:opacity-50 inline-flex items-center gap-1"
+              >
+                {applyingOutline ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : (
+                  <ArrowRight size={14} />
+                )}
+                写入大纲
+              </button>
+              {analysisResult.suggestedClaims?.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void importSuggestedClaims()}
+                  className="px-3 py-1.5 text-sm border border-amber-300 text-amber-800 hover:bg-amber-50"
+                >
+                  导入建议主张
+                </button>
+              )}
+            </>
+          )}
+        </div>
+        {analysisResult && (
+          <div className="border border-surface-200 bg-surface-50/70 p-4 max-h-[28rem] overflow-y-auto text-sm text-ink-800 space-y-4">
+            {analysisResult.writingAngles?.length > 0 && (
+              <p className="text-xs text-ink-500">
+                可写角度：{analysisResult.writingAngles.join(" · ")}
+              </p>
+            )}
+            {analysisResult.sections.map((sec, i) => (
+              <div key={`${sec.title}-${i}`}>
+                <h4 className="font-medium text-ink-900 mb-1">{sec.title}</h4>
+                <p className="whitespace-pre-wrap leading-relaxed">{sec.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="wen-panel-padded p-5 mb-6">
         <h3 className="wen-title text-ink-900 mb-3 flex items-center gap-2">
           <Globe size={18} className="text-primary-500" />

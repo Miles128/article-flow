@@ -163,7 +163,6 @@ export { WRITING_TARGET_STYLES };
 const STYLE_DESCRIPTIONS: Record<string, string> = {
   professional: "商务、报告、专业文章",
   casual: "博客、社交媒体",
-  conversational: "像和朋友聊天",
   academic: "论文、研究报告",
   poetic: "散文、文学表达",
   humorous: "轻松活泼、有梗",

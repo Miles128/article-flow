@@ -67,6 +67,15 @@ def outline_sections_for_writing(
         if not title:
             continue
         brief_parts: list[str] = []
+        claim = (node.get('claim') or '').strip()
+        if claim:
+            brief_parts.append(f'【本章主张】{claim}')
+        open_q = (node.get('open_question') or node.get('openQuestion') or '').strip()
+        if open_q:
+            brief_parts.append(f'【须回答】{open_q}')
+        evidence = (node.get('evidence_refs') or node.get('evidenceRefs') or '').strip()
+        if evidence:
+            brief_parts.append(f'【可用证据】{evidence}')
         own = (node.get('content') or '').strip()
         if own:
             brief_parts.append(own)
@@ -83,6 +92,9 @@ def outline_sections_for_writing(
     return sections
 
 
+_SECTION_HEADING_LINE = re.compile(r'^#{2,6}\s*(.+?)\s*$')
+
+
 def flatten_section_headings(text: str) -> str:
     """将 ## / ### 等标题行内化（仅保留行首单个 # 的文章主标题）。"""
     if not (text or '').strip():
@@ -90,12 +102,13 @@ def flatten_section_headings(text: str) -> str:
     out: list[str] = []
     for line in text.splitlines():
         stripped = line.strip()
-        if re.match(r'^#{2,6}\s+\S', stripped):
-            m = re.match(r'^#{2,6}\s+(.+?)\s*$', stripped)
-            if m:
+        m = _SECTION_HEADING_LINE.match(stripped)
+        if m:
+            title = m.group(1).strip().strip('*').strip()
+            if title:
                 if out and out[-1].strip():
                     out.append('')
-                out.append(f'**{m.group(1).strip()}**')
+                out.append(f'**{title}**')
             continue
         out.append(line)
     result = '\n'.join(out)
@@ -158,10 +171,14 @@ def strip_overlap_with_prior(block: str, prior: str, *, max_tail: int = 1200) ->
     overlap_max = min(len(tail), len(text))
     for size in range(overlap_max, 0, -1):
         fragment = tail[-size:]
-        if len(fragment) < 4:
+        # 过短易误删正常过渡句，造成段首残缺
+        if len(fragment) < 36:
             continue
         if text.startswith(fragment):
-            return text[size:].lstrip()
+            trimmed = text[size:].lstrip()
+            if trimmed and trimmed[0] in '，。、；：？！' :
+                continue
+            return trimmed
     return text
 
 
