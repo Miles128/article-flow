@@ -1,0 +1,36 @@
+/* 素笺 · 备用主题（弱渐变、留白更清晰） */
+
+[data-ui-theme='plain'] {
+  --sidebar-width: 200px;
+  --bg-base: #fafafa;
+  --bg-gradient: none;
+  --bg-noise-opacity: 0;
+  --sheet-bg: #ffffff;
+  --sheet-bg-blend: #ffffff;
+  --sheet-border: #e5e5e5;
+  --main-canvas-bg: #ffffff;
+  --editor-max-width: none;
+  --btn-ghost-bg: #ffffff;
+  --btn-ghost-border: #d4d4d4;
+  --btn-seal-fg: #ffffff;
+  --btn-seal-bg: #171717;
+  --btn-seal-border: #171717;
+  --sidebar-bg: #fafafa;
+  --step-active-border: #171717;
+  --step-active-bg: rgba(0, 0, 0, 0.04);
+  --panel-bg: #ffffff;
+  --panel-border: #e5e5e5;
+  --accent-fg: #171717;
+  --accent-bg: rgba(0, 0, 0, 0.05);
+  --accent-border: #171717;
+  --wen-btn-radius: 6px;
+}
+
+[data-ui-theme='plain'] body::before {
+  background-color: var(--bg-base);
+  background-image: none;
+}
+
+[data-ui-theme='plain'] body::after {
+  opacity: 0;
+}

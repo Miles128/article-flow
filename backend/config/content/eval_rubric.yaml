@@ -1,0 +1,38 @@
+# 文章评估量表（参考 Qson8 wechat-writing-skill）
+total_score: 100
+rewrite_threshold: 60
+publish_threshold: 75
+
+dimensions:
+  title:
+    max: 15
+    criteria: 有数字或场景、读者收益清晰、无禁词
+  opening:
+    max: 15
+    criteria: 场景切入、读者能代入、无自嗨
+  body:
+    max: 25
+    criteria: 具体数据案例、可执行步骤、无空话
+  language:
+    max: 15
+    criteria: 口语化、无套话、句式有变化
+  ai_flavor:
+    max: 30
+    criteria: 0-20真人级；61+必须重写
+  closing:
+    max: 10
+    criteria: 总结+互动钩子
+
+ai_flavor_bands:
+  - { max: 20, label: 真人级 }
+  - { max: 40, label: 轻微AI味 }
+  - { max: 60, label: 中等AI味 }
+  - { max: 80, label: 较高AI味 }
+  - { max: 100, label: 严重AI味 }
+
+critic_dimensions:
+  accuracy: { max: 2, label: 内容准确性 }
+  structure: { max: 2, label: 结构完整性 }
+  platform_fit: { max: 2, label: 平台适配度 }
+  readability: { max: 2, label: 可读性 }
+  density: { max: 2, label: 信息密度 }

@@ -1,0 +1,546 @@
+/* 书斋墨韵 Mock — 仅作用于 /mock/shuyuan */
+
+.shuyuan-mock-root {
+  --sy-paper: #f6eedc;
+  --sy-paper-edge: #ebe0c8;
+  /* 稿纸：贴近页面渐变中段，避免「白纸」跳色 */
+  --sy-paper-sheet: #e8dcc4;
+  --sy-paper-sheet-blend: rgba(216, 198, 168, 0.45);
+  --sy-ink: #2a241c;
+  --sy-ink-muted: #7a6f5c;
+  --sy-ink-faint: #a89882;
+  --sy-seal: #b84a32;
+  --sy-seal-deep: #8f3626;
+  --sy-line: #d9c9a8;
+  --sy-line-strong: #b8a078;
+  --sy-wash: rgba(42, 36, 28, 0.04);
+  min-height: 100vh;
+  font-family: "Songti SC", "STSong", "Noto Serif SC", Georgia, serif;
+  color: var(--sy-ink);
+  background: #e8d4b0;
+}
+
+.shuyuan-mock-root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: #e8d4b0;
+}
+
+.shuyuan-mock-root::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+}
+
+.shuyuan-mock {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+}
+
+.shuyuan-mock .font-kaiti {
+  font-family: "Kaiti SC", "STKaiti", "KaiTi", "楷体", serif;
+}
+
+/* 顶栏提示条 */
+.sy-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.35rem 1rem;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--sy-ink-muted);
+  background: rgba(251, 247, 239, 0.92);
+  border-bottom: 1px solid var(--sy-line);
+  backdrop-filter: blur(6px);
+}
+
+.sy-banner a {
+  color: var(--sy-seal);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.sy-banner a:hover {
+  border-bottom-color: var(--sy-seal);
+}
+
+/* 侧栏 · 册页 */
+.sy-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--sy-line-strong);
+  background: #e8dcc4;
+  box-shadow: none;
+}
+
+.sy-brand {
+  padding: 1.25rem 1rem 0.75rem;
+  border-bottom: 1px solid var(--sy-line);
+}
+
+.sy-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 2px solid var(--sy-seal);
+  color: var(--sy-seal-deep);
+  font-family: 'article-flow-seal', 'Kaiti SC', serif;
+  font-size: 1.35rem;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.sy-project {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--sy-line);
+}
+
+.sy-project-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--sy-ink);
+}
+
+.sy-project-meta {
+  margin-top: 0.25rem;
+  font-size: 11px;
+  color: var(--sy-ink-faint);
+  letter-spacing: 0.06em;
+}
+
+.sy-steps {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0 1rem;
+}
+
+.sy-step {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 1rem 0.45rem 0.85rem;
+  font-size: 13px;
+  color: var(--sy-ink-muted);
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.sy-step:hover {
+  color: var(--sy-ink);
+  background: var(--sy-wash);
+}
+
+.sy-step-active {
+  color: var(--sy-seal-deep);
+  border-left-color: var(--sy-seal);
+  background: rgba(184, 74, 50, 0.06);
+  font-weight: 500;
+}
+
+.sy-step-num {
+  display: inline-block;
+  min-width: 1.6em;
+  font-family: serif;
+  font-size: 14px;
+  margin-right: 0.35rem;
+  color: var(--sy-ink-faint);
+}
+
+.sy-step-active .sy-step-num {
+  color: var(--sy-seal);
+}
+
+.sy-sidebar-foot {
+  padding: 0.75rem 1rem;
+  font-size: 11px;
+  color: var(--sy-ink-faint);
+  border-top: 1px solid var(--sy-line);
+}
+
+/* 主区 */
+.sy-main {
+  flex: 1;
+  min-width: 0;
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  background: #e8dcc4;
+}
+
+.sy-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 1.25rem;
+  border-bottom: 1px solid var(--sy-line);
+  background: rgba(251, 247, 239, 0.75);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+}
+
+.sy-toolbar-title {
+  font-family: serif;
+  font-size: 1.35rem;
+  letter-spacing: 0.12em;
+  color: var(--sy-ink);
+}
+
+.sy-toolbar-sub {
+  font-size: 11px;
+  color: var(--sy-ink-faint);
+  margin-top: 2px;
+  letter-spacing: 0.04em;
+}
+
+.sy-nav-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 12px;
+  color: var(--sy-ink-muted);
+}
+
+.sy-nav-pager button {
+  padding: 0.25rem 0.5rem;
+  font-size: 12px;
+  color: var(--sy-ink-muted);
+  background: rgba(251, 247, 239, 0.85);
+  border: 1px solid rgba(120, 100, 72, 0.35);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.sy-nav-pager button:hover:not(:disabled) {
+  color: var(--sy-ink);
+}
+
+.sy-nav-pager button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sy-nav-pager .sy-pager-mark {
+  font-family: serif;
+  font-size: 13px;
+  color: var(--sy-ink-faint);
+}
+
+/* 按钮（须与纸底有足够对比，勿用透明底 + 浅描边） */
+.sy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  padding: 0.35rem 0.65rem;
+  font-size: 12px;
+  color: var(--sy-ink);
+  background: rgba(251, 247, 239, 0.92);
+  border: 1px solid rgba(120, 100, 72, 0.45);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.sy-btn:hover {
+  border-color: var(--sy-line-strong);
+  background: rgba(255, 252, 245, 0.98);
+  color: var(--sy-ink);
+}
+
+.sy-btn-active {
+  border-color: var(--sy-ink);
+  color: var(--sy-ink);
+  background: rgba(255, 252, 245, 0.98);
+}
+
+.sy-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sy-btn-seal {
+  padding: 0.4rem 0.9rem;
+  color: #faf6ee;
+  background: var(--sy-seal);
+  border: 1px solid var(--sy-seal-deep);
+  font-family: serif;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.15) inset, 0 2px 4px rgba(143, 54, 38, 0.2);
+}
+
+.sy-btn-seal:hover {
+  background: var(--sy-seal-deep);
+  color: #fff;
+}
+
+.sy-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+/* 工作区 */
+.sy-workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  padding: 0;
+  gap: 1rem;
+}
+
+.sy-editor-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sy-style-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--sy-line);
+  background: rgba(251, 247, 239, 0.6);
+  font-size: 12px;
+}
+
+.sy-style-bar label {
+  color: var(--sy-ink-muted);
+  font-family: serif;
+}
+
+.sy-select {
+  padding: 0.25rem 0.5rem;
+  font-size: 12px;
+  border: 1px solid var(--sy-line);
+  background: var(--sy-paper-sheet);
+  color: var(--sy-ink);
+  font-family: inherit;
+}
+
+.sy-slider {
+  width: 88px;
+  accent-color: var(--sy-seal);
+}
+
+/* 纸面编辑区 */
+.sy-sheet {
+  flex: 1;
+  position: relative;
+  max-width: none;
+  margin: 0;
+  width: 100%;
+  padding: 2rem 2.25rem 2.5rem;
+  background: var(--sy-paper-sheet);
+  border: 1px solid rgba(201, 184, 152, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(255, 252, 245, 0.25) inset,
+    2px 4px 16px rgba(58, 48, 32, 0.04);
+}
+
+.sy-sheet::before {
+  content: '寫';
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  font-family: 'article-flow-seal', 'Kaiti SC', serif;
+  font-size: 4.5rem;
+  line-height: 1;
+  color: var(--sy-ink);
+  opacity: 0.04;
+  pointer-events: none;
+  user-select: none;
+}
+
+.sy-sheet h1 {
+  font-family: serif;
+  font-size: 1.5rem;
+  font-weight: 400;
+  text-align: center;
+  letter-spacing: 0.2em;
+  margin: 0 0 1.5rem;
+  color: var(--sy-ink);
+}
+
+.sy-sheet h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.75rem 0 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--sy-line);
+  color: var(--sy-ink);
+}
+
+.sy-sheet h2::before {
+  content: '— ';
+  color: var(--sy-ink-faint);
+  font-weight: 400;
+}
+
+.sy-sheet h2::after {
+  content: ' —';
+  color: var(--sy-ink-faint);
+  font-weight: 400;
+}
+
+.sy-sheet p {
+  font-size: 15px;
+  line-height: 2;
+  margin: 0 0 1rem;
+  text-indent: 2em;
+  color: var(--sy-ink);
+}
+
+.sy-sheet p strong {
+  font-weight: 600;
+  color: var(--sy-ink);
+}
+
+.sy-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--sy-seal);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: sy-blink 1s step-end infinite;
+}
+
+@keyframes sy-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.sy-wordcount {
+  text-align: right;
+  font-size: 11px;
+  color: var(--sy-ink-faint);
+  margin-top: 0.75rem;
+  letter-spacing: 0.08em;
+}
+
+/* 右栏 */
+.sy-rail {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sy-panel {
+  border: 1px solid var(--sy-line);
+  background: rgba(251, 247, 239, 0.72);
+  padding: 0.75rem;
+}
+
+.sy-panel-title {
+  font-family: serif;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--sy-line);
+  color: var(--sy-ink);
+}
+
+.sy-meter {
+  height: 4px;
+  background: var(--sy-paper-edge);
+  margin: 0.5rem 0;
+  overflow: hidden;
+}
+
+.sy-meter-fill {
+  height: 100%;
+  background: var(--sy-seal);
+  width: 32%;
+}
+
+.sy-panel p {
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--sy-ink-muted);
+  margin: 0;
+}
+
+.sy-section-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sy-section-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.35rem 0;
+  font-size: 12px;
+  border-bottom: 1px dashed var(--sy-line);
+  color: var(--sy-ink-muted);
+}
+
+.sy-section-list li:last-child {
+  border-bottom: none;
+}
+
+.sy-section-list .done {
+  color: var(--sy-ink-faint);
+}
+
+.sy-section-list .current {
+  color: var(--sy-seal-deep);
+  font-weight: 500;
+}
+
+@media (max-width: 1024px) {
+  .sy-rail {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .sy-sidebar {
+    display: none;
+  }
+
+  .sy-sheet {
+    padding: 1.25rem 1rem 1.5rem;
+  }
+}

@@ -1,0 +1,106 @@
+/* 墨夜专注 · 深色护眼写作 */
+
+[data-ui-theme='slate'] {
+  --paper: #1e293b;
+  --paper-warm: #0f172a;
+  --paper-line: #334155;
+  --ink-muted: #94a3b8;
+  --ink-body: #cbd5e1;
+  --ink-deep: #f1f5f9;
+  --seal: #38bdf8;
+  --wen-body-size: 15px;
+  --foreground-rgb: 241, 245, 249;
+  --sidebar-width: 212px;
+  --bg-base: #0f172a;
+  --bg-gradient: none;
+  --bg-noise-opacity: 0.08;
+  --sheet-bg: #1e293b;
+  --sheet-bg-blend: rgba(30, 41, 59, 0.9);
+  --sheet-border: #475569;
+  --main-canvas-bg: #1e293b;
+  --editor-max-width: none;
+  --btn-ghost-bg: rgba(30, 41, 59, 0.95);
+  --btn-ghost-border: #475569;
+  --btn-seal-fg: #0f172a;
+  --btn-seal-bg: #38bdf8;
+  --btn-seal-border: #0ea5e9;
+  --sidebar-bg: #0f172a;
+  --panel-bg: rgba(30, 41, 59, 0.94);
+  --panel-border: #475569;
+  --row-hover: rgba(56, 189, 248, 0.08);
+  --step-active-border: #38bdf8;
+  --step-active-bg: rgba(56, 189, 248, 0.1);
+  --theme-font-body: "Songti SC", "Noto Serif SC", Georgia, serif;
+  --theme-font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --theme-radius: 6px;
+  --wen-btn-radius: 6px;
+  --theme-panel-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+}
+
+[data-ui-theme='slate'] body {
+  font-family: var(--theme-font-body);
+  color: var(--ink-deep);
+}
+
+[data-ui-theme='slate'] body::before {
+  background-color: var(--bg-base);
+  background-image: none;
+}
+
+[data-ui-theme='slate'] body::after {
+  opacity: var(--bg-noise-opacity);
+}
+
+[data-ui-theme='slate'] .wen-title,
+[data-ui-theme='slate'] .wen-label {
+  font-family: var(--theme-font-display);
+  font-weight: 600;
+}
+
+[data-ui-theme='slate'] .wen-panel,
+[data-ui-theme='slate'] .wen-panel-padded {
+  box-shadow: var(--theme-panel-shadow);
+  border-color: var(--sheet-border);
+}
+
+[data-ui-theme='slate'] .wen-float-chip,
+[data-ui-theme='slate'] .wen-ai-score-badge {
+  background: rgba(30, 41, 59, 0.95);
+  color: var(--ink-body);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+[data-ui-theme='slate'] .wen-editor-textarea::selection {
+  background: rgba(56, 189, 248, 0.35);
+}
+
+[data-ui-theme='slate'] .text-ink-900,
+[data-ui-theme='slate'] .text-ink-800 {
+  color: var(--ink-deep);
+}
+
+[data-ui-theme='slate'] .text-ink-700,
+[data-ui-theme='slate'] .text-ink-600 {
+  color: var(--ink-body);
+}
+
+[data-ui-theme='slate'] .text-ink-500,
+[data-ui-theme='slate'] .text-ink-400 {
+  color: var(--ink-muted);
+}
+
+[data-ui-theme='slate'] .border-surface-300,
+[data-ui-theme='slate'] .border-surface-200 {
+  border-color: var(--sheet-border);
+}
+
+[data-ui-theme='slate'] .bg-surface-50\/75,
+[data-ui-theme='slate'] .bg-surface-50\/70,
+[data-ui-theme='slate'] .bg-surface-50\/85 {
+  background-color: var(--sheet-bg);
+}
+
+[data-ui-theme='slate'] .text-primary-600,
+[data-ui-theme='slate'] .text-primary-700 {
+  color: var(--seal);
+}
