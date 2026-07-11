@@ -1,0 +1,115 @@
+/* 赛博朋克打字 · 暗色霓虹终端 */
+
+[data-ui-theme='cyber'] {
+  --paper: #121820;
+  --paper-warm: #0f141c;
+  --paper-line: #1e2a3a;
+  --ink-muted: #5a7a8a;
+  --ink-body: #b8d4e0;
+  --ink-deep: #e8fff9;
+  --seal: #00f5d4;
+  --wen-body-size: 15px;
+  --foreground-rgb: 232, 255, 249;
+  --sidebar-width: 200px;
+  --bg-base: #06080c;
+  --bg-gradient: none;
+  --bg-noise-opacity: 0.12;
+  --sheet-bg: #0f141c;
+  --sheet-bg-blend: rgba(15, 20, 28, 0.85);
+  --sheet-border: rgba(0, 245, 212, 0.25);
+  --main-canvas-bg: #0c1018;
+  --editor-max-width: none;
+  --btn-ghost-bg: rgba(18, 28, 40, 0.95);
+  --btn-ghost-border: rgba(0, 245, 212, 0.35);
+  --btn-seal-fg: #06080c;
+  --btn-seal-bg: #00f5d4;
+  --btn-seal-border: #00c9ad;
+  --sidebar-bg: #080c12;
+  --panel-bg: rgba(15, 20, 28, 0.94);
+  --panel-border: rgba(0, 245, 212, 0.2);
+  --row-hover: rgba(0, 245, 212, 0.06);
+  --step-active-border: #00f5d4;
+  --step-active-bg: rgba(0, 245, 212, 0.08);
+  --theme-font-body: "JetBrains Mono", "SF Mono", "Fira Code", "Consolas", monospace;
+  --theme-font-display: "JetBrains Mono", "SF Mono", monospace;
+  --theme-radius: 4px;
+  --wen-btn-radius: 4px;
+  --theme-panel-shadow: 0 0 24px rgba(0, 245, 212, 0.08), inset 0 1px 0 rgba(0, 245, 212, 0.1);
+}
+
+[data-ui-theme='cyber'] body {
+  font-family: var(--theme-font-body);
+  color: var(--ink-deep);
+}
+
+[data-ui-theme='cyber'] body::before {
+  background-color: var(--bg-base);
+  background-image: none;
+}
+
+[data-ui-theme='cyber'] body::after {
+  opacity: var(--bg-noise-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Cpath d='M0 0h4v1H0z' fill='%2300f5d4' fill-opacity='0.06'/%3E%3C/svg%3E");
+  background-size: 100% 4px;
+}
+
+[data-ui-theme='cyber'] .wen-title,
+[data-ui-theme='cyber'] .wen-label {
+  font-family: var(--theme-font-display);
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 20px rgba(0, 245, 212, 0.35);
+}
+
+[data-ui-theme='cyber'] .wen-panel,
+[data-ui-theme='cyber'] .wen-panel-padded {
+  box-shadow: var(--theme-panel-shadow);
+  border-color: var(--sheet-border);
+}
+
+[data-ui-theme='cyber'] .wen-float-chip,
+[data-ui-theme='cyber'] .wen-ai-score-badge {
+  background: rgba(12, 18, 28, 0.92);
+  box-shadow: 0 0 16px rgba(0, 245, 212, 0.12);
+  color: var(--ink-body);
+}
+
+[data-ui-theme='cyber'] .wen-editor-textarea::selection {
+  background: rgba(0, 245, 212, 0.35);
+}
+
+[data-ui-theme='cyber'] .text-ink-900,
+[data-ui-theme='cyber'] .text-ink-800 {
+  color: var(--ink-deep);
+}
+
+[data-ui-theme='cyber'] .text-ink-700,
+[data-ui-theme='cyber'] .text-ink-600 {
+  color: var(--ink-body);
+}
+
+[data-ui-theme='cyber'] .text-ink-500,
+[data-ui-theme='cyber'] .text-ink-400 {
+  color: var(--ink-muted);
+}
+
+[data-ui-theme='cyber'] .border-surface-300,
+[data-ui-theme='cyber'] .border-surface-200 {
+  border-color: var(--sheet-border);
+}
+
+[data-ui-theme='cyber'] .bg-surface-50\/75,
+[data-ui-theme='cyber'] .bg-surface-50\/70,
+[data-ui-theme='cyber'] .bg-surface-50\/85 {
+  background-color: var(--sheet-bg);
+}
+
+[data-ui-theme='cyber'] .text-primary-600,
+[data-ui-theme='cyber'] .text-primary-700 {
+  color: var(--seal);
+}
+
+[data-ui-theme='cyber'] .wen-chip-active {
+  color: var(--seal);
+  border-color: var(--seal);
+  background: rgba(0, 245, 212, 0.1);
+}

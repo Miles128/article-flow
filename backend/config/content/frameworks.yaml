@@ -1,0 +1,50 @@
+# 写作框架库（参考 wewrite frameworks.md）
+frameworks:
+  pain_point:
+    id: pain_point
+    name: 痛点型
+    best_for: [干货, 解决问题]
+    sections:
+      - { title: 开头（痛点共鸣）, hint: "你是不是也… / 具体场景切入" }
+      - { title: 痛点放大, hint: 数据或案例说明普遍性 }
+      - { title: 解决方案, hint: 不超过3个要点+案例 }
+      - { title: 实操验证, hint: 可选，前后对比 }
+      - { title: 结尾, hint: 一句话总结+CTA留言 }
+  story:
+    id: story
+    name: 故事型
+    best_for: [故事, 情绪]
+    sections:
+      - { title: 悬念钩子, hint: 反直觉结果，不剧透结论 }
+      - { title: 背景铺垫, hint: "≤200字，时间人物起因" }
+      - { title: 转折与高潮, hint: 细节、对话、画面 }
+      - { title: 深度解读, hint: 从故事到规律/洞察 }
+      - { title: 情绪共振, hint: 回扣开头+分享故事CTA }
+  checklist:
+    id: checklist
+    name: 清单型
+    best_for: [盘点, 推荐, 方法论]
+    sections:
+      - { title: 价值承诺, hint: "数字锚定：5个方法/3个工具" }
+      - { title: 清单项1-N, hint: 每项名称+案例，5-7项，长度参差 }
+      - { title: 总结+彩蛋, hint: 表格总结+隐藏推荐 }
+  compare:
+    id: compare
+    name: 对比型
+    best_for: [测评, 决策]
+    sections:
+      - { title: 选择困境, hint: 选A还是B，为什么难选 }
+      - { title: A方案分析, hint: 优劣势+适用场景 }
+      - { title: B方案分析, hint: 与A对照 }
+      - { title: 对比总结, hint: 表格+明确建议（不和稀泥） }
+      - { title: 个人选择, hint: "如果是我，我选…" }
+  hot_topic:
+    id: hot_topic
+    name: 热点解读型
+    best_for: [新闻, 行业动态]
+    sections:
+      - { title: 事件速览, hint: 5W1H精简，用自己的话 }
+      - { title: 表面信息, hint: 主流观点+盲区 }
+      - { title: 深层分析, hint: 利益链/类比/历史对照 }
+      - { title: 影响预判, hint: 短期+长期+不确定性 }
+      - { title: 读者行动, hint: 普通人怎么应对 }

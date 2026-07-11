@@ -1,167 +1,231 @@
+"""热点新闻路由 - 类别选择 + 搜索引擎"""
+
+import os
+import logging
 from flask import Blueprint, request, jsonify
+from ..utils import parse_json_from_llm, translate_error, extract_llm_config, get_query_arg
 from ..services.hotnews_service import HotNewsService
+from ..services.llm_service import get_llm_service
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint('hotnews', __name__)
 
-@bp.route('', methods=['GET'])
-def get_hotnews():
-    sources = request.args.getlist('source')
-    if not sources:
-        sources = ['weibo', 'zhihu', 'bilibili']
-    
-    try:
-        result = HotNewsService.get_all_hot(sources)
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
-@bp.route('/weibo', methods=['GET'])
-def get_weibo_hot():
-    try:
-        hotlist = HotNewsService.get_weibo_hot()
-        return jsonify({'source': 'weibo', 'data': hotlist})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+def _get_tavily_key():
+    return os.getenv('TAVILY_API_KEY')
 
-@bp.route('/zhihu', methods=['GET'])
-def get_zhihu_hot():
-    try:
-        hotlist = HotNewsService.get_zhihu_hot()
-        return jsonify({'source': 'zhihu', 'data': hotlist})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/bilibili', methods=['GET'])
-def get_bilibili_hot():
-    try:
-        hotlist = HotNewsService.get_bilibili_hot()
-        return jsonify({'source': 'bilibili', 'data': hotlist})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/toutiao', methods=['GET'])
-def get_toutiao_hot():
-    try:
-        hotlist = HotNewsService.get_toutiao_hot()
-        return jsonify({'source': 'toutiao', 'data': hotlist})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/trend', methods=['POST'])
-def analyze_trend():
-    data = request.json
-    if not data or 'keyword' not in data:
-        return jsonify({'error': 'keyword is required'}), 400
-    
-    try:
-        result = HotNewsService.analyze_trend(data['keyword'])
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/sources', methods=['GET'])
-def get_sources():
-    sources = [
-        {
-            'id': 'weibo',
-            'name': '微博热搜',
-            'icon': 'message-circle',
-            'description': '实时热门话题和社会热点',
-            'enabled': True
-        },
-        {
-            'id': 'zhihu',
-            'name': '知乎热榜',
-            'icon': 'book-open',
-            'description': '深度讨论和专业问答',
-            'enabled': True
-        },
-        {
-            'id': 'bilibili',
-            'name': 'B站热门',
-            'icon': 'video',
-            'description': '年轻用户关注的内容',
-            'enabled': True
-        },
-        {
-            'id': 'toutiao',
-            'name': '今日头条',
-            'icon': 'newspaper',
-            'description': '综合资讯热点',
-            'enabled': False
-        }
-    ]
-    
-    return jsonify(sources)
 
 @bp.route('/categories', methods=['GET'])
 def get_categories():
-    categories = [
-        {'id': 'tech', 'name': '科技', 'icon': 'cpu', 'keywords': ['科技', 'AI', '互联网', '编程']},
-        {'id': 'entertainment', 'name': '娱乐', 'icon': 'clapperboard', 'keywords': ['明星', '电影', '音乐', '综艺']},
-        {'id': 'finance', 'name': '财经', 'icon': 'trending-up', 'keywords': ['股票', '基金', '投资', '经济']},
-        {'id': 'sports', 'name': '体育', 'icon': 'activity', 'keywords': ['足球', '篮球', 'NBA', '奥运会']},
-        {'id': 'social', 'name': '社会', 'icon': 'users', 'keywords': ['社会', '新闻', '事件']},
-        {'id': 'education', 'name': '教育', 'icon': 'graduation-cap', 'keywords': ['学校', '学生', '高考', '考研']},
-        {'id': 'health', 'name': '健康', 'icon': 'heart', 'keywords': ['健康', '医疗', '医院', '药品']},
-        {'id': 'game', 'name': '游戏', 'icon': 'gamepad-2', 'keywords': ['游戏', '电竞', '王者荣耀', '原神']},
-        {'id': 'food', 'name': '美食', 'icon': 'utensils', 'keywords': ['美食', '餐厅', '做菜']},
-        {'id': 'travel', 'name': '旅游', 'icon': 'map', 'keywords': ['旅游', '旅行', '景点', '酒店']},
-        {'id': 'auto', 'name': '汽车', 'icon': 'car', 'keywords': ['汽车', '新能源', '特斯拉', '比亚迪']},
-        {'id': 'other', 'name': '其他', 'icon': 'more-horizontal', 'keywords': []}
-    ]
-    
-    return jsonify(categories)
+    """返回可用的大类建议列表"""
+    categories = HotNewsService.get_categories()
+    return jsonify({'categories': categories})
+
+
+@bp.route('/search', methods=['GET'])
+def search_hotnews():
+    """关键词搜索（百度 + Bing + DuckDuckGo）"""
+    query = (request.args.get('query') or request.args.get('q') or '').strip()
+    max_raw = get_query_arg(request.args, 'max_results', 'maxResults', default='10')
+    max_results = min(int(max_raw or 10), 30)
+
+    if not query:
+        return jsonify({'error': '请输入搜索关键词'}), 400
+
+    try:
+        result = HotNewsService.search_by_query(
+            query,
+            tavily_api_key=_get_tavily_key(),
+            max_results=max_results,
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error('Search failed: %s', e, exc_info=True)
+        return jsonify({
+            'query': query,
+            'items': [],
+            'timestamp': '',
+            'error': translate_error(e),
+        })
+
 
 @bp.route('/mine-topics', methods=['POST'])
 def mine_topics():
+    """基于搜索结果 + LLM 挖掘选题"""
     data = request.json
-    if not data or 'keywords' not in data:
-        return jsonify({'error': 'keywords are required'}), 400
-    
-    keywords = data['keywords']
-    count = data.get('count', 5)
-    
-    from ..services.llm_service import get_llm_service
-    
+
+    count = min(data.get('count', 8), 20)
+
+    query = (data.get('query') or '').strip()
+    keywords = data.get('keywords', [])
+    if not query:
+        if isinstance(keywords, list):
+            query = ' '.join(str(k).strip() for k in keywords if str(k).strip())
+        elif keywords:
+            query = str(keywords).strip()
+
+    if not query:
+        return jsonify({'error': '请提供 query 搜索词（完整标题）'}), 400
+
+    llm_cfg = extract_llm_config(data)
+    api_key = llm_cfg['api_key']
+    base_url = llm_cfg['base_url']
+    model_name = llm_cfg['model_name']
+    temperature = llm_cfg['temperature']
+
+    tavily_api_key = _get_tavily_key()
+
+    # 根据类别或关键词搜索新闻
+    search_items = []
     try:
-        llm = get_llm_service()
-        
-        prompt = f"""基于以下关键词或热点话题，挖掘{count}个有潜力的文章选题：
+        result = HotNewsService.search_by_query(query, tavily_api_key, max_results=15)
+        search_items = result.get('items', [])
+    except Exception:
+        search_items = []
 
-关键词：{', '.join(keywords)}
+    # 构建搜索上下文
+    search_context = ''
+    if search_items:
+        lines = []
+        for item in search_items[:30]:
+            title = item.get('title', '')
+            source = item.get('source', '')
+            content = item.get('content', '')
+            if title:
+                entry = f'- [{source}] {title}'
+                if content:
+                    entry += f'\n  摘要: {content[:100]}'
+                lines.append(entry)
+        search_context = '\n'.join(lines)
+    else:
+        search_context = '暂无实时搜索数据'
 
-每个选题需要包含：
-1. 标题（吸引眼球）
-2. 角度（独特的切入点）
-3. 预估热度（1-100分）
-4. 目标受众描述
+    if not api_key:
+        if search_items:
+            return jsonify({
+                'topics': [
+                    {
+                        'title': item.get('title', ''),
+                        'angle': f'来自{item.get("source", "")}的搜索结果，可深度分析或跟进报道',
+                        'newsValue': item.get('content', '')[:100] if item.get('content') else '',
+                        'potentialAudience': '关注该领域的读者',
+                        'searchKeywords': [item.get('title', '')],
+                        'tags': [item.get('category', '其他')],
+                    }
+                    for item in search_items[:count]
+                ],
+                'queryUsed': query,
+                'count': count,
+                'fallback': True,
+            })
+        return jsonify({'error': '请先在 .env 中配置 LLM_API_KEY，或提供 query 以获取搜索结果'}), 400
 
-请以JSON格式返回：
+    keywords_str = query
+
+    try:
+        llm = get_llm_service(
+            provider='custom',
+            model_name=model_name,
+            api_key=api_key,
+            base_url=base_url,
+            temperature=temperature,
+        )
+
+        prompt = f"""你是一位资深的内容策划专家和新闻分析师。
+
+以下是当前来自搜索引擎的最新新闻数据：
+{search_context}
+
+用户搜索关键词：{keywords_str}
+
+请基于以上真实搜索结果，挖掘 {count} 个有潜力的文章选题。
+
+要求：
+1. 每个选题要基于真实搜索结果中的话题，不要编造
+2. 每个选题要有独特的切入角度
+3. 标题要吸引眼球，适合自媒体平台
+4. 分析该选题的新闻价值和潜在热度
+5. searchKeywords 必须是完整短语（整句标题或完整搜索句），禁止拆成单个词
+
+请严格以 JSON 格式返回：
 {{
     "topics": [
         {{
             "title": "选题标题",
-            "angle": "切入角度",
-            "heat_score": 85,
-            "audience": "目标受众",
+            "angle": "独特的切入角度",
+            "newsValue": "新闻价值分析",
+            "potentialAudience": "目标受众描述",
+            "searchKeywords": ["完整标题或完整搜索短语"],
             "tags": ["标签1", "标签2"]
         }}
     ]
 }}"""
-        
+
         result = llm.chat([
-            {'role': 'system', 'content': '你是一位资深的内容策划专家，擅长从热点中挖掘有潜力的选题。'},
-            {'role': 'user', 'content': prompt}
+            {'role': 'system', 'content': '你是一位资深的内容策划专家和新闻分析师，擅长基于真实搜索结果挖掘有新闻价值的选题。请严格按JSON格式输出。'},
+            {'role': 'user', 'content': prompt},
         ])
-        
-        import re
-        import json
-        
-        json_match = re.search(r'\{[\s\S]*\}', result)
-        if json_match:
-            return jsonify(json.loads(json_match.group()))
-        
-        return jsonify({'raw_result': result})
+
+        parsed = parse_json_from_llm(result)
+        if parsed:
+            return jsonify({
+                **parsed,
+                'queryUsed': query,
+                'count': count,
+            })
+
+        return jsonify({
+            'rawResult': result,
+            'queryUsed': query,
+            'count': count,
+        })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Topic mining failed: {e}', exc_info=True)
+        if search_items:
+            return jsonify({
+                'topics': [
+                    {
+                        'title': item.get('title', ''),
+                        'angle': f'来自{item.get("source", "")}的搜索结果',
+                        'newsValue': item.get('content', '')[:100] if item.get('content') else '',
+                        'potentialAudience': '关注该领域的读者',
+                        'searchKeywords': [item.get('title', '')],
+                        'tags': [item.get('category', '其他')],
+                    }
+                    for item in search_items[:count]
+                ],
+                'queryUsed': query,
+                'count': count,
+                'fallback': True,
+                'fallbackReason': translate_error(e),
+            })
+        return jsonify({'error': translate_error(e)}), 500
+
+
+@bp.route('/generate-search-links', methods=['POST'])
+def generate_search_links():
+    """生成搜索链接"""
+    from urllib.parse import quote as url_quote
+    data = request.json
+    keywords = data.get('keywords', [])
+
+    if not keywords:
+        return jsonify({'error': '关键词不能为空'}), 400
+
+    search_links = []
+    for keyword in keywords:
+        phrase = HotNewsService.normalize_search_query(str(keyword))
+        encoded_keyword = url_quote(phrase)
+        search_links.append({
+            'keyword': keyword,
+            'platforms': [
+                {'name': 'Bing 搜索', 'url': f'https://www.bing.com/search?q={encoded_keyword}'},
+                {'name': '百度搜索', 'url': f'https://www.baidu.com/s?wd={encoded_keyword}'},
+                {'name': '谷歌搜索', 'url': f'https://www.google.com/search?q={encoded_keyword}'},
+                {'name': '知乎搜索', 'url': f'https://www.zhihu.com/search?q={encoded_keyword}'},
+                {'name': '微信搜索', 'url': f'https://weixin.sogou.com/weixin?query={encoded_keyword}'},
+            ],
+        })
+
+    return jsonify({'searchLinks': search_links})
