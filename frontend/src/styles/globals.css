@@ -1,43 +1,643 @@
+@import './theme-palette.css';
+@import './theme-coherence.css';
+@import './themes/shuyuan.css';
+@import './themes/plain.css';
+@import './themes/cyber.css';
+@import './themes/minimal.css';
+@import './themes/material.css';
+@import './themes/slate.css';
+@import './themes/ocean.css';
+@import './themes/shuimo.css';
+
+/* Logo 篆体：U+5BEB(寫) 映射峄山碑篆体字形 */
+@font-face {
+  font-family: 'article-flow-seal';
+  src: url('/fonts/seal-xie.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+5BEB;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* 全局尺度（颜色由各主题 data-ui-theme 提供） */
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 255, 255, 255;
-  --background-end-rgb: 255, 255, 255;
+  --wen-body-size: 15px;
+  --wen-title-size: calc(var(--wen-body-size) + 2pt);
+  --wen-btn-radius: 6px;
+  --header-title-inset: calc(2.75rem + 0.5em);
+  --font-ui: "Kaiti SC", "STKaiti", "KaiTi", "楷体", serif;
+  --font-article: "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
+  --editor-max-width: none;
+  /* 非书斋默认：中性灰底，避免未加载主题时出现暖黄 */
+  --bg-base: #f5f5f5;
+  --bg-gradient: none;
+  --bg-noise-opacity: 0;
+  --ink-deep: #1a1a1a;
+  --ink-body: #333333;
+  --ink-muted: #737373;
+  --sheet-bg: #ffffff;
+  --sheet-border: #e5e5e5;
+  --main-canvas-bg: #ffffff;
+  --panel-bg: var(--sheet-bg);
+  --panel-border: var(--sheet-border);
+  --chrome-mix: #ffffff;
+  --chrome-bg: color-mix(in srgb, var(--main-canvas-bg) 92%, var(--chrome-mix) 8%);
+  --row-hover: rgba(0, 0, 0, 0.04);
+  --accent-fg: #333333;
+  --accent-bg: rgba(0, 0, 0, 0.05);
+  --accent-border: #999999;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+html {
+  min-height: 100%;
+  background-color: var(--bg-base);
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  position: relative;
+  min-height: 100%;
+  color: var(--ink-deep);
+  background: transparent;
+  font-family: var(--font-article);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-color: var(--bg-base);
+  background-image: none;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  background-image: none;
+}
+
+/* 暖黄纸纹噪点仅书斋主题 */
+[data-ui-theme='shuyuan'] body::after {
+  opacity: var(--bg-noise-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+}
+
+.font-ui,
+.font-kaiti {
+  font-family: var(--font-ui);
+}
+
+.font-editor,
+.font-article {
+  font-family: var(--font-article);
+  font-size: var(--wen-body-size);
+}
+
+@layer components {
+  .wen-title {
+    @apply font-kaiti tracking-wide;
+    color: var(--ink-deep);
+    font-size: var(--wen-title-size);
+    line-height: 1.45;
+  }
+
+  .wen-label {
+    @apply font-kaiti;
+    color: var(--ink-body);
+    font-size: var(--wen-title-size);
+    line-height: 1.45;
+  }
+
+  .wen-panel {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(3px);
+  }
+
+  .wen-panel-padded {
+    @apply wen-panel p-4;
+  }
+
+  .wen-toolbar {
+    @apply relative z-30 overflow-visible flex flex-wrap items-start justify-between gap-2 border-b px-3 py-2;
+    background: var(--chrome-bg);
+    border-color: var(--sheet-border);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset;
+  }
+
+  .wen-editor-preview {
+    background: var(--main-canvas-bg);
+  }
+
+  .wen-toolbar-seamless {
+    @apply relative z-30 overflow-visible flex flex-wrap items-start justify-between gap-2 border-b-0 px-3 py-2;
+    background: var(--main-canvas-bg);
+  }
+
+  .wen-editor-format-bar {
+    @apply flex items-center justify-between gap-3 px-3 py-1.5 min-h-[2.5rem] border-b;
+    border-color: var(--sheet-border, #d9c9a8);
+    background: var(--main-canvas-bg);
+  }
+
+  .wen-editor-format-group {
+    @apply flex items-center gap-0.5 flex-wrap min-w-0 flex-1;
+  }
+
+  .wen-editor-format-actions {
+    @apply flex items-center gap-2 shrink-0 h-8 font-serif;
+  }
+
+  .wen-ai-score-badge {
+    @apply inline-flex items-center gap-1 shrink-0 px-2.5 py-1.5 text-xs font-serif tabular-nums transition-colors;
+    color: var(--ink-body);
+    border: none;
+    background: rgb(var(--float-chip-bg) / 0.92);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  }
+
+  .wen-ai-score-badge:disabled {
+    @apply opacity-60 cursor-wait;
+  }
+
+  .wen-ai-score-good {
+    color: #2c422d;
+    background: rgba(220, 240, 220, 0.45);
+  }
+
+  .wen-ai-score-warn {
+    color: #6b5010;
+    background: rgba(245, 230, 200, 0.5);
+  }
+
+  .wen-ai-score-high {
+    color: #551919;
+    background: rgba(245, 220, 215, 0.55);
+  }
+
+  .wen-format-btn {
+    @apply inline-flex items-center justify-center w-8 h-8 shrink-0;
+  }
+
+  .wen-format-divider {
+    @apply w-px h-5 bg-surface-300 mx-0.5 shrink-0 self-center;
+  }
+
+  .wen-toolbar .wen-btn,
+  .wen-toolbar .wen-btn-seal,
+  .wen-toolbar-seamless .wen-btn,
+  .wen-toolbar-seamless .wen-btn-seal {
+    @apply shrink-0 whitespace-nowrap;
+  }
+
+  .wen-btn {
+    @apply inline-flex items-center gap-1 shrink-0 whitespace-nowrap px-2.5 py-1 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+    color: var(--ink-body);
+    background: var(--btn-ghost-bg);
+    border: 1px solid var(--btn-ghost-border);
+    border-radius: var(--wen-btn-radius);
+  }
+
+  .wen-btn:hover:not(:disabled) {
+    color: var(--ink-deep);
+    border-color: var(--accent-border);
+    background: var(--btn-ghost-bg);
+  }
+
+  .wen-btn-seal {
+    @apply inline-flex items-center gap-1 shrink-0 whitespace-nowrap px-3 py-1 text-sm font-kaiti tracking-wide transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+    color: var(--btn-seal-fg);
+    background: var(--btn-seal-bg);
+    border: 1px solid var(--btn-seal-border);
+    border-radius: var(--wen-btn-radius);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.15) inset, 0 2px 4px rgba(143, 54, 38, 0.15);
+  }
+
+  .wen-btn-seal:hover:not(:disabled) {
+    filter: brightness(0.94);
+    color: #fff;
+  }
+
+  .wen-btn-action {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm backdrop-blur-[3px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+    color: var(--ink-body);
+    border: 1px solid var(--panel-border);
+    background: var(--btn-ghost-bg);
+    border-radius: var(--wen-btn-radius);
+  }
+
+  .wen-btn-action:hover:not(:disabled) {
+    color: var(--ink-deep);
+    border-color: var(--accent-border);
+  }
+
+  .wen-btn-action-accent {
+    color: var(--accent-fg);
+    border-color: var(--accent-border);
+    background: var(--accent-bg);
+  }
+
+  .wen-chip-active {
+    color: var(--accent-fg);
+    border: 1px solid var(--accent-border);
+    background: var(--accent-bg);
+    font-weight: 500;
+  }
+
+  .wen-btn-active {
+    color: var(--ink-deep);
+    border-color: var(--accent-border);
+  }
+
+  /* 写作页 · 纸上浮钮（无边框分隔） */
+  .wen-float-chip {
+    @apply inline-flex items-center justify-center shrink-0 px-3 py-1.5 text-xs font-serif transition-all disabled:opacity-40 disabled:cursor-not-allowed;
+    color: var(--ink-body);
+    border: none;
+    border-radius: var(--wen-btn-radius);
+    background: rgb(var(--float-chip-bg) / 0.92);
+    box-shadow: 0 3px 14px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+    backdrop-filter: blur(6px);
+  }
+
+  .wen-float-chip:hover:not(:disabled) {
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.05);
+    transform: translateY(-1px);
+  }
+
+  .wen-float-chip-active {
+    color: var(--accent-fg);
+    font-weight: 500;
+    background: var(--accent-bg);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.05);
+  }
+
+  .wen-float-chip-seal {
+    @apply font-serif font-medium;
+    color: var(--btn-seal-border);
+  }
+
+  .wen-float-seal {
+    @apply inline-flex items-center gap-1 shrink-0 px-3 py-1.5 text-xs font-serif tracking-wide text-[var(--btn-seal-fg)] transition-all disabled:opacity-40;
+    border: none;
+    border-radius: var(--wen-btn-radius);
+    background: var(--btn-seal-bg);
+    box-shadow: 0 3px 12px rgba(143, 54, 38, 0.28), 0 1px 3px rgba(143, 54, 38, 0.15);
+  }
+
+  .wen-icon-btn {
+    @apply inline-flex items-center justify-center transition-colors;
+    border-radius: var(--wen-btn-radius);
+    background: color-mix(in srgb, var(--btn-ghost-bg) 88%, transparent);
+    border: 1px solid var(--btn-ghost-border);
+  }
+
+  .wen-icon-btn:hover {
+    background: var(--btn-ghost-bg);
+    border-color: color-mix(in srgb, var(--btn-ghost-border) 80%, var(--ink-muted) 20%);
+  }
+
+  .wen-segment-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .wen-segment-btn {
+    @apply inline-flex items-center justify-center px-3 py-1.5 text-xs text-ink-700 transition-colors;
+    border-radius: var(--wen-btn-radius);
+    border: 1px solid var(--btn-ghost-border);
+    background: var(--btn-ghost-bg);
+  }
+
+  .wen-segment-btn:hover {
+    @apply text-ink-900;
+    border-color: color-mix(in srgb, var(--btn-ghost-border) 70%, var(--ink-muted) 30%);
+  }
+
+  .wen-segment-btn-active {
+    color: var(--btn-seal-border);
+    border-color: var(--step-active-border);
+    background: var(--step-active-bg);
+    font-weight: 500;
+  }
+
+  .wen-segment-btn-theme {
+    padding-left: 0.65rem;
+    padding-right: 0.75rem;
+  }
+
+  .wen-float-seal:hover:not(:disabled) {
+    filter: brightness(0.96);
+    transform: translateY(-1px);
+  }
+
+  .wen-editor-textarea::selection {
+    background: rgba(232, 200, 158, 0.48);
+    color: inherit;
+  }
+
+  .wen-sheet-backdrop {
+    @apply fixed inset-0 z-50;
+    background: rgba(26, 22, 18, 0.35);
+  }
+
+  .wen-bottom-sheet {
+    @apply fixed left-1/2 bottom-0 z-50 w-full max-w-[660px] max-h-[82vh] overflow-y-auto px-6 pt-5 pb-7;
+    transform: translateX(-50%);
+    background: var(--paper-sheet, #f6eedc);
+    border: none;
+    border-radius: 6px 6px 0 0;
+    box-shadow: 0 -16px 48px rgba(42, 28, 18, 0.14);
+  }
+
+  .wen-sheet-handle {
+    @apply w-9 h-1 rounded-full mx-auto mb-4;
+    background: var(--paper-line, #d9c9a8);
+  }
+
+  .wen-scope-pill {
+    @apply inline-block text-[0.65rem] px-2 py-0.5 ml-1 align-middle;
+    color: var(--btn-seal-border);
+    background: rgba(184, 74, 50, 0.08);
+  }
+
+  .wen-sheet-style-card {
+    @apply text-left p-2.5 cursor-pointer transition-all;
+    border: none;
+    border-radius: var(--wen-btn-radius);
+    background: rgba(255, 252, 245, 0.92);
+    box-shadow: 0 2px 8px rgba(42, 28, 18, 0.06);
+  }
+
+  .wen-sheet-style-card:hover {
+    box-shadow: 0 4px 14px rgba(42, 28, 18, 0.1);
+    transform: translateY(-1px);
+  }
+
+  .wen-sheet-style-card-selected {
+    background: rgba(255, 250, 242, 0.98);
+    box-shadow: 0 6px 22px rgba(42, 28, 18, 0.13);
+    transform: translateY(-1px);
+  }
+
+  .wen-underline-input {
+    @apply w-full text-sm py-2 bg-transparent outline-none text-ink-800 placeholder:text-ink-300 resize-y min-h-[2.5rem];
+    border: none;
+    border-bottom: 1px solid rgba(184, 160, 120, 0.35);
+  }
+
+  .wen-underline-input:focus {
+    border-bottom-color: rgba(184, 74, 50, 0.45);
+  }
+
+  .wen-input {
+    @apply w-full px-3 py-2 border backdrop-blur-[3px] text-[13px] outline-none;
+    color: var(--ink-body);
+    border-color: var(--panel-border);
+    background: var(--btn-ghost-bg);
+    border-radius: var(--wen-btn-radius);
+  }
+
+  .wen-input::placeholder {
+    color: var(--ink-muted);
+  }
+
+  .wen-input:focus {
+    border-color: var(--accent-border);
+  }
+
+  .wen-list-row {
+    @apply py-4 border-b last:border-b-0 transition-colors;
+    border-color: var(--panel-border);
+  }
+
+  .wen-list-row:hover {
+    background: var(--row-hover);
+  }
+
+  .wen-nav-item {
+    @apply block w-full text-left px-3 py-1.5 transition-colors border-l border-transparent font-kaiti;
+    color: var(--ink-muted);
+    font-size: var(--wen-title-size);
+  }
+
+  .wen-nav-item:hover {
+    color: var(--ink-deep);
+  }
+
+  .wen-nav-step-item {
+    @apply block w-full text-left px-3 py-1.5 text-[13px] transition-colors border-l-2 border-transparent font-kaiti;
+    color: var(--ink-muted);
+  }
+
+  .wen-nav-step-item:hover {
+    color: var(--ink-deep);
+  }
+
+  .wen-nav-item-active {
+    @apply wen-nav-item font-kaiti;
+    color: var(--ink-deep);
+    border-left-color: var(--step-active-border);
+    font-size: var(--wen-title-size);
+  }
+
+  .wen-nav-step-active {
+    @apply block w-full text-left px-3 py-1.5 font-kaiti transition-colors;
+    font-size: var(--wen-title-size);
+    color: var(--btn-seal-border);
+    border-left-color: var(--step-active-border);
+    background: var(--step-active-bg);
+  }
+
+  .wen-nav-step-num {
+    @apply inline-block min-w-[1.6em] mr-1 text-ink-300 font-kaiti;
+    font-size: 14px;
+  }
+
+  .wen-nav-step-active .wen-nav-step-num {
+    color: var(--step-active-border);
+  }
+
+  .wen-sidebar {
+    width: var(--sidebar-width);
+    background: var(--sidebar-bg);
+    border-color: var(--sheet-border) !important;
+  }
+
+  .wen-main-canvas {
+    background: var(--main-canvas-bg);
+  }
+
+  @media (min-width: 768px) {
+    [data-sidebar-collapsed='true'] .wen-project-header {
+      padding-left: var(--header-title-inset);
+    }
+
+    [data-sidebar-collapsed='true'] .wen-step-page-frame {
+      padding-left: max(1.5rem, var(--header-title-inset));
+    }
+  }
+
+  .wen-brand-seal {
+    @apply inline-flex items-center justify-center w-9 h-9 border-2 text-lg leading-none;
+    font-family: 'article-flow-seal', 'Kaiti SC', 'STKaiti', serif;
+    border-color: var(--btn-seal-bg);
+    color: var(--btn-seal-border);
+  }
+
+  .font-seal {
+    font-family: 'article-flow-seal', 'Kaiti SC', 'STKaiti', serif;
+  }
+
+  .wen-editor-sheet {
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--sheet-bg);
+    border: 1px solid var(--sheet-border);
+    box-shadow: 0 0 0 1px rgb(var(--float-chip-bg) / 0.25) inset,
+      2px 4px 16px rgba(0, 0, 0, 0.04);
+  }
+
+  .wen-step-pager {
+    @apply inline-flex items-center gap-2 shrink-0 text-xs text-ink-500;
+  }
+
+  .wen-step-pager button {
+    @apply px-2 py-0.5 text-ink-500 transition-colors disabled:opacity-35;
+    background: var(--btn-ghost-bg);
+    border: 1px solid var(--btn-ghost-border);
+    font-family: inherit;
+    font-size: 12px;
+  }
+
+  .wen-step-pager button:hover:not(:disabled) {
+    @apply text-ink-900;
+  }
+
+  .wen-step-pager-mark {
+    @apply font-kaiti text-ink-300;
+    font-size: 13px;
+  }
+
+  .wen-alert-error {
+    @apply p-3 border border-red-200 text-[13px] text-red-700 bg-red-50/40;
+  }
+
+  .wen-alert-warn {
+    @apply p-3 border border-primary-300 text-[13px] text-primary-700 bg-primary-50/40;
+  }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
+
+  .wen-glass {
+    @apply bg-surface-50/70 backdrop-blur-[3px];
+  }
+
+  .wen-glass-heavy {
+    @apply bg-surface-50/82 backdrop-blur-[5px];
+  }
 }
 
 .w-md-editor {
-  @apply rounded-lg border border-gray-200;
+  @apply border border-surface-300;
 }
 
 .w-md-editor-text-pre > code,
 .w-md-editor-text-input {
-  font-size: 14px !important;
-  line-height: 1.8 !important;
+  font-family: "Songti SC", "STSong", "Noto Serif SC", Georgia, serif !important;
+  font-size: 15px !important;
+  line-height: 2 !important;
+}
+
+.wen-editor-sheet .md-preview {
+  padding: 1.5rem 1.75rem;
+}
+
+.wen-editor-sheet .md-preview p {
+  text-indent: 2em;
+}
+
+::selection {
+  background: rgb(var(--selection-bg) / 0.55);
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--scrollbar-thumb) / 1);
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--scrollbar-thumb-hover) / 1);
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+.md-preview > :first-child {
+  margin-top: 0;
+}
+
+.md-preview h1,
+.md-preview h2,
+.md-preview h3,
+.md-preview h4,
+.md-preview h5,
+.md-preview h6 {
+  font-family:
+    "Kaiti SC", "STKaiti", "KaiTi", "楷体", "BiauKai", "AR PL UKai CN", serif;
+  font-size: var(--wen-title-size);
+  line-height: 1.45;
+  color: var(--ink-deep);
+}
+
+main h1,
+main h2,
+main h3,
+main h4,
+main h5,
+main h6 {
+  font-family:
+    "Kaiti SC", "STKaiti", "KaiTi", "楷体", "BiauKai", "AR PL UKai CN", serif;
+  font-size: var(--wen-title-size);
+  line-height: 1.45;
+  color: var(--ink-deep);
 }

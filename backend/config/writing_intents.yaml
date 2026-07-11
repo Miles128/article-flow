@@ -1,0 +1,13 @@
+# 写作意图（比「目标风格」更上层：决定论证深度 vs 去 AI 力度）
+default: insight_commentary
+
+intents:
+  informational:
+    label: 信息科普
+    description: 覆盖要点、结构清晰，适合教程与资讯复述
+  insight_commentary:
+    label: 观点评论
+    description: 有中心论断、证据链与判断句，适合深度分析稿
+  literary_essay:
+    label: 叙事随笔
+    description: 允许适度修辞与节奏，重感受、洞察与句眼

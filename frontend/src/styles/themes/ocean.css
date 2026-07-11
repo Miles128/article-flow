@@ -1,0 +1,77 @@
+/* 海雾清单 · Notion 风雾蓝 */
+
+[data-ui-theme='ocean'] {
+  --paper: #ffffff;
+  --paper-warm: #f6fafc;
+  --paper-line: #d4e4ed;
+  --ink-muted: #6b8a9a;
+  --ink-body: #2d4a57;
+  --ink-deep: #1a3a4a;
+  --seal: #0d6e99;
+  --wen-body-size: 15px;
+  --foreground-rgb: 26, 58, 74;
+  --sidebar-width: 220px;
+  --bg-base: #eef4f8;
+  --bg-gradient: none;
+  --bg-noise-opacity: 0;
+  --sheet-bg: #ffffff;
+  --sheet-bg-blend: rgba(255, 255, 255, 0.92);
+  --sheet-border: #c5d9e4;
+  --main-canvas-bg: #ffffff;
+  --editor-max-width: none;
+  --btn-ghost-bg: #ffffff;
+  --btn-ghost-border: #b8d0dc;
+  --btn-seal-fg: #ffffff;
+  --btn-seal-bg: #0d6e99;
+  --btn-seal-border: #0a5578;
+  --sidebar-bg: #f6fafc;
+  --step-active-border: #0d6e99;
+  --step-active-bg: rgba(13, 110, 153, 0.08);
+  --panel-bg: rgba(255, 255, 255, 0.94);
+  --panel-border: #c5d9e4;
+  --row-hover: rgba(13, 110, 153, 0.06);
+  --accent-fg: #0d6e99;
+  --accent-bg: rgba(13, 110, 153, 0.08);
+  --accent-border: #0d6e99;
+  --theme-font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+  --theme-font-display: -apple-system, BlinkMacSystemFont, "Noto Sans SC", sans-serif;
+  --theme-radius: 6px;
+  --wen-btn-radius: 6px;
+  --theme-panel-shadow: 0 1px 3px rgba(26, 58, 74, 0.06);
+}
+
+[data-ui-theme='ocean'] body {
+  font-family: var(--theme-font-body);
+  color: var(--ink-deep);
+}
+
+[data-ui-theme='ocean'] body::before {
+  background-color: var(--bg-base);
+  background-image: none;
+}
+
+[data-ui-theme='ocean'] body::after {
+  opacity: 0;
+}
+
+[data-ui-theme='ocean'] .wen-title,
+[data-ui-theme='ocean'] .wen-label {
+  font-family: var(--theme-font-display);
+  font-weight: 600;
+  color: var(--ink-deep);
+}
+
+[data-ui-theme='ocean'] .wen-panel,
+[data-ui-theme='ocean'] .wen-panel-padded {
+  border-radius: var(--theme-radius);
+  box-shadow: var(--theme-panel-shadow);
+  border-color: var(--sheet-border);
+}
+
+[data-ui-theme='ocean'] .wen-sidebar-step {
+  border-left: 3px solid transparent;
+}
+
+[data-ui-theme='ocean'] .wen-nav-step-active {
+  border-left-color: var(--step-active-border);
+}

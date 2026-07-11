@@ -1,0 +1,90 @@
+/* Material · 常见写作 App 卡片层级 */
+
+[data-ui-theme='material'] {
+  --paper: #ffffff;
+  --paper-warm: #f8f9fa;
+  --paper-line: #dadce0;
+  --ink-muted: #80868b;
+  --ink-body: #3c4043;
+  --ink-deep: #202124;
+  --seal: #1a73e8;
+  --wen-body-size: 15px;
+  --foreground-rgb: 32, 33, 36;
+  --sidebar-width: 240px;
+  --bg-base: #f1f3f4;
+  --bg-gradient: none;
+  --bg-noise-opacity: 0;
+  --sheet-bg: #ffffff;
+  --sheet-bg-blend: #ffffff;
+  --sheet-border: #e8eaed;
+  --main-canvas-bg: #ffffff;
+  --editor-max-width: none;
+  --btn-ghost-bg: #ffffff;
+  --btn-ghost-border: #dadce0;
+  --btn-seal-fg: #ffffff;
+  --btn-seal-bg: #1a73e8;
+  --btn-seal-border: #1557b0;
+  --sidebar-bg: #ffffff;
+  --step-active-border: #1a73e8;
+  --step-active-bg: rgba(26, 115, 232, 0.08);
+  --panel-bg: #ffffff;
+  --panel-border: #e8eaed;
+  --row-hover: rgba(26, 115, 232, 0.06);
+  --accent-fg: #1a73e8;
+  --accent-bg: rgba(26, 115, 232, 0.08);
+  --accent-border: #1a73e8;
+  --theme-font-body: "Roboto", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --theme-font-display: "Roboto", "Noto Sans SC", sans-serif;
+  --theme-radius: 8px;
+  --wen-btn-radius: 10px;
+  --theme-panel-shadow: 0 1px 2px rgba(60, 64, 67, 0.12), 0 2px 6px rgba(60, 64, 67, 0.08);
+}
+
+[data-ui-theme='material'] body {
+  font-family: var(--theme-font-body);
+  color: var(--ink-deep);
+}
+
+[data-ui-theme='material'] body::before {
+  background-color: var(--bg-base);
+  background-image: none;
+}
+
+[data-ui-theme='material'] body::after {
+  opacity: 0;
+}
+
+[data-ui-theme='material'] .wen-title,
+[data-ui-theme='material'] .wen-label {
+  font-family: var(--theme-font-display);
+  font-weight: 500;
+}
+
+[data-ui-theme='material'] .wen-panel,
+[data-ui-theme='material'] .wen-panel-padded {
+  border-radius: var(--theme-radius);
+  box-shadow: var(--theme-panel-shadow);
+  border-color: var(--sheet-border);
+  background: #fff;
+  backdrop-filter: none;
+}
+
+[data-ui-theme='material'] .wen-btn,
+[data-ui-theme='material'] .wen-btn-seal,
+[data-ui-theme='material'] .wen-btn-action {
+  border-radius: var(--wen-btn-radius);
+}
+
+[data-ui-theme='material'] .wen-btn-seal {
+  box-shadow: 0 1px 3px rgba(26, 115, 232, 0.35);
+}
+
+[data-ui-theme='material'] .wen-toolbar,
+[data-ui-theme='material'] .wen-editor-format-bar {
+  border-radius: var(--theme-radius) var(--theme-radius) 0 0;
+}
+
+[data-ui-theme='material'] .wen-float-chip {
+  border-radius: var(--wen-btn-radius);
+  box-shadow: var(--theme-panel-shadow);
+}
